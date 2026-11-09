@@ -14,11 +14,11 @@ type DemoTemplate = (brand: string) => Omit<
 
 const tiktok: DemoTemplate = (brand) => ({
   trendName: "“Quiet Upgrade” before/afters",
-  headline: `Show the one small change ${brand} makes that nobody notices — until they do`,
+  headline: `Show the one small change ${brand} makes that nobody notices—until they do`,
   whyItWillSpread:
     "Creators are posting deadpan before/after clips where the “after” looks almost identical, then reveal the subtle upgrade in the last second. The payoff rewards rewatching, which the algorithm loves.",
   whyNow:
-    "The format jumped from lifestyle creators into brand accounts in the last day, but no major brand in this category has posted yet — a short first-mover window.",
+    "The format jumped from lifestyle creators into brand accounts in the last day, but no major brand in this category has posted yet—a short first-mover window.",
   window: { peakInHours: 30, closesInHours: 48, stage: "accelerating" },
   confidence: 72,
   confidenceRationale:
@@ -75,7 +75,7 @@ const tiktok: DemoTemplate = (brand) => ({
     },
   ],
   risks: [
-    "Reveal must be genuinely visible on a phone screen — too subtle reads as a mistake.",
+    "Reveal must be genuinely visible on a phone screen—too subtle reads as a mistake.",
     "Avoid claiming a product change that hasn't actually shipped.",
     "Format may feel dated after ~48 hours; don't schedule it for next week.",
   ],
@@ -83,7 +83,7 @@ const tiktok: DemoTemplate = (brand) => ({
 
 const reels: DemoTemplate = (brand) => ({
   trendName: "One-take “desk session” demos",
-  headline: `A single unbroken take of ${brand} doing its thing — no cuts, no music bed`,
+  headline: `A single unbroken take of ${brand} doing its thing—no cuts, no music bed`,
   whyItWillSpread:
     "Audiences are rewarding unpolished, single-take product moments that feel like a live performance. Saves and shares are outpacing likes, a sign people are passing them along.",
   whyNow:
@@ -130,7 +130,7 @@ const reels: DemoTemplate = (brand) => ({
     },
   ],
   risks: [
-    "One-take means one mistake is visible — rehearse before recording.",
+    "One-take means one mistake is visible—rehearse before recording.",
     "Natural audio must be clean; muffled sound kills watch time.",
   ],
 });
@@ -184,7 +184,7 @@ const shorts: DemoTemplate = (brand) => ({
     },
   ],
   risks: [
-    "Pick a myth you can disprove with evidence — debate can backfire.",
+    "Pick a myth you can disprove with evidence—debate can backfire.",
     "Avoid corporate scripting; the format works because it feels candid.",
   ],
 });

@@ -64,13 +64,13 @@ export function ScanExperience() {
               hasRun ? "text-[40px] sm:text-[44px]" : "text-[64px] sm:text-[84px]"
             }`}
           >
-            What&apos;s about
+            Make this
             <br />
-            to spread<span className="text-ember">.</span>
+            today<span className="text-ember">.</span>
           </h1>
           <p className={`max-w-sm text-[15px] leading-relaxed text-ink-soft ${hasRun ? "hidden" : ""}`}>
-            One substantiated short-form opportunity, timed to the next 24–48 hours —
-            with the evidence and the window to act.
+            The top short-form opportunity with momentum behind it—chosen from what&rsquo;s
+            rising in culture and on the platforms, with the evidence to back it up.
           </p>
         </div>
         <ScanForm

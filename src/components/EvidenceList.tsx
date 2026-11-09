@@ -36,7 +36,7 @@ export function EvidenceList({ sources, isDemo }: { sources: EvidenceSource[]; i
             )}
           </p>
           <p className="font-mono text-[11px] text-ink-soft">
-            {source.outlet} — {source.note}
+            {source.outlet}—{source.note}
           </p>
         </li>
       ))}
