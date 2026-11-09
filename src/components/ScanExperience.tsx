@@ -69,8 +69,8 @@ export function ScanExperience() {
             today<span className="text-ember">.</span>
           </h1>
           <p className={`max-w-sm text-[15px] leading-relaxed text-ink-soft ${hasRun ? "hidden" : ""}`}>
-            The top short-form opportunity with momentum behind it—chosen from what&rsquo;s
-            rising in culture and on the platforms, with the evidence to back it up.
+            The top short-form opportunity with momentum behind it—informed by cultural,
+            algorithmic, and platform signals, with the evidence to back it up.
           </p>
         </div>
         <ScanForm
