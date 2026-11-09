@@ -1,95 +1,130 @@
 @import "tailwindcss";
 
 /*
- * Design tokens — warm paper, near-black ink, one deep-teal accent.
- * Cues taken from brianxchin.com. Demo ochre is deliberately separate
- * from the brand accent so placeholder labels never read as "the brand".
+ * "Forecast" design tokens — cool stone canvas, white cards, ink,
+ * and one hot ember used only for things that are moving.
+ * Demo violet is deliberately unrelated to ember so placeholder
+ * content never reads as signal.
  */
 :root {
-  --paper: #f3f1ec;
-  --ink: #191b1d;
-  --ink-soft: #55595e;
-  --rule: #d5d1c8;
-  --accent: #006f93;
-  --panel: #161717;
-  --panel-ink: #f3f1ec;
-  --panel-soft: #9a9ea2;
-  --demo: #8a5a00;
-  --demo-bg: #f2e4c2;
+  --canvas: #e4e5e6;
+  --surface: #fbfbfa;
+  --ink: #0f1113;
+  --ink-soft: #5d636a;
+  --line: #cfd2d5;
+  --ember: #ff4d1a;
+  --ember-soft: #ffe0d4;
+  --night: #0f1113;
+  --night-ink: #f2f3f4;
+  --demo: #5a45dc;
+  --demo-soft: #e9e5ff;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #131414;
-    --ink: #f0eee9;
-    --ink-soft: #a3a6a9;
-    --rule: #2e3032;
-    --accent: #5bb6d8;
-    --panel: #1d1f21;
-    --panel-ink: #f0eee9;
-    --panel-soft: #8e9296;
-    --demo: #e3b456;
-    --demo-bg: #2c2414;
+    --canvas: #0b0c0e;
+    --surface: #15171a;
+    --ink: #f2f3f4;
+    --ink-soft: #979ea6;
+    --line: #2a2e33;
+    --ember: #ff5a26;
+    --ember-soft: #3a1a10;
+    --night: #050607;
+    --night-ink: #f2f3f4;
+    --demo: #a99bff;
+    --demo-soft: #1f1a3d;
   }
 }
 
 @theme inline {
-  --color-paper: var(--paper);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
   --color-ink: var(--ink);
   --color-ink-soft: var(--ink-soft);
-  --color-rule: var(--rule);
-  --color-accent: var(--accent);
-  --color-panel: var(--panel);
-  --color-panel-ink: var(--panel-ink);
-  --color-panel-soft: var(--panel-soft);
+  --color-line: var(--line);
+  --color-ember: var(--ember);
+  --color-ember-soft: var(--ember-soft);
+  --color-night: var(--night);
+  --color-night-ink: var(--night-ink);
   --color-demo: var(--demo);
-  --color-demo-bg: var(--demo-bg);
-  --font-sans: var(--font-inter-tight), "Helvetica Neue", Arial, sans-serif;
-  --font-serif: var(--font-instrument-serif), Georgia, serif;
+  --color-demo-soft: var(--demo-soft);
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-display: var(--font-barlow-condensed), "Arial Narrow", sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
 
-  --animate-rise: rise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
-  --animate-fill: fill linear both;
+  --animate-rise: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-draw: draw 1.4s cubic-bezier(0.6, 0, 0.2, 1) both;
+  --animate-blink: blink 1s steps(2, start) infinite;
+  --animate-pulse-dot: pulse-dot 1.6s ease-out infinite;
   @keyframes rise {
     from {
       opacity: 0;
-      transform: translateY(10px);
+      transform: translateY(14px);
     }
     to {
       opacity: 1;
       transform: none;
     }
   }
-  @keyframes fill {
+  @keyframes draw {
     from {
-      transform: scaleX(0);
+      stroke-dashoffset: 1;
     }
     to {
-      transform: scaleX(1);
+      stroke-dashoffset: 0;
+    }
+  }
+  @keyframes blink {
+    to {
+      visibility: hidden;
+    }
+  }
+  @keyframes pulse-dot {
+    0% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--ember) 60%, transparent);
+    }
+    100% {
+      box-shadow: 0 0 0 10px transparent;
     }
   }
 }
 
-/* Small, bold, tracked uppercase label — the site's signature "eyebrow". */
-@utility eyebrow {
+/* Monospaced, tracked micro-label — the "readout" voice. */
+@utility readout {
+  font-family: var(--font-mono);
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   line-height: 1.4;
 }
 
+/* Condensed broadcast headline voice. */
+@utility headline {
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: -0.005em;
+  line-height: 0.92;
+}
+
+/* Dotted outline marking invented content. */
+@utility demo-outline {
+  outline: 1.5px dashed color-mix(in srgb, var(--demo) 55%, transparent);
+  outline-offset: 4px;
+}
+
 body {
-  background: var(--paper);
+  background: var(--canvas);
   color: var(--ink);
   font-family: var(--font-sans);
 }
 
 ::selection {
-  background: var(--accent);
-  color: var(--paper);
+  background: var(--ember);
+  color: var(--night);
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ember);
   outline-offset: 3px;
 }

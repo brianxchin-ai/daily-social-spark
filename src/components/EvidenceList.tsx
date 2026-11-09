@@ -1,51 +1,43 @@
 import type { EvidenceSource, SignalStrength } from "@/lib/types";
 
-const SIGNAL_DOTS: Record<SignalStrength, number> = { strong: 3, moderate: 2, emerging: 1 };
+const BARS: Record<SignalStrength, number> = { strong: 3, moderate: 2, emerging: 1 };
 
 /**
- * Supporting sources, styled like footnotes.
+ * Supporting sources as a monospaced source log.
  * Demo sources are shown as plain text, never as clickable links.
  */
 export function EvidenceList({ sources, isDemo }: { sources: EvidenceSource[]; isDemo: boolean }) {
   return (
-    <ol className="flex flex-col">
+    <ol className="demo-outline flex flex-col divide-y divide-line bg-canvas">
       {sources.map((source, index) => (
-        <li
-          key={source.id}
-          className="grid grid-cols-[2rem_1fr] gap-x-2 border-b border-rule py-4 first:pt-0 last:border-b-0"
-        >
-          <span className="font-serif text-[22px] leading-none text-accent">{index + 1}</span>
-          <div className="flex flex-col gap-1.5">
-            <p className="text-[17px] leading-snug font-semibold">
-              {isDemo ? (
-                source.title
-              ) : (
-                <a href={source.url} target="_blank" rel="noreferrer" className="underline decoration-accent underline-offset-4">
-                  {source.title}
-                </a>
-              )}
-            </p>
-            <p className="eyebrow flex flex-wrap items-center gap-x-2 text-[10px] text-ink-soft">
-              <span>{source.outlet}</span>
-              <span aria-hidden>/</span>
-              <span>{source.publishedAgo}</span>
-              <span aria-hidden>/</span>
-              <span className="inline-flex items-center gap-1">
-                <span aria-hidden className="tracking-[0.2em] text-accent">
-                  {"●".repeat(SIGNAL_DOTS[source.signal])}
-                  <span className="opacity-25">{"●".repeat(3 - SIGNAL_DOTS[source.signal])}</span>
-                </span>
-                {source.signal} signal
-              </span>
-              {isDemo && (
-                <>
-                  <span aria-hidden>/</span>
-                  <span className="text-demo">Demo source · not a real link</span>
-                </>
-              )}
-            </p>
-            <p className="font-serif text-[17px] leading-snug text-ink-soft">{source.note}</p>
+        <li key={source.id} className="flex flex-col gap-1.5 p-3">
+          <div className="readout flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-ink-soft">
+            <span className="font-bold text-ember">[{String(index + 1).padStart(2, "0")}]</span>
+            <span>{source.publishedAgo}</span>
+            <span className="flex items-end gap-0.5" aria-label={`${source.signal} signal`}>
+              {[1, 2, 3].map((bar) => (
+                <span
+                  key={bar}
+                  className={`w-1 ${bar <= BARS[source.signal] ? "bg-ember" : "bg-line"}`}
+                  style={{ height: `${bar * 4}px` }}
+                />
+              ))}
+              <span className="ml-1.5">{source.signal}</span>
+            </span>
+            {isDemo && <span className="text-demo">◆ demo source · not a real link</span>}
           </div>
+          <p className="text-[15px] leading-snug font-semibold">
+            {isDemo ? (
+              source.title
+            ) : (
+              <a href={source.url} target="_blank" rel="noreferrer" className="underline decoration-ember underline-offset-4">
+                {source.title}
+              </a>
+            )}
+          </p>
+          <p className="font-mono text-[11px] text-ink-soft">
+            {source.outlet} — {source.note}
+          </p>
         </li>
       ))}
     </ol>

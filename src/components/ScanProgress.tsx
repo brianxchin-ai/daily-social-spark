@@ -2,65 +2,104 @@
 
 import { useEffect, useState } from "react";
 import { SCAN_STEPS, SIMULATED_SCAN_MS } from "@/lib/scan";
+import { DemoBadge } from "./DemoBadge";
+import { StoryCard } from "./StoryCard";
+import { TimeRibbon } from "./TimeRibbon";
+
+/** Simulated tallies — invented numbers that only animate the wait. */
+const TALLIES = [
+  { label: "Sources checked", target: 48 },
+  { label: "Posts sampled", target: 12_400 },
+  { label: "Signals scored", target: 212 },
+];
 
 /**
- * Simulated loading sequence on a dark panel. Steps advance on a timer
- * that matches the simulated scan length. Mount a fresh copy per scan.
+ * Simulated scan, staged like a live broadcast: counters tick up, steps
+ * check off, and the forecast beam sweeps. Mount a fresh copy per scan.
  */
 export function ScanProgress({ brand }: { brand: string }) {
-  const [activeStep, setActiveStep] = useState(0);
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    const stepMs = SIMULATED_SCAN_MS / SCAN_STEPS.length;
-    const timer = setInterval(() => {
-      setActiveStep((step) => Math.min(step + 1, SCAN_STEPS.length - 1));
-    }, stepMs);
-    return () => clearInterval(timer);
+    const start = performance.now();
+    let frame = requestAnimationFrame(function tick(now) {
+      const p = Math.min(1, (now - start) / SIMULATED_SCAN_MS);
+      setProgress(p);
+      if (p < 1) frame = requestAnimationFrame(tick);
+    });
+    return () => cancelAnimationFrame(frame);
   }, []);
 
+  const eased = 1 - Math.pow(1 - progress, 3);
+  const activeStep = Math.min(SCAN_STEPS.length - 1, Math.floor(progress * SCAN_STEPS.length));
+
   return (
-    <section
-      aria-live="polite"
-      aria-busy="true"
-      className="animate-rise bg-panel px-6 py-10 text-panel-ink motion-reduce:animate-none sm:px-10"
-    >
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
-        <p className="eyebrow text-panel-soft">Scanning · simulated</p>
-        <p className="eyebrow text-panel-soft">{brand}</p>
-      </div>
+    <div aria-live="polite" aria-busy="true" className="animate-rise motion-reduce:animate-none">
+      <StoryCard
+        slateLeft={
+          <>
+            <span className="h-2 w-2 animate-pulse-dot rounded-full bg-ember motion-reduce:animate-none" aria-hidden />
+            Scan in progress
+          </>
+        }
+        slateRight="Simulated"
+      >
+        <div className="flex flex-col gap-2">
+          <p className="readout text-ink-soft">Target</p>
+          <p className="headline text-[44px] break-words">{brand}</p>
+        </div>
 
-      <ol className="flex flex-col gap-3">
-        {SCAN_STEPS.map((label, index) => {
-          const status =
-            index < activeStep ? "done" : index === activeStep ? "active" : "pending";
-          return (
-            <li
-              key={label}
-              className={`flex items-baseline gap-4 font-serif text-[26px] leading-tight transition-opacity duration-500 sm:text-[32px] ${
-                status === "pending" ? "opacity-25" : status === "done" ? "opacity-50" : ""
-              }`}
-            >
-              <span className="eyebrow w-6 shrink-0 font-sans text-panel-soft">
-                {String(index + 1).padStart(2, "0")}
-              </span>
-              <span className={status === "active" ? "italic" : ""}>
-                {label}
-                {status === "active" && "…"}
-              </span>
-              <span className="sr-only">
-                {status === "done" ? " (done)" : status === "active" ? " (in progress)" : ""}
-              </span>
-            </li>
-          );
-        })}
-      </ol>
+        <TimeRibbon mode="scanning" />
 
-      <div className="mt-10 h-px w-full bg-panel-soft/30" aria-hidden>
-        <div
-          className="h-px origin-left animate-fill bg-accent motion-reduce:animate-none"
-          style={{ animationDuration: `${SIMULATED_SCAN_MS}ms` }}
-        />
-      </div>
-    </section>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <p className="readout text-ink-soft">Live tally</p>
+            <DemoBadge />
+          </div>
+          <dl className="grid grid-cols-3 gap-3">
+            {TALLIES.map((tally) => (
+              <div key={tally.label} className="demo-outline flex flex-col gap-1 bg-canvas p-3">
+                <dt className="readout text-[10px] text-ink-soft">{tally.label}</dt>
+                <dd className="font-mono text-[22px] font-bold tabular-nums sm:text-[28px]">
+                  {Math.round(tally.target * eased).toLocaleString()}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+
+        <ol className="flex flex-col gap-1.5 font-mono text-[13px]">
+          {SCAN_STEPS.map((label, index) => {
+            const status =
+              progress >= 1 || index < activeStep ? "done" : index === activeStep ? "active" : "pending";
+            return (
+              <li
+                key={label}
+                className={`flex items-center gap-3 ${status === "pending" ? "text-ink-soft/50" : ""}`}
+              >
+                <span aria-hidden className={status === "active" ? "text-ember" : ""}>
+                  {status === "done" ? "[✓]" : status === "active" ? "[▸]" : "[ ]"}
+                </span>
+                <span>
+                  {label}
+                  {status === "active" && (
+                    <span className="animate-blink motion-reduce:animate-none" aria-hidden>
+                      _
+                    </span>
+                  )}
+                </span>
+                <span className="sr-only">
+                  {status === "done" ? " (done)" : status === "active" ? " (in progress)" : ""}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+
+        <div className="h-1 w-full bg-canvas" aria-hidden>
+          <div className="h-full bg-ember" style={{ width: `${progress * 100}%` }} />
+        </div>
+      </StoryCard>
+    </div>
   );
 }

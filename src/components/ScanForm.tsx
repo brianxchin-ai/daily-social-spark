@@ -12,7 +12,13 @@ interface ScanFormProps {
   onSubmit: () => void;
 }
 
-/** Brand/category input, platform selector and Run Scan button. */
+const PLATFORM_PARTS: Record<Platform, [string, string]> = {
+  tiktok: ["TikTok", "For You"],
+  "instagram-reels": ["Reels", "Instagram"],
+  "youtube-shorts": ["Shorts", "YouTube"],
+};
+
+/** The control deck: brand/category input, platform switch, Run Scan. */
 export function ScanForm({
   brand,
   platform,
@@ -29,78 +35,86 @@ export function ScanForm({
         event.preventDefault();
         onSubmit();
       }}
-      className="grid gap-8 border-t border-ink pt-6 md:grid-cols-[200px_1fr] md:gap-12"
+      className="flex flex-col gap-6"
     >
-      <p className="eyebrow">01 — The brief</p>
-
-      <div className="flex flex-col gap-8">
-        <div className="flex flex-col gap-2">
-          <label htmlFor="brand" className="eyebrow text-ink-soft">
-            Brand or category
-          </label>
-          <input
-            id="brand"
-            name="brand"
-            type="text"
-            autoComplete="off"
-            placeholder="e.g. Oat milk, trail running shoes, Acme Coffee"
-            value={brand}
-            disabled={isScanning}
-            onChange={(event) => onBrandChange(event.target.value)}
-            aria-invalid={validationMessage ? true : undefined}
-            aria-describedby={validationMessage ? "brand-error" : undefined}
-            className="w-full border-b border-rule bg-transparent pt-1 pb-3 font-serif text-[30px] leading-tight placeholder:text-ink-soft/50 focus:border-accent focus:outline-none disabled:opacity-60 aria-invalid:border-red-700 sm:text-[36px]"
-          />
-          {validationMessage && (
-            <p id="brand-error" role="alert" className="text-sm text-red-700 dark:text-red-400">
-              {validationMessage}
-            </p>
-          )}
-        </div>
-
-        <fieldset className="flex flex-col gap-3" disabled={isScanning}>
-          <legend className="eyebrow mb-3 text-ink-soft">Platform</legend>
-          <div className="flex flex-wrap gap-x-6 gap-y-2">
-            {PLATFORMS.map((option) => {
-              const selected = option.id === platform;
-              return (
-                <label
-                  key={option.id}
-                  className={`eyebrow cursor-pointer border-b-2 pb-1.5 text-[12px] transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-4 has-[:focus-visible]:outline-accent ${
-                    selected
-                      ? "border-accent text-ink"
-                      : "border-transparent text-ink-soft hover:text-ink"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="platform"
-                    value={option.id}
-                    checked={selected}
-                    onChange={() => onPlatformChange(option.id)}
-                    className="sr-only"
-                  />
-                  {option.label}
-                </label>
-              );
-            })}
-          </div>
-        </fieldset>
-
-        <button
-          type="submit"
+      <div className="flex flex-col gap-2">
+        <label htmlFor="brand" className="readout text-ink-soft">
+          <span className="text-ember">01</span> / Brand or category
+        </label>
+        <input
+          id="brand"
+          name="brand"
+          type="text"
+          autoComplete="off"
+          placeholder="Acme Coffee"
+          value={brand}
           disabled={isScanning}
-          className="eyebrow group inline-flex items-center gap-3 self-start bg-ink px-6 py-4 text-[12px] text-paper transition-colors hover:bg-accent disabled:cursor-wait disabled:opacity-60"
-        >
-          {isScanning ? "Scanning…" : "Run scan"}
-          <span
-            aria-hidden
-            className="text-base leading-none transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-          >
-            ↗
-          </span>
-        </button>
+          onChange={(event) => onBrandChange(event.target.value)}
+          aria-invalid={validationMessage ? true : undefined}
+          aria-describedby={validationMessage ? "brand-error" : undefined}
+          className="headline w-full min-w-0 border-2 border-ink bg-surface px-4 pt-3 pb-2 text-[38px] placeholder:text-ink-soft/35 focus:border-ember focus:outline-none disabled:opacity-60 aria-invalid:border-demo"
+        />
+        {validationMessage && (
+          <p id="brand-error" role="alert" className="readout text-demo">
+            ⚠ {validationMessage}
+          </p>
+        )}
       </div>
+
+      <fieldset className="flex flex-col gap-2" disabled={isScanning}>
+        <legend className="readout mb-2 text-ink-soft">
+          <span className="text-ember">02</span> / Platform
+        </legend>
+        <div className="grid grid-cols-3 border-2 border-ink">
+          {PLATFORMS.map((option, index) => {
+            const selected = option.id === platform;
+            const [main, sub] = PLATFORM_PARTS[option.id];
+            return (
+              <label
+                key={option.id}
+                className={`flex cursor-pointer flex-col items-start px-3 py-2.5 transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-4 has-[:focus-visible]:outline-ember ${
+                  index > 0 ? "border-l-2 border-ink" : ""
+                } ${selected ? "bg-ink text-surface" : "bg-surface hover:bg-canvas"}`}
+              >
+                <input
+                  type="radio"
+                  name="platform"
+                  value={option.id}
+                  checked={selected}
+                  onChange={() => onPlatformChange(option.id)}
+                  className="sr-only"
+                />
+                <span className="sr-only">{option.label}</span>
+                <span aria-hidden className="headline text-[24px]">{main}</span>
+                <span aria-hidden className={`readout text-[10px] ${selected ? "text-ember" : "text-ink-soft"}`}>
+                  {selected ? "● " : ""}
+                  {sub}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
+
+      <button
+        type="submit"
+        disabled={isScanning}
+        className="group flex items-center justify-between border-2 border-ink bg-ember px-5 py-4 text-night shadow-[5px_5px_0_var(--ink)] transition-all hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[3px_3px_0_var(--ink)] active:translate-x-[5px] active:translate-y-[5px] active:shadow-none disabled:cursor-wait disabled:opacity-70"
+      >
+        <span className="headline text-[34px]">
+          {isScanning ? (
+            <>
+              Scanning<span className="animate-blink motion-reduce:animate-none">_</span>
+            </>
+          ) : (
+            "Run scan"
+          )}
+        </span>
+        <span className="readout flex items-center gap-2 font-bold">
+          <span className="hidden rounded-sm border border-night/40 px-1.5 py-0.5 sm:inline">⏎ Enter</span>
+          <span aria-hidden className="text-[22px] transition-transform group-hover:translate-x-1">→</span>
+        </span>
+      </button>
     </form>
   );
 }
