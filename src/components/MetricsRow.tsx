@@ -1,16 +1,17 @@
 import type { Metric } from "@/lib/types";
 
-/** Headline numbers backing the opportunity. */
+/** Headline numbers backing the opportunity, separated by vertical rules. */
 export function MetricsRow({ metrics }: { metrics: Metric[] }) {
   return (
-    <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-      {metrics.map((metric) => (
-        <div key={metric.label} className="rounded-md border border-neutral-200 p-3 dark:border-neutral-800">
-          <dt className="text-xs text-neutral-500 dark:text-neutral-400">{metric.label}</dt>
-          <dd className="text-xl font-semibold">{metric.value}</dd>
-          {metric.context && (
-            <dd className="text-xs text-neutral-500 dark:text-neutral-400">{metric.context}</dd>
-          )}
+    <dl className="grid gap-6 sm:grid-cols-3 sm:gap-0">
+      {metrics.map((metric, index) => (
+        <div
+          key={metric.label}
+          className={`flex flex-col gap-1 ${index > 0 ? "sm:border-l sm:border-rule sm:pl-6" : ""} sm:pr-6`}
+        >
+          <dt className="font-serif text-[17px] text-ink-soft">{metric.label}</dt>
+          <dd className="text-[36px] leading-tight font-bold tracking-[-0.02em]">{metric.value}</dd>
+          {metric.context && <dd className="eyebrow text-[10px] text-demo">{metric.context}</dd>}
         </div>
       ))}
     </dl>

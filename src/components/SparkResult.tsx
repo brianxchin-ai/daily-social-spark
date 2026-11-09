@@ -1,14 +1,13 @@
 import { PLATFORMS, type Spark } from "@/lib/types";
-import { ConfidenceMeter } from "./ConfidenceMeter";
 import { DemoBadge } from "./DemoBadge";
 import { EvidenceList } from "./EvidenceList";
 import { FormatIdeas } from "./FormatIdeas";
+import { KeyStats } from "./KeyStats";
 import { MetricsRow } from "./MetricsRow";
-import { MomentumWindow } from "./MomentumWindow";
 import { RiskNotes } from "./RiskNotes";
 import { Section } from "./Section";
 
-/** The full result for one scan. */
+/** The full result for one scan, laid out like an editorial feature. */
 export function SparkResult({ spark }: { spark: Spark }) {
   const platformLabel = PLATFORMS.find((p) => p.id === spark.platform)?.label ?? spark.platform;
   const generated = new Date(spark.generatedAt).toLocaleTimeString([], {
@@ -17,28 +16,33 @@ export function SparkResult({ spark }: { spark: Spark }) {
   });
 
   return (
-    <article className="flex flex-col gap-6 rounded-lg border border-neutral-200 p-5 dark:border-neutral-800">
-      <header className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+    <article className="flex animate-rise flex-col gap-12 motion-reduce:animate-none">
+      <header className="grid gap-6 border-t border-ink pt-6 md:grid-cols-[200px_1fr] md:gap-12">
+        <div className="flex items-start gap-2 md:flex-col">
+          <p className="eyebrow">02 — Today&apos;s spark</p>
           <DemoBadge show={spark.isDemo} />
-          <span>
-            {platformLabel} · {spark.brand} · generated {generated}
-          </span>
         </div>
-        <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">
-          Trend: {spark.trendName}
-        </p>
-        <h2 className="text-2xl font-semibold leading-tight">{spark.headline}</h2>
-        <p className="text-neutral-700 dark:text-neutral-300">{spark.whyItWillSpread}</p>
+        <div className="flex flex-col gap-5">
+          <p className="eyebrow text-accent">
+            {platformLabel} / {spark.brand} / {generated}
+          </p>
+          <p className="eyebrow text-ink-soft">Trend · {spark.trendName}</p>
+          <h2 className="text-[34px] leading-[1.05] font-bold tracking-[-0.025em] text-balance sm:text-[48px]">
+            {spark.headline}
+          </h2>
+          <p className="max-w-2xl font-serif text-[22px] leading-snug">{spark.whyItWillSpread}</p>
+        </div>
       </header>
 
-      <Section title="Why now" isDemo={spark.isDemo}>
-        <p className="text-sm">{spark.whyNow}</p>
-        <MomentumWindow momentum={spark.window} />
-      </Section>
+      <KeyStats
+        confidence={spark.confidence}
+        rationale={spark.confidenceRationale}
+        momentum={spark.window}
+        isDemo={spark.isDemo}
+      />
 
-      <Section title="Confidence" isDemo={spark.isDemo}>
-        <ConfidenceMeter score={spark.confidence} rationale={spark.confidenceRationale} />
+      <Section title="Why now" isDemo={spark.isDemo}>
+        <p className="max-w-2xl font-serif text-[22px] leading-snug">{spark.whyNow}</p>
       </Section>
 
       <Section title="Signals" isDemo={spark.isDemo}>

@@ -42,7 +42,7 @@ export function ScanExperience() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-16">
       <ScanForm
         brand={brand}
         platform={platform}
@@ -57,13 +57,13 @@ export function ScanExperience() {
       />
 
       {state.status === "idle" && (
-        <p className="text-sm text-neutral-500 dark:text-neutral-400">
-          Enter a brand or category, choose a platform, and run a scan to see today&apos;s spark.
+        <p className="border-t border-rule pt-6 font-serif text-[22px] text-ink-soft italic md:pl-[248px]">
+          Your spark will appear here.
         </p>
       )}
       {state.status === "scanning" && <ScanProgress key={state.runId} brand={state.brand} />}
       {state.status === "error" && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="text-sm text-red-700 dark:text-red-400">
           {state.message}
         </p>
       )}

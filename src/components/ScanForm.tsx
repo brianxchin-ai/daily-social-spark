@@ -29,68 +29,78 @@ export function ScanForm({
         event.preventDefault();
         onSubmit();
       }}
-      className="flex flex-col gap-5 rounded-lg border border-neutral-200 p-5 dark:border-neutral-800"
+      className="grid gap-8 border-t border-ink pt-6 md:grid-cols-[200px_1fr] md:gap-12"
     >
-      <div className="flex flex-col gap-2">
-        <label htmlFor="brand" className="text-sm font-medium">
-          Brand or category
-        </label>
-        <input
-          id="brand"
-          name="brand"
-          type="text"
-          autoComplete="off"
-          placeholder="e.g. Oat milk, Trail running shoes, Acme Coffee"
-          value={brand}
-          disabled={isScanning}
-          onChange={(event) => onBrandChange(event.target.value)}
-          aria-invalid={validationMessage ? true : undefined}
-          aria-describedby={validationMessage ? "brand-error" : undefined}
-          className="rounded-md border border-neutral-300 bg-transparent px-3 py-2 disabled:opacity-60 dark:border-neutral-700"
-        />
-        {validationMessage && (
-          <p id="brand-error" role="alert" className="text-sm text-red-600 dark:text-red-400">
-            {validationMessage}
-          </p>
-        )}
-      </div>
+      <p className="eyebrow">01 — The brief</p>
 
-      <fieldset className="flex flex-col gap-2" disabled={isScanning}>
-        <legend className="mb-2 text-sm font-medium">Platform</legend>
-        <div className="flex flex-wrap gap-2">
-          {PLATFORMS.map((option) => {
-            const selected = option.id === platform;
-            return (
-              <label
-                key={option.id}
-                className={`cursor-pointer rounded-full border px-4 py-1.5 text-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 ${
-                  selected
-                    ? "border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900"
-                    : "border-neutral-300 dark:border-neutral-700"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="platform"
-                  value={option.id}
-                  checked={selected}
-                  onChange={() => onPlatformChange(option.id)}
-                  className="sr-only"
-                />
-                {option.label}
-              </label>
-            );
-          })}
+      <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-2">
+          <label htmlFor="brand" className="eyebrow text-ink-soft">
+            Brand or category
+          </label>
+          <input
+            id="brand"
+            name="brand"
+            type="text"
+            autoComplete="off"
+            placeholder="e.g. Oat milk, trail running shoes, Acme Coffee"
+            value={brand}
+            disabled={isScanning}
+            onChange={(event) => onBrandChange(event.target.value)}
+            aria-invalid={validationMessage ? true : undefined}
+            aria-describedby={validationMessage ? "brand-error" : undefined}
+            className="w-full border-b border-rule bg-transparent pt-1 pb-3 font-serif text-[30px] leading-tight placeholder:text-ink-soft/50 focus:border-accent focus:outline-none disabled:opacity-60 aria-invalid:border-red-700 sm:text-[36px]"
+          />
+          {validationMessage && (
+            <p id="brand-error" role="alert" className="text-sm text-red-700 dark:text-red-400">
+              {validationMessage}
+            </p>
+          )}
         </div>
-      </fieldset>
 
-      <button
-        type="submit"
-        disabled={isScanning}
-        className="self-start rounded-md bg-neutral-900 px-5 py-2 font-medium text-white disabled:opacity-60 dark:bg-white dark:text-neutral-900"
-      >
-        {isScanning ? "Scanning…" : "Run Scan"}
-      </button>
+        <fieldset className="flex flex-col gap-3" disabled={isScanning}>
+          <legend className="eyebrow mb-3 text-ink-soft">Platform</legend>
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
+            {PLATFORMS.map((option) => {
+              const selected = option.id === platform;
+              return (
+                <label
+                  key={option.id}
+                  className={`eyebrow cursor-pointer border-b-2 pb-1.5 text-[12px] transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-4 has-[:focus-visible]:outline-accent ${
+                    selected
+                      ? "border-accent text-ink"
+                      : "border-transparent text-ink-soft hover:text-ink"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="platform"
+                    value={option.id}
+                    checked={selected}
+                    onChange={() => onPlatformChange(option.id)}
+                    className="sr-only"
+                  />
+                  {option.label}
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+
+        <button
+          type="submit"
+          disabled={isScanning}
+          className="eyebrow group inline-flex items-center gap-3 self-start bg-ink px-6 py-4 text-[12px] text-paper transition-colors hover:bg-accent disabled:cursor-wait disabled:opacity-60"
+        >
+          {isScanning ? "Scanning…" : "Run scan"}
+          <span
+            aria-hidden
+            className="text-base leading-none transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+          >
+            ↗
+          </span>
+        </button>
+      </div>
     </form>
   );
 }

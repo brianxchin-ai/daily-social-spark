@@ -1,26 +1,95 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens — warm paper, near-black ink, one deep-teal accent.
+ * Cues taken from brianxchin.com. Demo ochre is deliberately separate
+ * from the brand accent so placeholder labels never read as "the brand".
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --paper: #f3f1ec;
+  --ink: #191b1d;
+  --ink-soft: #55595e;
+  --rule: #d5d1c8;
+  --accent: #006f93;
+  --panel: #161717;
+  --panel-ink: #f3f1ec;
+  --panel-soft: #9a9ea2;
+  --demo: #8a5a00;
+  --demo-bg: #f2e4c2;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --paper: #131414;
+    --ink: #f0eee9;
+    --ink-soft: #a3a6a9;
+    --rule: #2e3032;
+    --accent: #5bb6d8;
+    --panel: #1d1f21;
+    --panel-ink: #f0eee9;
+    --panel-soft: #8e9296;
+    --demo: #e3b456;
+    --demo-bg: #2c2414;
   }
 }
 
+@theme inline {
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-rule: var(--rule);
+  --color-accent: var(--accent);
+  --color-panel: var(--panel);
+  --color-panel-ink: var(--panel-ink);
+  --color-panel-soft: var(--panel-soft);
+  --color-demo: var(--demo);
+  --color-demo-bg: var(--demo-bg);
+  --font-sans: var(--font-inter-tight), "Helvetica Neue", Arial, sans-serif;
+  --font-serif: var(--font-instrument-serif), Georgia, serif;
+
+  --animate-rise: rise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-fill: fill linear both;
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes fill {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+}
+
+/* Small, bold, tracked uppercase label — the site's signature "eyebrow". */
+@utility eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  line-height: 1.4;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--paper);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
