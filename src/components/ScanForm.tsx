@@ -86,7 +86,7 @@ export function ScanForm({
                 />
                 <span className="sr-only">{option.label}</span>
                 <span aria-hidden className="headline text-[24px]">{main}</span>
-                <span aria-hidden className={`readout text-[10px] ${selected ? "text-ember" : "text-ink-soft"}`}>
+                <span aria-hidden className={`readout ${selected ? "text-ember" : "text-ink-soft"}`}>
                   {selected ? "● " : ""}
                   {sub}
                 </span>

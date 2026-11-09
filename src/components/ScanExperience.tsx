@@ -51,17 +51,24 @@ export function ScanExperience() {
     }
   }
 
+  // Once a scan starts, the masthead steps back so the Spark is the loudest thing on the page.
+  const hasRun = state.status !== "idle";
+
   return (
     <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-[400px_minmax(0,1fr)] lg:gap-16">
       <div className="flex min-w-0 flex-col gap-8 lg:sticky lg:top-8">
         <div className="flex flex-col gap-4">
           <p className="readout text-ember">● Social trend radar / 48-hour forecast</p>
-          <h1 className="headline text-[64px] sm:text-[84px]">
+          <h1
+            className={`headline transition-[font-size] duration-500 motion-reduce:transition-none ${
+              hasRun ? "text-[40px] sm:text-[44px]" : "text-[64px] sm:text-[84px]"
+            }`}
+          >
             What&apos;s about
             <br />
             to spread<span className="text-ember">.</span>
           </h1>
-          <p className="max-w-sm text-[15px] leading-relaxed text-ink-soft">
+          <p className={`max-w-sm text-[15px] leading-relaxed text-ink-soft ${hasRun ? "hidden" : ""}`}>
             One substantiated short-form opportunity, timed to the next 24–48 hours —
             with the evidence and the window to act.
           </p>

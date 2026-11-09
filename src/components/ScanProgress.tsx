@@ -59,7 +59,7 @@ export function ScanProgress({ brand }: { brand: string }) {
           <dl className="grid grid-cols-3 gap-3">
             {TALLIES.map((tally) => (
               <div key={tally.label} className="demo-outline flex flex-col gap-1 bg-canvas p-3">
-                <dt className="readout text-[10px] text-ink-soft">{tally.label}</dt>
+                <dt className="readout text-ink-soft">{tally.label}</dt>
                 <dd className="font-mono text-[22px] font-bold tabular-nums sm:text-[28px]">
                   {Math.round(tally.target * eased).toLocaleString()}
                 </dd>

@@ -11,7 +11,7 @@ export function EvidenceList({ sources, isDemo }: { sources: EvidenceSource[]; i
     <ol className="demo-outline flex flex-col divide-y divide-line bg-canvas">
       {sources.map((source, index) => (
         <li key={source.id} className="flex flex-col gap-1.5 p-3">
-          <div className="readout flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-ink-soft">
+          <div className="readout flex flex-wrap items-center gap-x-3 gap-y-1 text-ink-soft">
             <span className="font-bold text-ember">[{String(index + 1).padStart(2, "0")}]</span>
             <span>{source.publishedAgo}</span>
             <span className="flex items-end gap-0.5" aria-label={`${source.signal} signal`}>

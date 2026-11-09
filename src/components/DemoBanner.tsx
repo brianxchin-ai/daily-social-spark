@@ -4,9 +4,12 @@ export function DemoBanner() {
     <div role="note" className="readout w-full bg-demo px-4 py-2 text-center text-[11px] text-surface">
       <span className="font-bold">◆ Demo mode</span>
       <span className="mx-2 opacity-60">/</span>
-      Trends, sources, metrics &amp; recommendations are placeholder
-      <span className="mx-2 opacity-60">/</span>
-      Live research not connected
+      <span className="sm:hidden">All content is placeholder</span>
+      <span className="hidden sm:inline">
+        Trends, sources, metrics &amp; recommendations are placeholder
+        <span className="mx-2 opacity-60">/</span>
+        Live research not connected
+      </span>
     </div>
   );
 }

@@ -41,25 +41,16 @@ export function SparkResult({ spark }: { spark: Spark }) {
             <p className="readout text-ember">Trend ▸ {spark.trendName}</p>
             <DemoBadge show={spark.isDemo} />
           </div>
-          <h2 className="headline text-[40px] text-balance sm:text-[50px]">{spark.headline}</h2>
+          <h2 className="headline text-[42px] text-balance sm:text-[56px]">{spark.headline}</h2>
           <p className="text-[16px] leading-relaxed">{spark.whyItWillSpread}</p>
           <p className="readout text-ink-soft">For: {spark.brand}</p>
         </header>
 
+        <Verdict spark={spark} />
+
         <Section index={1} title="48-hour forecast" isDemo={spark.isDemo}>
           <div className="-mx-1">
             <TimeRibbon mode="done" momentum={spark.window} />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="readout rounded-full bg-ember px-3 py-1 font-bold text-night">
-              ▲ {STAGE_LABEL[spark.window.stage]}
-            </span>
-            <span className="readout rounded-full border border-line px-3 py-1 text-ink-soft">
-              Peak ~{spark.window.peakInHours}h
-            </span>
-            <span className="readout rounded-full border border-line px-3 py-1 text-ink-soft">
-              Closes ~{spark.window.closesInHours}h
-            </span>
           </div>
         </Section>
 
@@ -92,5 +83,40 @@ export function SparkResult({ spark }: { spark: Spark }) {
         </Section>
       </StoryCard>
     </article>
+  );
+}
+
+/**
+ * The call in one glance — act window, confidence, momentum — like the
+ * single-line summary at the top of a creative brief.
+ */
+function Verdict({ spark }: { spark: Spark }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <p className="readout font-bold">The call</p>
+        <DemoBadge show={spark.isDemo} />
+      </div>
+      <dl className={`grid grid-cols-2 border-2 border-ink ${spark.isDemo ? "demo-outline" : ""}`}>
+        <div className="flex min-w-0 flex-col gap-1 bg-ember px-4 py-3 text-night">
+          <dt className="readout font-bold">Act within</dt>
+          <dd className="headline text-[40px] sm:text-[52px]">~{spark.window.peakInHours}h</dd>
+        </div>
+        <div className="flex min-w-0 flex-col gap-1 border-l-2 border-ink px-4 py-3">
+          <dt className="readout text-ink-soft">Confidence</dt>
+          <dd className="headline text-[40px] sm:text-[52px]">
+            {spark.confidence}
+            <span className="text-[0.55em] text-ink-soft">%</span>
+          </dd>
+        </div>
+        <div className="col-span-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t-2 border-ink bg-night px-4 py-2 text-night-ink">
+          <dt className="sr-only">Momentum</dt>
+          <dd className="headline text-[20px]">
+            <span className="text-ember">▲</span> {STAGE_LABEL[spark.window.stage]}
+          </dd>
+          <dd className="readout opacity-70">Window closes ~{spark.window.closesInHours}h</dd>
+        </div>
+      </dl>
+    </div>
   );
 }
