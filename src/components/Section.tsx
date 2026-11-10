@@ -1,16 +1,17 @@
 import type { ReactNode } from "react";
-import { DemoBadge } from "./DemoBadge";
+import type { SparkOrigin } from "@/lib/types";
+import { OriginBadge } from "./DemoBadge";
 
 /** A titled block inside the story card, with a channel-style number. */
 export function Section({
   index,
   title,
-  isDemo,
+  origin,
   children,
 }: {
   index: number;
   title: string;
-  isDemo: boolean;
+  origin: SparkOrigin;
   children: ReactNode;
 }) {
   return (
@@ -19,7 +20,7 @@ export function Section({
         <h3 className="readout font-bold">
           <span className="text-ember">{String(index).padStart(2, "0")}</span> / {title}
         </h3>
-        <DemoBadge show={isDemo} />
+        <OriginBadge origin={origin} />
       </div>
       {children}
     </section>

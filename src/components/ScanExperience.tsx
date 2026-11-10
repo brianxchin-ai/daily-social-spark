@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { runScan, ScanError } from "@/lib/scan";
 import type { Platform, Spark } from "@/lib/types";
+import { useEngineStatus } from "@/lib/use-engine-status";
 import { ScanForm } from "./ScanForm";
 import { ScanProgress } from "./ScanProgress";
 import { SparkResult } from "./SparkResult";
@@ -23,6 +24,7 @@ export function ScanExperience() {
   const [state, setState] = useState<ScanState>({ status: "idle" });
   const latestRun = useRef(0);
   const stageRef = useRef<HTMLDivElement>(null);
+  const engineStatus = useEngineStatus();
 
   // On narrow screens the stage sits below the form, so bring it into view.
   useEffect(() => {
@@ -58,7 +60,10 @@ export function ScanExperience() {
     <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-[400px_minmax(0,1fr)] lg:gap-16">
       <div className="flex min-w-0 flex-col gap-8 lg:sticky lg:top-8">
         <div className="flex flex-col gap-4">
-          <p className="readout text-ember">● Social trend radar / 48-hour forecast</p>
+          <p className="readout text-ember">
+            ● Social trend radar /{" "}
+            {engineStatus?.engine === "claude" ? "AI opportunity hypotheses" : "48-hour forecast"}
+          </p>
           <h1
             className={`headline transition-[font-size] duration-500 motion-reduce:transition-none ${
               hasRun ? "text-[40px] sm:text-[44px]" : "text-[64px] sm:text-[84px]"
@@ -95,17 +100,32 @@ export function ScanExperience() {
               <br />
               lands here
             </p>
-            <TimeRibbon mode="idle" />
+            {engineStatus?.engine !== "claude" && <TimeRibbon mode="idle" />}
             <p className="readout text-ink-soft">
               Name a brand → pick a platform → run scan
             </p>
+            {engineStatus?.engine === "claude" && (
+              <p className="readout text-hypo">
+                ◇ Claude engine · each scan is a live, paid call to {engineStatus.model}
+              </p>
+            )}
           </StoryCard>
         )}
-        {state.status === "scanning" && <ScanProgress key={state.runId} brand={state.brand} />}
+        {state.status === "scanning" && (
+          <ScanProgress
+            key={state.runId}
+            brand={state.brand}
+            engine={engineStatus?.engine ?? "demo"}
+            model={engineStatus?.model ?? null}
+          />
+        )}
         {state.status === "error" && (
           <StoryCard dashed slateLeft="⚠ Scan failed">
             <p role="alert" className="text-[15px]">
               {state.message}
+            </p>
+            <p className="readout text-ink-soft">
+              No placeholder content was substituted. Fix the issue above and run the scan again.
             </p>
           </StoryCard>
         )}

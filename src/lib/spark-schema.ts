@@ -15,7 +15,14 @@ import { z } from "zod";
  */
 export const SparkDraftSchema = z.object({
   trendName: z.string().describe("Short name for the format or behaviour, e.g. a creator format."),
-  headline: z.string().describe("The opportunity, phrased as what the brand should make."),
+  headline: z
+    .string()
+    .describe("Short display headline: a punchy instruction of 12 words or fewer. The full idea goes in concept."),
+  concept: z
+    .string()
+    .describe(
+      "The fuller creative concept in 2 to 4 sentences: what the content is, who appears in it, how it works, and what makes it ownable for this brand.",
+    ),
   whyItWillSpread: z.string().describe("Why this format has distribution and algorithmic potential."),
   whyNow: z.string().describe("The cultural or platform reasoning for acting now, framed as a hypothesis."),
   timing: z.object({
@@ -53,6 +60,7 @@ const nonEmpty = z.string().trim().min(1);
 const StrictSparkDraftSchema = SparkDraftSchema.extend({
   trendName: nonEmpty,
   headline: nonEmpty,
+  concept: nonEmpty,
   whyItWillSpread: nonEmpty,
   whyNow: nonEmpty,
   confidence: z.number().int().min(0).max(100),

@@ -1,4 +1,4 @@
-import type { Platform, Spark } from "@/lib/types";
+import type { DemoSpark, Platform } from "@/lib/types";
 
 /**
  * DEMO CONTENT ONLY.
@@ -8,8 +8,8 @@ import type { Platform, Spark } from "@/lib/types";
  */
 
 type DemoTemplate = (brand: string) => Omit<
-  Spark,
-  "id" | "isDemo" | "generatedAt" | "brand" | "platform"
+  DemoSpark,
+  "id" | "origin" | "generatedAt" | "brand" | "platform"
 >;
 
 const tiktok: DemoTemplate = (brand) => ({

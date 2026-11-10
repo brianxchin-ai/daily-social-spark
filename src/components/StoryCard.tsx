@@ -1,17 +1,19 @@
 import type { ReactNode } from "react";
+import type { SparkOrigin } from "@/lib/types";
 import { DemoStamp } from "./DemoStamp";
 
 /** Tall, phone-proportioned card with a broadcast "slate" bar on top. */
 export function StoryCard({
   slateLeft,
   slateRight,
-  showDemoStamp = false,
+  stamp,
   dashed = false,
   children,
 }: {
   slateLeft: ReactNode;
   slateRight?: ReactNode;
-  showDemoStamp?: boolean;
+  /** Corner sash naming where the content came from. */
+  stamp?: SparkOrigin;
   dashed?: boolean;
   children: ReactNode;
 }) {
@@ -31,7 +33,7 @@ export function StoryCard({
         <span className="flex items-center gap-2">{slateLeft}</span>
         {slateRight && <span className="text-right opacity-70">{slateRight}</span>}
       </div>
-      {showDemoStamp && <DemoStamp />}
+      {stamp && <DemoStamp origin={stamp} />}
       <div className="flex flex-col gap-8 p-5 sm:p-7">{children}</div>
     </div>
   );

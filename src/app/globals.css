@@ -4,7 +4,8 @@
  * "Forecast" design tokens — cool stone canvas, white cards, ink,
  * and one hot ember used only for things that are moving.
  * Demo violet is deliberately unrelated to ember so placeholder
- * content never reads as signal.
+ * content never reads as signal. Hypothesis teal marks AI-generated,
+ * unverified content: distinct from both demo and live signal.
  */
 :root {
   --canvas: #e4e5e6;
@@ -18,6 +19,8 @@
   --night-ink: #f2f3f4;
   --demo: #5a45dc;
   --demo-soft: #e9e5ff;
+  --hypo: #0b7570;
+  --hypo-soft: #d6f1ee;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -33,6 +36,8 @@
     --night-ink: #f2f3f4;
     --demo: #a99bff;
     --demo-soft: #1f1a3d;
+    --hypo: #4fcfc4;
+    --hypo-soft: #0f2e2c;
   }
 }
 
@@ -48,6 +53,8 @@
   --color-night-ink: var(--night-ink);
   --color-demo: var(--demo);
   --color-demo-soft: var(--demo-soft);
+  --color-hypo: var(--hypo);
+  --color-hypo-soft: var(--hypo-soft);
   --font-sans: var(--font-inter), system-ui, sans-serif;
   --font-display: var(--font-barlow-condensed), "Arial Narrow", sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;

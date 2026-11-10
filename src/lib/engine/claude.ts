@@ -1,14 +1,17 @@
 import "server-only";
 
 import Anthropic from "@anthropic-ai/sdk";
-import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { PLATFORMS, type ScanRequest } from "@/lib/types";
+import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { SparkDraftSchema, validateSparkDraft, type SparkDraft } from "@/lib/spark-schema";
 
 /** Confirmed from Anthropic's live model and pricing docs on 2026-11-10. */
 export const MODEL = "claude-sonnet-5-5";
 const PRICE_PER_MTOK = { input: 2, output: 10 }; // USD; thinking tokens bill as output
 const MAX_OUTPUT_TOKENS = 8_000; // per-call ceiling: worst case ≈ $0.08 of output
+
+/** Our Zod schema, converted by Anthropic's helper into the JSON schema the API enforces. */
+const SPARK_DRAFT_JSON_SCHEMA = betaZodOutputFormat(SparkDraftSchema).schema;
 
 export interface ScanUsage {
   model: string;
@@ -36,6 +39,7 @@ You have NO live data, browsing, or platform analytics. Everything you produce i
 - Never predict hours, dates or deadlines. Describe timing only as a stage plus your reasoning, and say what observable signal would confirm it.
 - Prefer formats that are gaining heat but not yet saturated, or proven formats still performing for other brands and creators.
 - The opportunity must fit the platform's native conventions and be realistic for the brand to produce.
+- The headline is a short display line, like a campaign line: 12 words or fewer, telling the brand what to make. Describe the full creative idea in the concept field; it is not limited to 12 words.
 - Keep copy tight and specific. Write em dashes closed, with no spaces around them (Chicago style).`;
 
 function userPrompt({ brand, platform }: ScanRequest): string {
@@ -64,19 +68,26 @@ export async function generateSparkDraft(
   const anthropic = getClient();
 
   let response;
+  let requestId: string | null = null;
   try {
-    response = await anthropic.beta.messages.parse({
-      model: MODEL,
-      max_tokens: MAX_OUTPUT_TOKENS,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default", // if the model declines on policy grounds, Anthropic retries on a suitable model
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userPrompt(request) }],
-      output_config: {
-        effort: "medium",
-        format: betaZodOutputFormat(SparkDraftSchema),
-      },
-    });
+    // create().withResponse() exposes Anthropic's request ID (useful for support tickets).
+    // We avoid parse().withResponse(): in this SDK version it masks connection errors.
+    const result = await anthropic.beta.messages
+      .create({
+        model: MODEL,
+        max_tokens: MAX_OUTPUT_TOKENS,
+        betas: ["server-side-fallback-2026-07-01"],
+        fallbacks: "default", // if the model declines on policy grounds, Anthropic retries on a suitable model
+        system: SYSTEM_PROMPT,
+        messages: [{ role: "user", content: userPrompt(request) }],
+        output_config: {
+          effort: "medium",
+          format: { type: "json_schema", schema: SPARK_DRAFT_JSON_SCHEMA },
+        },
+      })
+      .withResponse();
+    response = result.data;
+    requestId = result.request_id ?? null;
   } catch (error) {
     throw toEngineError(error);
   }
@@ -86,7 +97,7 @@ export async function generateSparkDraft(
     inputTokens: response.usage.input_tokens,
     outputTokens: response.usage.output_tokens,
     estimatedCostUsd: estimateCost(response.usage.input_tokens, response.usage.output_tokens),
-    requestId: response._request_id ?? null,
+    requestId,
   };
   // Safe log: no key, headers, prompt or environment, only usage figures.
   console.info(
@@ -100,7 +111,15 @@ export async function generateSparkDraft(
     throw new EngineError("Claude's answer was cut off before it finished. Please try again.", 502);
   }
 
-  const checked = validateSparkDraft(response.parsed_output);
+  const text = response.content.find((block) => block.type === "text")?.text ?? "";
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new EngineError("Claude's answer wasn't valid JSON, so it wasn't shown.", 502);
+  }
+
+  const checked = validateSparkDraft(parsed);
   if (!checked.ok) {
     console.warn(`[claude] validation failed: ${checked.problems.join("; ")}`);
     throw new EngineError("Claude's answer didn't pass our format checks, so it wasn't shown.", 502);
@@ -141,9 +160,6 @@ function toEngineError(error: unknown): EngineError {
   if (error instanceof Anthropic.APIError) {
     console.warn(`[claude] API error status=${error.status} req=${error.requestID ?? "n/a"}`);
     return new EngineError("Anthropic returned an error. Please try again shortly.", 502);
-  }
-  if (error instanceof Error && error.name === "SyntaxError") {
-    return new EngineError("Claude's answer wasn't valid JSON, so it wasn't shown.", 502);
   }
   console.warn("[claude] unexpected error type");
   return new EngineError("Something went wrong while contacting Claude.", 500);
