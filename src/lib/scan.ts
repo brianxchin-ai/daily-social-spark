@@ -9,11 +9,11 @@ import type { EngineMode, ScanRequest, Spark } from "@/lib/types";
 /** Progress steps shown while waiting, per engine. */
 export const SCAN_STEPS: Record<EngineMode, readonly string[]> = {
   demo: ["Reading platform signals", "Checking sources", "Scoring momentum", "Drafting recommendations"],
-  claude: ["Sending the brief to Claude", "Drafting the opportunity", "Checking the format rules", "Preparing the result"],
+  claude: ["Generating three candidates", "Checking the format rules", "Evaluating with a separate reviewer", "Ranking by Concept Score"],
 };
 
 /** Roughly how long each engine takes, used only to pace the progress bar. */
-export const EXPECTED_SCAN_MS: Record<EngineMode, number> = { demo: 3200, claude: 25_000 };
+export const EXPECTED_SCAN_MS: Record<EngineMode, number> = { demo: 3200, claude: 50_000 };
 
 export class ScanError extends Error {}
 

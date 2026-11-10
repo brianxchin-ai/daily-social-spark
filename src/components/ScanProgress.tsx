@@ -94,7 +94,7 @@ export function ScanProgress({
             <div className="flex min-w-0 flex-col gap-1 bg-canvas p-3">
               <dt className="readout text-ink-soft">Model</dt>
               <dd className="font-mono text-[15px] font-bold break-words">{model ?? "Claude"}</dd>
-              <dd className="readout text-ink-soft">Usually 15–40s</dd>
+              <dd className="readout text-ink-soft">Two calls · usually 40–70s</dd>
             </div>
           </dl>
         )}

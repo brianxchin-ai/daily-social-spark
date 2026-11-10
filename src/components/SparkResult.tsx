@@ -1,10 +1,20 @@
-import { PLATFORMS, type DemoSpark, type HypothesisSpark, type Spark } from "@/lib/types";
+import { formatScore } from "@/lib/evaluation/scoring";
+import {
+  PLATFORMS,
+  type Candidate,
+  type CandidateEvaluation,
+  type DemoSpark,
+  type HypothesisSpark,
+  type Spark,
+  type SparkOrigin,
+} from "@/lib/types";
 import { ConfidenceBlocks } from "./ConfidenceBlocks";
 import { OriginBadge } from "./DemoBadge";
 import { EvidenceList } from "./EvidenceList";
 import { FormatIdeas } from "./FormatIdeas";
 import { MetricsRow } from "./MetricsRow";
 import { RiskNotes } from "./RiskNotes";
+import { Scoreboard } from "./Scoreboard";
 import { Section } from "./Section";
 import { SignalsToVerify } from "./SignalsToVerify";
 import { StoryCard } from "./StoryCard";
@@ -17,6 +27,12 @@ const STAGE_LABEL: Record<string, string> = {
   unclear: "Unclear",
 };
 
+const AUDIO_LABEL: Record<Candidate["audioRole"], string> = {
+  "audio-led": "Audio-led",
+  "audio-optional": "Audio optional",
+  "no-audio": "No audio needed",
+};
+
 /** The full result for one scan, presented as a single story card. */
 export function SparkResult({ spark }: { spark: Spark }) {
   const platformLabel = PLATFORMS.find((p) => p.id === spark.platform)?.label ?? spark.platform;
@@ -26,6 +42,11 @@ export function SparkResult({ spark }: { spark: Spark }) {
     hour12: false,
   });
 
+  const leader =
+    spark.origin === "ai-hypothesis"
+      ? spark.candidates.find((c) => c.id === spark.evaluation.leaderId) ?? null
+      : null;
+
   return (
     <article className="animate-rise motion-reduce:animate-none">
       <StoryCard
@@ -33,33 +54,55 @@ export function SparkResult({ spark }: { spark: Spark }) {
         slateLeft={
           <>
             <span className="h-2 w-2 rounded-full bg-ember" aria-hidden />
-            Today&apos;s spark
+            {spark.origin === "ai-hypothesis" && !leader ? "No spark today" : "Today's spark"}
           </>
         }
         slateRight={`${platformLabel} / ${generated}`}
       >
-        <header className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="readout text-ember">Trend ▸ {spark.trendName}</p>
-            <OriginBadge origin={spark.origin} />
-          </div>
-          <h2
-            className={`headline text-balance ${
-              spark.headline.length > 90 ? "text-[30px] sm:text-[38px]" : "text-[42px] sm:text-[56px]"
-            }`}
-          >
-            {spark.headline}
-          </h2>
-          {spark.origin === "ai-hypothesis" && (
-            <p className="text-[18px] leading-relaxed font-medium">{spark.concept}</p>
-          )}
-          <p className="text-[16px] leading-relaxed">{spark.whyItWillSpread}</p>
-          <p className="readout text-ink-soft">For: {spark.brand}</p>
-        </header>
-
-        {spark.origin === "demo" ? <DemoSections spark={spark} /> : <HypothesisSections spark={spark} />}
+        {spark.origin === "demo" ? (
+          <>
+            <Header origin="demo" brand={spark.brand} content={spark} />
+            <DemoSections spark={spark} />
+          </>
+        ) : leader ? (
+          <>
+            <Header origin="ai-hypothesis" brand={spark.brand} content={leader} />
+            <HypothesisSections spark={spark} leader={leader} />
+          </>
+        ) : (
+          <NoLeader spark={spark} />
+        )}
       </StoryCard>
     </article>
+  );
+}
+
+function Header({
+  origin,
+  brand,
+  content,
+}: {
+  origin: SparkOrigin;
+  brand: string;
+  content: { trendName: string; headline: string; whyItWillSpread: string; concept?: string };
+}) {
+  return (
+    <header className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="readout text-ember">Trend ▸ {content.trendName}</p>
+        <OriginBadge origin={origin} />
+      </div>
+      <h2
+        className={`headline text-balance ${
+          content.headline.length > 90 ? "text-[30px] sm:text-[38px]" : "text-[42px] sm:text-[56px]"
+        }`}
+      >
+        {content.headline}
+      </h2>
+      {content.concept && <p className="text-[18px] leading-relaxed font-medium">{content.concept}</p>}
+      <p className="text-[16px] leading-relaxed">{content.whyItWillSpread}</p>
+      <p className="readout text-ink-soft">For: {brand}</p>
+    </header>
   );
 }
 
@@ -105,50 +148,97 @@ function DemoSections({ spark }: { spark: DemoSpark }) {
   );
 }
 
-/** AI hypothesis layout: timing as a stage plus reasoning, signals to verify, no invented numbers. */
-function HypothesisSections({ spark }: { spark: HypothesisSpark }) {
+/** AI hypothesis layout: the leading candidate, its evaluation, and the full scoreboard. */
+function HypothesisSections({ spark, leader }: { spark: HypothesisSpark; leader: Candidate }) {
   const origin = spark.origin;
-  const { generation } = spark;
+  const evaluation = spark.evaluation.evaluations.find((e) => e.candidateId === leader.id)!;
   return (
     <>
-      <HypothesisVerdict spark={spark} />
+      <HypothesisVerdict leader={leader} evaluation={evaluation} />
 
       <Section index={1} title="Timing hypothesis · unverified" origin={origin}>
         <div className="flex flex-col gap-4">
-          <p className="text-[16px] leading-relaxed">{spark.timing.reasoning}</p>
+          <p className="text-[16px] leading-relaxed">{leader.timing.reasoning}</p>
           <div className="flex flex-col gap-1.5 border-l-4 border-hypo pl-4">
             <p className="readout font-bold text-hypo">What would confirm it</p>
-            <p className="text-[15px] leading-relaxed">{spark.timing.whatWouldConfirm}</p>
+            <p className="text-[15px] leading-relaxed">{leader.timing.whatWouldConfirm}</p>
           </div>
         </div>
       </Section>
 
-      <Section index={2} title="Confidence" origin={origin}>
-        <ConfidenceBlocks score={spark.confidence} rationale={spark.confidenceRationale} />
+      <Section index={2} title="Evaluation · provisional" origin={origin}>
+        <Scoreboard report={spark.evaluation} candidates={spark.candidates} />
       </Section>
 
       <Section index={3} title="Why now" origin={origin}>
-        <WhyNow text={spark.whyNow} />
+        <WhyNow text={leader.whyNow} />
       </Section>
 
       <Section index={4} title="Storyboard · format ideas" origin={origin}>
-        <FormatIdeas ideas={spark.formatIdeas} />
+        <FormatIdeas ideas={leader.formatIdeas} />
+        <AudioApproach candidate={leader} />
       </Section>
 
       <Section index={5} title="Signals to verify" origin={origin}>
-        <SignalsToVerify signals={spark.signalsToVerify} />
+        <SignalsToVerify signals={leader.signalsToVerify} />
       </Section>
 
       <Section index={6} title="Watch-outs" origin={origin}>
-        <RiskNotes risks={spark.risks} />
+        <RiskNotes risks={leader.risks} />
       </Section>
 
-      <p className="readout border-t border-line pt-4 text-ink-soft">
-        Generated by {generation.model} · {generation.inputTokens.toLocaleString()} in /{" "}
-        {generation.outputTokens.toLocaleString()} out tokens · ≈${generation.estimatedCostUsd.toFixed(3)} ·
-        Unverified hypothesis
-      </p>
+      <GenerationFooter spark={spark} />
     </>
+  );
+}
+
+/** Every candidate was rejected: say so plainly, and show why. Nothing is promoted. */
+function NoLeader({ spark }: { spark: HypothesisSpark }) {
+  return (
+    <>
+      <header className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="readout text-ember">Scan result</p>
+          <OriginBadge origin={spark.origin} />
+        </div>
+        <h2 className="headline text-[42px] text-balance sm:text-[56px]">No candidate cleared the bar</h2>
+        <p className="text-[16px] leading-relaxed">
+          All three opportunities were rejected on creative merit, so none is recommended. This is a provisional
+          creative rejection, not an evidence-based one. Try another scan, or a different brand or platform.
+        </p>
+        <p className="readout text-ink-soft">For: {spark.brand}</p>
+      </header>
+      <Section index={1} title="Evaluation · provisional" origin={spark.origin}>
+        <Scoreboard report={spark.evaluation} candidates={spark.candidates} />
+      </Section>
+      <GenerationFooter spark={spark} />
+    </>
+  );
+}
+
+function AudioApproach({ candidate }: { candidate: Candidate }) {
+  return (
+    <div className="flex flex-col gap-1.5 border-l-4 border-line pl-4">
+      <p className="readout font-bold">Audio approach · {AUDIO_LABEL[candidate.audioRole]}</p>
+      {candidate.audioVariations.length > 0 && (
+        <ul className="flex list-disc flex-col gap-1 pl-4 text-[14px] leading-relaxed">
+          {candidate.audioVariations.map((v) => (
+            <li key={v}>{v}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function GenerationFooter({ spark }: { spark: HypothesisSpark }) {
+  const { generation } = spark;
+  return (
+    <p className="readout border-t border-line pt-4 text-ink-soft">
+      {generation.calls.length} calls to {generation.model} ({generation.calls.map((c) => c.step).join(" + ")}) ·{" "}
+      {generation.inputTokens.toLocaleString()} in / {generation.outputTokens.toLocaleString()} out tokens · ≈$
+      {generation.estimatedCostUsd.toFixed(3)} · Unverified hypotheses
+    </p>
   );
 }
 
@@ -172,7 +262,13 @@ function DemoVerdict({ spark }: { spark: DemoSpark }) {
           <dt className="readout font-bold">Act within</dt>
           <dd className="headline text-[40px] sm:text-[52px]">~{spark.window.peakInHours}h</dd>
         </div>
-        <ConfidenceCell confidence={spark.confidence} />
+        <div className="flex min-w-0 flex-col gap-1 border-l-2 border-ink px-4 py-3">
+          <dt className="readout text-ink-soft">Confidence</dt>
+          <dd className="headline text-[40px] sm:text-[52px]">
+            {spark.confidence}
+            <span className="text-[0.55em] text-ink-soft">%</span>
+          </dd>
+        </div>
         <div className="col-span-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t-2 border-ink bg-night px-4 py-2 text-night-ink">
           <dt className="sr-only">Momentum</dt>
           <dd className="headline text-[20px]">
@@ -185,41 +281,32 @@ function DemoVerdict({ spark }: { spark: DemoSpark }) {
   );
 }
 
-/** Same strip for a hypothesis, without hour predictions. */
-function HypothesisVerdict({ spark }: { spark: HypothesisSpark }) {
+/** Same strip for a hypothesis: stage and provisional Concept Score, no hour predictions. */
+function HypothesisVerdict({ leader, evaluation }: { leader: Candidate; evaluation: CandidateEvaluation }) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <p className="readout font-bold">The call</p>
-        <OriginBadge origin={spark.origin} />
+        <OriginBadge origin="ai-hypothesis" />
       </div>
       <dl className="grid grid-cols-2 border-2 border-ink">
         <div className="col-span-2 flex min-w-0 flex-col gap-1 bg-hypo-soft px-4 py-3 sm:col-span-1">
           <dt className="readout font-bold text-hypo">Stage (hypothesis)</dt>
-          <dd className="headline text-[40px] sm:text-[44px]">{STAGE_LABEL[spark.timing.stage]}</dd>
+          <dd className="headline text-[40px] sm:text-[44px]">{STAGE_LABEL[leader.timing.stage]}</dd>
         </div>
-        <ConfidenceCell
-          confidence={spark.confidence}
-          className="col-span-2 border-t-2 sm:col-span-1 sm:border-t-0 sm:border-l-2"
-        />
+        <div className="col-span-2 flex min-w-0 flex-col gap-1 border-t-2 border-ink px-4 py-3 sm:col-span-1 sm:border-t-0 sm:border-l-2">
+          <dt className="readout text-ink-soft">Concept Score · provisional</dt>
+          <dd className="headline text-[40px] sm:text-[52px]">
+            {formatScore(evaluation.score.applicableScore)}
+            <span className="text-[0.55em] text-ink-soft">/100</span>
+          </dd>
+        </div>
         <div className="col-span-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t-2 border-ink bg-night px-4 py-2 text-night-ink">
-          <dt className="sr-only">Timing</dt>
-          <dd className="readout font-bold">◇ Timing not verified</dd>
-          <dd className="readout opacity-70">Check the signals below before acting</dd>
+          <dt className="sr-only">Evidence status</dt>
+          <dd className="readout font-bold">◇ Creative merit only</dd>
+          <dd className="readout opacity-70">Cultural relevance and momentum unverified</dd>
         </div>
       </dl>
-    </div>
-  );
-}
-
-function ConfidenceCell({ confidence, className = "border-l-2" }: { confidence: number; className?: string }) {
-  return (
-    <div className={`flex min-w-0 flex-col gap-1 border-ink px-4 py-3 ${className}`}>
-      <dt className="readout text-ink-soft">Confidence</dt>
-      <dd className="headline text-[40px] sm:text-[52px]">
-        {confidence}
-        <span className="text-[0.55em] text-ink-soft">%</span>
-      </dd>
     </div>
   );
 }

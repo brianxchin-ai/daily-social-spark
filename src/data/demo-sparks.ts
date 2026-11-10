@@ -139,7 +139,7 @@ const shorts: DemoTemplate = (brand) => ({
   trendName: "“Myth vs. Maker” explainers",
   headline: `Let the person who makes ${brand} bust one myth about it in under 40 seconds`,
   whyItWillSpread:
-    "Short myth-busting clips fronted by real makers are earning high comment counts as viewers debate. Shorts favours clips that spark replies.",
+    "Short myth-busting clips fronted by real makers are earning high comment counts as viewers debate. Shorts favors clips that spark replies.",
   whyNow:
     "The (placeholder) format surged after a creator collab yesterday; similar Shorts formats typically stay hot for about two days.",
   window: { peakInHours: 36, closesInHours: 48, stage: "rising" },

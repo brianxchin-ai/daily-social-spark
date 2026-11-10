@@ -1,19 +1,18 @@
 import "server-only";
 
 import Anthropic from "@anthropic-ai/sdk";
-import { PLATFORMS, type ScanRequest } from "@/lib/types";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
-import { SparkDraftSchema, validateSparkDraft, type SparkDraft } from "@/lib/spark-schema";
+import type { ZodType } from "zod";
+import { CandidateSetSchema, validateCandidateSet, type CandidateDraft } from "@/lib/spark-schema";
+import { PLATFORMS, type ScanRequest } from "@/lib/types";
 
 /** Confirmed from Anthropic's live model and pricing docs on 2026-11-10. */
 export const MODEL = "claude-sonnet-5-5";
 const PRICE_PER_MTOK = { input: 2, output: 10 }; // USD; thinking tokens bill as output
-const MAX_OUTPUT_TOKENS = 8_000; // per-call ceiling: worst case ≈ $0.08 of output
-
-/** Our Zod schema, converted by Anthropic's helper into the JSON schema the API enforces. */
-const SPARK_DRAFT_JSON_SCHEMA = betaZodOutputFormat(SparkDraftSchema).schema;
 
 export interface ScanUsage {
+  /** Which step made the call, e.g. "generator" or "evaluator". */
+  step: string;
   model: string;
   inputTokens: number;
   outputTokens: number;
@@ -32,21 +31,6 @@ export class EngineError extends Error {
   }
 }
 
-const SYSTEM_PROMPT = `You are a senior social strategist. You identify ONE organic short-form social opportunity for a brand: a format, behaviour or cultural moment with momentum that the brand could credibly make content for.
-
-You have NO live data, browsing, or platform analytics. Everything you produce is a hypothesis drawn from general knowledge, and it will be labelled as unverified. Therefore:
-- Never invent URLs, publication or outlet names, creator handles, view counts, growth percentages, or any other statistic.
-- Never predict hours, dates or deadlines. Describe timing only as a stage plus your reasoning, and say what observable signal would confirm it.
-- Prefer formats that are gaining heat but not yet saturated, or proven formats still performing for other brands and creators.
-- The opportunity must fit the platform's native conventions and be realistic for the brand to produce.
-- The headline is a short display line, like a campaign line: 12 words or fewer, telling the brand what to make. Describe the full creative idea in the concept field; it is not limited to 12 words.
-- Keep copy tight and specific. Write em dashes closed, with no spaces around them (Chicago style).`;
-
-function userPrompt({ brand, platform }: ScanRequest): string {
-  const platformLabel = PLATFORMS.find((p) => p.id === platform)?.label ?? platform;
-  return `Brand or category: ${brand}\nPlatform: ${platformLabel}\n\nPropose the single strongest short-form opportunity for this brand on this platform right now.`;
-}
-
 let client: Anthropic | null = null;
 function getClient(): Anthropic {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -61,11 +45,23 @@ function getClient(): Anthropic {
   return client;
 }
 
-/** Ask Claude for one Spark hypothesis, then validate it against our rulebook. */
-export async function generateSparkDraft(
-  request: ScanRequest,
-): Promise<{ draft: SparkDraft; usage: ScanUsage }> {
+/**
+ * One structured call to Claude: send a prompt, require JSON in `schema`'s shape,
+ * then run our own rulebook (`validate`) before anything is used.
+ * Shared by the generator and the evaluator.
+ */
+export async function callStructured<T>(options: {
+  step: string;
+  system: string;
+  user: string;
+  schema: ZodType;
+  maxTokens: number;
+  validate: (value: unknown) => { ok: true; value: T } | { ok: false; problems: string[] };
+}): Promise<{ value: T; usage: ScanUsage }> {
   const anthropic = getClient();
+  const { step } = options;
+  // Our Zod schema, converted by Anthropic's helper into the JSON schema the API enforces.
+  const jsonSchema = betaZodOutputFormat(options.schema).schema;
 
   let response;
   let requestId: string | null = null;
@@ -75,24 +71,25 @@ export async function generateSparkDraft(
     const result = await anthropic.beta.messages
       .create({
         model: MODEL,
-        max_tokens: MAX_OUTPUT_TOKENS,
+        max_tokens: options.maxTokens,
         betas: ["server-side-fallback-2026-07-01"],
         fallbacks: "default", // if the model declines on policy grounds, Anthropic retries on a suitable model
-        system: SYSTEM_PROMPT,
-        messages: [{ role: "user", content: userPrompt(request) }],
+        system: options.system,
+        messages: [{ role: "user", content: options.user }],
         output_config: {
           effort: "medium",
-          format: { type: "json_schema", schema: SPARK_DRAFT_JSON_SCHEMA },
+          format: { type: "json_schema", schema: jsonSchema },
         },
       })
       .withResponse();
     response = result.data;
     requestId = result.request_id ?? null;
   } catch (error) {
-    throw toEngineError(error);
+    throw toEngineError(error, step);
   }
 
   const usage: ScanUsage = {
+    step,
     model: response.model,
     inputTokens: response.usage.input_tokens,
     outputTokens: response.usage.output_tokens,
@@ -101,14 +98,14 @@ export async function generateSparkDraft(
   };
   // Safe log: no key, headers, prompt or environment, only usage figures.
   console.info(
-    `[claude] model=${usage.model} in=${usage.inputTokens} out=${usage.outputTokens} est=$${usage.estimatedCostUsd.toFixed(4)} stop=${response.stop_reason} req=${usage.requestId}`,
+    `[claude:${step}] model=${usage.model} in=${usage.inputTokens} out=${usage.outputTokens} est=$${usage.estimatedCostUsd.toFixed(4)} stop=${response.stop_reason} req=${usage.requestId}`,
   );
 
   if (response.stop_reason === "refusal") {
-    throw new EngineError("Claude declined this request. Try a different brand or category.", 422);
+    throw new EngineError(`Claude declined the ${step} step. Try a different brand or category.`, 422);
   }
   if (response.stop_reason === "max_tokens") {
-    throw new EngineError("Claude's answer was cut off before it finished. Please try again.", 502);
+    throw new EngineError(`Claude's ${step} answer was cut off before it finished. Please try again.`, 502);
   }
 
   const text = response.content.find((block) => block.type === "text")?.text ?? "";
@@ -116,16 +113,51 @@ export async function generateSparkDraft(
   try {
     parsed = JSON.parse(text);
   } catch {
-    throw new EngineError("Claude's answer wasn't valid JSON, so it wasn't shown.", 502);
+    throw new EngineError(`Claude's ${step} answer wasn't valid JSON, so nothing was shown.`, 502);
   }
 
-  const checked = validateSparkDraft(parsed);
+  const checked = options.validate(parsed);
   if (!checked.ok) {
-    console.warn(`[claude] validation failed: ${checked.problems.join("; ")}`);
-    throw new EngineError("Claude's answer didn't pass our format checks, so it wasn't shown.", 502);
+    console.warn(`[claude:${step}] validation failed: ${checked.problems.join("; ")}`);
+    throw new EngineError(`Claude's ${step} answer didn't pass our format checks, so nothing was shown.`, 502);
   }
+  return { value: checked.value, usage };
+}
 
-  return { draft: checked.draft, usage };
+/* ---------- Generator ---------- */
+
+const GENERATOR_SYSTEM = `You are a senior social strategist. You propose organic short-form social opportunities for a brand: formats, behaviors or cultural moments with momentum that the brand could credibly make content for.
+
+You have NO live data, browsing, or platform analytics. Everything you produce is a hypothesis drawn from general knowledge, and it will be labeled as unverified. Therefore:
+- Never invent URLs, publication or outlet names, creator handles, view counts, growth percentages, or any other statistic.
+- Never predict hours, dates or deadlines. Describe timing only as a stage plus your reasoning, and say what observable signal would confirm it.
+- Prefer formats that are gaining heat but not yet saturated, or proven formats still performing for other brands and creators.
+- Each opportunity must fit the platform's native conventions and be realistic for the brand to produce.
+- Do not rate, score or rank your own ideas. A separate reviewer evaluates them.
+
+Write exactly three candidates, and make them genuinely different: each built on a distinct creative mechanic, not three versions of one idea.
+
+Audio: treat dependence on one specific track as a weakness. If an idea is audio-led, give at least three alternative executions that keep the mechanic recognizable and compelling without copying the original sound (original voiceover, silence, visual-only, different audio).
+
+Copy: the headline is a short display line, like a campaign line: 12 words or fewer, telling the brand what to make. Describe the full creative idea in the concept field; it is not limited to 12 words. Keep copy tight and specific. Use American English spelling (e.g. "behavior", "recognize", "favor"). Write em dashes closed, with no spaces around them (Chicago style).`;
+
+export function platformLabel(platform: ScanRequest["platform"]): string {
+  return PLATFORMS.find((p) => p.id === platform)?.label ?? platform;
+}
+
+/** Generator call: three distinct candidates, validated, never self-scored. */
+export async function generateCandidates(
+  request: ScanRequest,
+): Promise<{ candidates: CandidateDraft[]; usage: ScanUsage }> {
+  const { value, usage } = await callStructured({
+    step: "generator",
+    system: GENERATOR_SYSTEM,
+    user: `Brand or category: ${request.brand}\nPlatform: ${platformLabel(request.platform)}\n\nPropose three distinct short-form opportunities for this brand on this platform right now.`,
+    schema: CandidateSetSchema,
+    maxTokens: 12_000, // worst case ≈ $0.12 of output
+    validate: validateCandidateSet,
+  });
+  return { candidates: value.candidates, usage };
 }
 
 function estimateCost(inputTokens: number, outputTokens: number): number {
@@ -133,7 +165,7 @@ function estimateCost(inputTokens: number, outputTokens: number): number {
 }
 
 /** Translate SDK errors into plain, safe messages. Most specific first. */
-function toEngineError(error: unknown): EngineError {
+function toEngineError(error: unknown, step: string): EngineError {
   if (error instanceof Anthropic.AuthenticationError) {
     return new EngineError("The API key was rejected. Check ANTHROPIC_API_KEY in .env.local.", 500);
   }
@@ -148,7 +180,7 @@ function toEngineError(error: unknown): EngineError {
   }
   if (error instanceof Anthropic.BadRequestError) {
     // Includes a spend limit you set yourself in the Console.
-    console.warn(`[claude] bad request (status 400, req=${error.requestID ?? "n/a"})`);
+    console.warn(`[claude:${step}] bad request (status 400, req=${error.requestID ?? "n/a"})`);
     return new EngineError(
       "Anthropic rejected the request. If you've set a monthly spend limit, it may have been reached.",
       400,
@@ -158,9 +190,9 @@ function toEngineError(error: unknown): EngineError {
     return new EngineError("Couldn't reach Anthropic. Check your internet connection.", 503);
   }
   if (error instanceof Anthropic.APIError) {
-    console.warn(`[claude] API error status=${error.status} req=${error.requestID ?? "n/a"}`);
+    console.warn(`[claude:${step}] API error status=${error.status} req=${error.requestID ?? "n/a"}`);
     return new EngineError("Anthropic returned an error. Please try again shortly.", 502);
   }
-  console.warn("[claude] unexpected error type");
+  console.warn(`[claude:${step}] unexpected error type`);
   return new EngineError("Something went wrong while contacting Claude.", 500);
 }
