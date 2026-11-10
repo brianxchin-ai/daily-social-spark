@@ -19,8 +19,8 @@
   --night-ink: #f2f3f4;
   --demo: #5a45dc;
   --demo-soft: #e9e5ff;
-  --hypo: #0b7570;
-  --hypo-soft: #d6f1ee;
+  --hypo: #006f85;
+  --hypo-soft: #d3eaf0;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -36,8 +36,8 @@
     --night-ink: #f2f3f4;
     --demo: #a99bff;
     --demo-soft: #1f1a3d;
-    --hypo: #4fcfc4;
-    --hypo-soft: #0f2e2c;
+    --hypo: #51c4d9;
+    --hypo-soft: #0d2830;
   }
 }
 
