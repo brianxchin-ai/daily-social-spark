@@ -1,6 +1,7 @@
 import { EngineError, generateCandidates, MODEL, type ScanUsage } from "@/lib/engine/claude";
 import { generateDemoSpark } from "@/lib/engine/demo";
 import { evaluateCandidates } from "@/lib/engine/evaluator";
+import { refineLeader } from "@/lib/engine/refine";
 import { rankCandidates } from "@/lib/evaluation/scoring";
 import {
   PLATFORMS,
@@ -19,7 +20,9 @@ import {
  * The engine is chosen explicitly with SPARK_ENGINE ("demo" by default).
  * In "claude" mode a scan is: generator call (3 candidates) → separate
  * evaluator call (anonymized, shuffled) → deterministic scoring and ranking
- * in our code. Any failure is reported as an error; demo content is never
+ * in our code → one bounded refinement (editor call, and a rescore call only
+ * if a revision was written). Generator or evaluator failures are reported as
+ * errors; refinement failures keep the evaluated leader. Demo content is never
  * substituted.
  */
 
@@ -99,6 +102,10 @@ export async function POST(request: Request) {
       };
     });
 
+    // 4. One bounded refinement of the leader: critique, at most one revision,
+    //    rescore, and a deterministic keep/replace decision. Never fails the scan.
+    const refined = await refineLeader(scan, candidates, evaluations, ranking.leaderId);
+
     const spark: HypothesisSpark = {
       id: `ai-${scan.platform}-${stamp}`,
       origin: "ai-hypothesis",
@@ -112,7 +119,9 @@ export async function POST(request: Request) {
         leaderId: ranking.leaderId,
         leaderEvidenceBacked: ranking.leaderEvidenceBacked,
       },
-      generation: summarize([generated.usage, evaluated.usage]),
+      refinement: refined.refinement,
+      finalCandidate: refined.finalCandidate,
+      generation: summarize([generated.usage, evaluated.usage, ...refined.usages]),
     };
 
     console.info(

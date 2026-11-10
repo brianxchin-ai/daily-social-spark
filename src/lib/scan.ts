@@ -9,11 +9,20 @@ import type { EngineMode, ScanRequest, Spark } from "@/lib/types";
 /** Progress steps shown while waiting, per engine. */
 export const SCAN_STEPS: Record<EngineMode, readonly string[]> = {
   demo: ["Reading platform signals", "Checking sources", "Scoring momentum", "Drafting recommendations"],
-  claude: ["Generating three candidates", "Checking the format rules", "Evaluating with a separate reviewer", "Ranking by Concept Score"],
+  claude: [
+    "Generating three candidates",
+    "Evaluating with a separate reviewer",
+    "Ranking by Concept Score",
+    "Critiquing the leading idea",
+    "Revising and rescoring, if justified",
+  ],
 };
 
 /** Roughly how long each engine takes, used only to pace the progress bar. */
-export const EXPECTED_SCAN_MS: Record<EngineMode, number> = { demo: 3200, claude: 50_000 };
+export const EXPECTED_SCAN_MS: Record<EngineMode, number> = { demo: 3200, claude: 90_000 };
+
+/** Longer than the sum of the server's per-call timeouts (2 + 1.5 + 2 + 1.5 minutes). */
+const SCAN_TIMEOUT_MS = 7 * 60_000;
 
 export class ScanError extends Error {}
 
@@ -35,15 +44,26 @@ export async function runScan(request: ScanRequest): Promise<Spark> {
     throw new ScanError("Enter a brand or category to scan.");
   }
 
+  // Overall ceiling for the whole scan. Each server-side call has its own,
+  // shorter timeout; this only catches a stuck connection. No retry.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SCAN_TIMEOUT_MS);
   let response: Response;
   try {
     response = await fetch("/api/scan", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ brand, platform: request.platform }),
+      signal: controller.signal,
     });
   } catch {
-    throw new ScanError("Couldn't reach the app's server. Is it still running?");
+    throw new ScanError(
+      controller.signal.aborted
+        ? "The scan took longer than 7 minutes and was stopped. Nothing was retried."
+        : "Couldn't reach the app's server. Is it still running?",
+    );
+  } finally {
+    clearTimeout(timer);
   }
 
   const payload = (await response.json().catch(() => null)) as { spark?: Spark; error?: string } | null;

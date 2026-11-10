@@ -4,7 +4,15 @@
  * replace the demo engine later without redesigning the page.
  */
 
-import type { AudioRole, CandidateScore, CriterionResult, ScoreMode } from "./evaluation/scoring";
+import type {
+  AudioRole,
+  CandidateScore,
+  CriterionId,
+  CriterionResult,
+  RevisionChecks,
+  RevisionDecision,
+  ScoreMode,
+} from "./evaluation/scoring";
 
 export type Platform = "tiktok" | "instagram-reels" | "youtube-shorts";
 
@@ -66,10 +74,9 @@ export type SparkOrigin = "demo" | "ai-hypothesis";
 /** Which engine the server is set to use (SPARK_ENGINE). */
 export type EngineMode = "demo" | "claude";
 
-/** Timing for an AI hypothesis: a stage plus reasoning, never hour predictions. */
+/** Timing for an AI hypothesis: hedged reasoning only. No momentum label, no hours. */
 export interface TimingHypothesis {
-  stage: "rising" | "accelerating" | "near-peak" | "unclear";
-  reasoning: string;
+  hypothesis: string;
   whatWouldConfirm: string;
 }
 
@@ -158,7 +165,38 @@ export interface EvaluationReport {
   leaderEvidenceBacked: boolean;
 }
 
-/** An AI scan: three candidate hypotheses, evaluated and ranked. */
+/** The editor's one round of notes on the leader. */
+export interface CritiqueSummary {
+  weakness: string;
+  affectedCriterion: CriterionId;
+  revisionJustified: boolean;
+  decisionReason: string;
+  changeSummary: string;
+}
+
+/** Checkpoint 4: one critique and at most one revision of the leader, fully inspectable. */
+export type RefinementReport =
+  /** No eligible leader, so nothing was critiqued. */
+  | { status: "skipped"; reason: string }
+  /** The editor or rescore call failed; the evaluated leader stands, unrevised. */
+  | { status: "failed"; step: "editor" | "rescore"; message: string; critique: CritiqueSummary | null }
+  | {
+      status: "complete";
+      originalId: string;
+      critique: CritiqueSummary;
+      /** Present when the editor wrote a revision (valid or not). */
+      revision: {
+        candidate: Candidate | null;
+        /** Rulebook problems if the revision failed validation (then it was not rescored). */
+        validationProblems: string[];
+        evaluation: CandidateEvaluation | null;
+        checks: RevisionChecks | null;
+        checksRationale: string | null;
+      } | null;
+      decision: RevisionDecision;
+    };
+
+/** An AI scan: three candidate hypotheses, evaluated, ranked and refined once. */
 export interface HypothesisSpark {
   origin: "ai-hypothesis";
   id: string;
@@ -167,6 +205,9 @@ export interface HypothesisSpark {
   platform: Platform;
   candidates: Candidate[];
   evaluation: EvaluationReport;
+  refinement: RefinementReport;
+  /** The version presented: the leader, or its revision if it won. Null if none cleared the bar. */
+  finalCandidate: Candidate | null;
   generation: GenerationInfo;
 }
 

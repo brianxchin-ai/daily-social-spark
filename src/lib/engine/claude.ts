@@ -25,6 +25,8 @@ export class EngineError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** Set when Claude answered (and billed) before the step failed, so costs stay accurate. */
+    readonly usage?: ScanUsage,
   ) {
     super(message);
     this.name = "EngineError";
@@ -56,6 +58,8 @@ export async function callStructured<T>(options: {
   user: string;
   schema: ZodType;
   maxTokens: number;
+  /** Server-side limit for this call, in milliseconds. No retry after a timeout. */
+  timeoutMs: number;
   validate: (value: unknown) => { ok: true; value: T } | { ok: false; problems: string[] };
 }): Promise<{ value: T; usage: ScanUsage }> {
   const anthropic = getClient();
@@ -80,7 +84,7 @@ export async function callStructured<T>(options: {
           effort: "medium",
           format: { type: "json_schema", schema: jsonSchema },
         },
-      })
+      }, { timeout: options.timeoutMs })
       .withResponse();
     response = result.data;
     requestId = result.request_id ?? null;
@@ -102,10 +106,10 @@ export async function callStructured<T>(options: {
   );
 
   if (response.stop_reason === "refusal") {
-    throw new EngineError(`Claude declined the ${step} step. Try a different brand or category.`, 422);
+    throw new EngineError(`Claude declined the ${step} step. Try a different brand or category.`, 422, usage);
   }
   if (response.stop_reason === "max_tokens") {
-    throw new EngineError(`Claude's ${step} answer was cut off before it finished. Please try again.`, 502);
+    throw new EngineError(`Claude's ${step} answer was cut off before it finished. Please try again.`, 502, usage);
   }
 
   const text = response.content.find((block) => block.type === "text")?.text ?? "";
@@ -113,13 +117,13 @@ export async function callStructured<T>(options: {
   try {
     parsed = JSON.parse(text);
   } catch {
-    throw new EngineError(`Claude's ${step} answer wasn't valid JSON, so nothing was shown.`, 502);
+    throw new EngineError(`Claude's ${step} answer wasn't valid JSON, so nothing was shown.`, 502, usage);
   }
 
   const checked = options.validate(parsed);
   if (!checked.ok) {
     console.warn(`[claude:${step}] validation failed: ${checked.problems.join("; ")}`);
-    throw new EngineError(`Claude's ${step} answer didn't pass our format checks, so nothing was shown.`, 502);
+    throw new EngineError(`Claude's ${step} answer didn't pass our format checks, so nothing was shown.`, 502, usage);
   }
   return { value: checked.value, usage };
 }
@@ -130,14 +134,14 @@ const GENERATOR_SYSTEM = `You are a senior social strategist. You propose organi
 
 You have NO live data, browsing, or platform analytics. Everything you produce is a hypothesis drawn from general knowledge, and it will be labeled as unverified. Therefore:
 - Never invent URLs, publication or outlet names, creator handles, view counts, growth percentages, or any other statistic.
-- Never predict hours, dates or deadlines. Describe timing only as a stage plus your reasoning, and say what observable signal would confirm it.
+- Never predict hours, dates or deadlines, and never classify momentum (no "rising", "accelerating", "near peak" or similar). Write timing only as an explicit hypothesis, and say what observable signal would confirm or refute it.
 - Prefer formats that are gaining heat but not yet saturated, or proven formats still performing for other brands and creators.
 - Each opportunity must fit the platform's native conventions and be realistic for the brand to produce.
 - Do not rate, score or rank your own ideas. A separate reviewer evaluates them.
 
 Write exactly three candidates, and make them genuinely different: each built on a distinct creative mechanic, not three versions of one idea.
 
-Audio: treat dependence on one specific track as a weakness. If an idea is audio-led, give at least three alternative executions that keep the mechanic recognizable and compelling without copying the original sound (original voiceover, silence, visual-only, different audio).
+Audio: "audio-led" means built around a particular existing song, sound or audio track. Original narration, voiceover or dialogue does not make an idea audio-led. Treat dependence on one specific track as a weakness. If an idea is audio-led, give at least three alternative executions that keep the mechanic recognizable and compelling without copying the original track (original voiceover, silence, visual-only, different audio).
 
 Copy: the headline is a short display line, like a campaign line: 12 words or fewer, telling the brand what to make. Describe the full creative idea in the concept field; it is not limited to 12 words. Keep copy tight and specific. Use American English spelling (e.g. "behavior", "recognize", "favor"). Write em dashes closed, with no spaces around them (Chicago style).`;
 
@@ -155,6 +159,7 @@ export async function generateCandidates(
     user: `Brand or category: ${request.brand}\nPlatform: ${platformLabel(request.platform)}\n\nPropose three distinct short-form opportunities for this brand on this platform right now.`,
     schema: CandidateSetSchema,
     maxTokens: 12_000, // worst case ≈ $0.12 of output
+    timeoutMs: 120_000,
     validate: validateCandidateSet,
   });
   return { candidates: value.candidates, usage };
@@ -185,6 +190,10 @@ function toEngineError(error: unknown, step: string): EngineError {
       "Anthropic rejected the request. If you've set a monthly spend limit, it may have been reached.",
       400,
     );
+  }
+  if (error instanceof Anthropic.APIConnectionTimeoutError) {
+    console.warn(`[claude:${step}] timed out`);
+    return new EngineError(`Claude took too long on the ${step} step, so it was stopped (no retry).`, 504);
   }
   if (error instanceof Anthropic.APIConnectionError) {
     return new EngineError("Couldn't reach Anthropic. Check your internet connection.", 503);

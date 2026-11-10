@@ -1,7 +1,15 @@
 import "server-only";
 
 import { CRITERIA, type CriterionId, type CriterionResult } from "@/lib/evaluation/scoring";
-import { EvaluationSchema, validateEvaluation, type CandidateDraft } from "@/lib/spark-schema";
+import {
+  EvaluationSchema,
+  RescoreSchema,
+  validateEvaluation,
+  validateRescore,
+  type CandidateDraft,
+  type RescoreDraft,
+} from "@/lib/spark-schema";
+import type { RevisionChecks } from "@/lib/evaluation/scoring";
 import type { ScanRequest } from "@/lib/types";
 import { callStructured, platformLabel, type ScanUsage } from "./claude";
 
@@ -25,7 +33,7 @@ ${rubric()}
 
 General scale: 5 Exceptional (strongly meets it, almost no reservations), 4 Strong (meets it well, minor reservations), 3 Adequate (partly meets it, real gaps), 2 Weak (barely meets it), 1 Poor (fails it). Use the full range; don't default to 3 or 4.
 
-Audio rule: treat dependence on one specific audio track as a weakness, unless the mechanic stays recognizable and compelling through alternative audio, original voiceover, silence or visual reinterpretation. For each candidate, count how many of its listed audio variations genuinely preserve the mechanic without copying the original track.
+Audio rule: audio portability measures dependence on one specific existing song, sound or audio track. Ask: would replacing that particular track fundamentally undermine the creative mechanic? Original narration, voiceover and dialogue are NOT dependencies; do not lower the score just because audio contributes to the execution. Treat dependence on one specific track as a weakness unless the mechanic stays recognizable and compelling through alternative audio, original voiceover, silence or visual reinterpretation. For each candidate built around a specific existing track, count how many of its listed audio variations genuinely preserve the mechanic without copying that track.
 
 Do NOT score cultural relevance or emerging momentum. They cannot be verified without live research. For each, write one sentence on what live evidence would establish it.
 
@@ -96,27 +104,98 @@ Evaluate candidates A, B and C.`;
     user,
     schema: EvaluationSchema,
     maxTokens: 8_000, // worst case ≈ $0.08 of output
+    timeoutMs: 90_000,
     validate: validateEvaluation,
   });
 
-  const assessments = value.evaluations.map((e): CandidateAssessment => {
-    const results: CriterionResult[] = CRITERIA.map((c): CriterionResult => {
-      if (c.id === "culturalRelevance") {
-        return { criterionId: c.id, status: "unverified", score: null, rationale: e.culturalRelevanceEvidenceNeeded };
-      }
-      if (c.id === "emergingMomentum") {
-        return { criterionId: c.id, status: "unverified", score: null, rationale: e.emergingMomentumEvidenceNeeded };
-      }
-      const scored = e[c.id as Exclude<CriterionId, "culturalRelevance" | "emergingMomentum">];
-      return { criterionId: c.id, status: "scored", score: scored.score, rationale: scored.rationale };
-    });
-    return {
+  const assessments = value.evaluations.map(
+    (e): CandidateAssessment => ({
       candidateId: labelToId.get(e.label)!,
       label: e.label,
-      results,
+      results: toResults(e),
       meaningfulAudioVariations: e.meaningfulAudioVariations,
-    };
-  });
+    }),
+  );
 
   return { assessments, usage };
+}
+
+type ScoredFields = Pick<
+  RescoreDraft,
+  | "remixability"
+  | "comprehension"
+  | "audioPortability"
+  | "brandPlatformFit"
+  | "crossPlatform"
+  | "culturalRelevanceEvidenceNeeded"
+  | "emergingMomentumEvidenceNeeded"
+>;
+
+/** Turn the evaluator's answer into one result per criterion; evidence criteria stay Unverified. */
+function toResults(e: ScoredFields): CriterionResult[] {
+  return CRITERIA.map((c): CriterionResult => {
+    if (c.id === "culturalRelevance") {
+      return { criterionId: c.id, status: "unverified", score: null, rationale: e.culturalRelevanceEvidenceNeeded };
+    }
+    if (c.id === "emergingMomentum") {
+      return { criterionId: c.id, status: "unverified", score: null, rationale: e.emergingMomentumEvidenceNeeded };
+    }
+    const scored = e[c.id as Exclude<CriterionId, "culturalRelevance" | "emergingMomentum">];
+    return { criterionId: c.id, status: "scored", score: scored.score, rationale: scored.rationale };
+  });
+}
+
+/**
+ * Rescore a revision with the same evaluator instructions and rubric, plus
+ * three yes/no checks our code uses to decide whether the revision may
+ * replace the original. The evaluator never sees the original's scores.
+ */
+export async function rescoreRevision(
+  request: ScanRequest,
+  original: CandidateDraft,
+  revised: CandidateDraft,
+  weakness: string,
+): Promise<{
+  results: CriterionResult[];
+  meaningfulAudioVariations: number;
+  checks: RevisionChecks;
+  checksRationale: string;
+  usage: ScanUsage;
+}> {
+  const user = `Brand or category: ${request.brand}
+Platform: ${platformLabel(request.platform)}
+
+${describeCandidate("A", revised)}
+
+Score candidate A on the five criteria, on its own merits.
+
+Then answer three checks about candidate A, which is a revision of an earlier idea:
+- Original core mechanic: ${original.mechanic}
+- Original concept: ${original.concept}
+- Weakness the revision was meant to fix: ${weakness}
+preservesMechanic: does A keep the same core creative mechanic (not a different idea)?
+addressesWeakness: does A genuinely address that weakness?
+introducesUnsupportedClaims: does A add cultural, momentum or performance claims that can't be supported without live data?`;
+
+  const { value, usage } = await callStructured({
+    step: "rescore",
+    system: EVALUATOR_SYSTEM,
+    user,
+    schema: RescoreSchema,
+    maxTokens: 4_000, // worst case ≈ $0.04 of output
+    timeoutMs: 90_000,
+    validate: validateRescore,
+  });
+
+  return {
+    results: toResults(value),
+    meaningfulAudioVariations: value.meaningfulAudioVariations,
+    checks: {
+      preservesMechanic: value.preservesMechanic,
+      addressesWeakness: value.addressesWeakness,
+      noUnsupportedClaims: !value.introducesUnsupportedClaims,
+    },
+    checksRationale: value.checksRationale,
+    usage,
+  };
 }

@@ -88,10 +88,13 @@ export const CRITERIA: readonly Criterion[] = [
     question:
       "Does the opportunity remain recognizable and compelling without depending on one particular song, sound, or audio track?",
     basis: "concept",
+    // Judges dependence on a specific existing song, sound or track, not the
+    // mere presence of audio. Original narration, voiceover or dialogue is not
+    // a dependency.
     anchors: {
-      1: "Only works with one specific track.",
-      3: "Works with alternative audio, but noticeably weaker.",
-      5: "Fully works with original voiceover, silence or visuals, with several non-copying variations.",
+      1: "The mechanic only works with one specific song, sound or track; replacing it breaks the idea.",
+      3: "Leans on a particular sound's style or meme, but stays recognizable with alternatives.",
+      5: "No dependence on any particular track; works with original narration, dialogue, any audio, or none.",
     },
   },
   {
@@ -329,4 +332,64 @@ export function rankCandidates(inputs: CandidateInput[]): Ranking {
 /** Display helper: whole number, e.g. 68.75 → "69". Ranking always uses the unrounded value. */
 export function formatScore(score: number): string {
   return String(Math.round(score));
+}
+
+/* ---------- Checkpoint 4: one bounded revision ---------- */
+
+/**
+ * Minimum Concept Score gain a revision needs to replace the original.
+ * An initial product-design threshold, adjustable after testing; not a
+ * validated measure of creative improvement.
+ */
+export const MIN_REVISION_GAIN = 5;
+
+/** Yes/no checks from the independent rescoring call. */
+export interface RevisionChecks {
+  preservesMechanic: boolean;
+  addressesWeakness: boolean;
+  noUnsupportedClaims: boolean;
+}
+
+export interface RevisionDecision {
+  outcome: "kept-revised" | "kept-original";
+  /** Revised minus original Concept Score, unrounded; null if there was no valid revision to score. */
+  gain: number | null;
+  minGain: number;
+  /** Every rule that applied, pass or fail, so the decision is inspectable. */
+  checks: { rule: string; passed: boolean }[];
+}
+
+/**
+ * Keep the revision only if every rule passes: same core mechanic, fixes the
+ * named weakness, no new unsupported claims, not rejected, and a gain of at
+ * least MIN_REVISION_GAIN. Otherwise keep the original. Deterministic.
+ */
+export function decideRevision(
+  original: CandidateScore,
+  revised: CandidateScore | null,
+  revisionChecks: RevisionChecks | null,
+): RevisionDecision {
+  if (!revised || !revisionChecks) {
+    return {
+      outcome: "kept-original",
+      gain: null,
+      minGain: MIN_REVISION_GAIN,
+      checks: [{ rule: "A valid, scored revision exists", passed: false }],
+    };
+  }
+  const gain = revised.applicableScore - original.applicableScore;
+  const checks = [
+    { rule: "Preserves the original core mechanic", passed: revisionChecks.preservesMechanic },
+    { rule: "Addresses the weakness named in the critique", passed: revisionChecks.addressesWeakness },
+    { rule: "Adds no unsupported cultural, momentum or performance claims", passed: revisionChecks.noUnsupportedClaims },
+    { rule: "Passes the same rejection rules as the original", passed: !revised.rejected },
+    // Small tolerance so exact-arithmetic gains like 5.0 never fail on rounding.
+    { rule: `Improves the Concept Score by at least ${MIN_REVISION_GAIN} points`, passed: gain >= MIN_REVISION_GAIN - EPSILON },
+  ];
+  return {
+    outcome: checks.every((c) => c.passed) ? "kept-revised" : "kept-original",
+    gain,
+    minGain: MIN_REVISION_GAIN,
+    checks,
+  };
 }

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   applicableScore,
+  decideRevision,
   CRITERIA,
   rankCandidates,
   scoreCandidate,
@@ -199,4 +200,56 @@ test("Day 3 readiness: partial evidence is never presented as evidence-backed", 
     candidate("y", { ...concept(2, 2, 2, 2, 2), culturalRelevance: 2, emergingMomentum: 2 }),
   );
   assert.equal(fullReject.rejectionKind, "evidence-based");
+});
+
+/* ---------- Checkpoint 4: revision decision ---------- */
+
+const allYes = { preservesMechanic: true, addressesWeakness: true, noUnsupportedClaims: true };
+const scoreOfConcept = (r: number, c: number, a: number, f: number, x: number, opts = {}) =>
+  scoreCandidate(candidate("x", concept(r, c, a, f, x), opts));
+
+test("revision with exactly +5 and all checks passing replaces the original", () => {
+  const original = scoreOfConcept(3, 3, 3, 3, 3); // 50
+  const revised = scoreOfConcept(3, 4, 3, 3, 3); // +.10/.5 = +.2 avg → +5
+  assert.ok(Math.abs(revised.applicableScore - original.applicableScore - 5) < 1e-9);
+  const d = decideRevision(original, revised, allYes);
+  assert.equal(d.outcome, "kept-revised");
+  assert.ok(d.checks.every((c) => c.passed));
+});
+
+test("a gain under 5 keeps the original (+2.5)", () => {
+  const original = scoreOfConcept(3, 3, 3, 3, 3); // 50
+  const revised = scoreOfConcept(3, 3, 3, 3, 4); // +2.5
+  const d = decideRevision(original, revised, allYes);
+  assert.equal(d.outcome, "kept-original");
+  assert.equal(d.checks.find((c) => c.rule.startsWith("Improves"))!.passed, false);
+});
+
+test("a large gain still loses if the mechanic changed, the weakness wasn't addressed, or claims were added", () => {
+  const original = scoreOfConcept(3, 3, 3, 3, 3);
+  const revised = scoreOfConcept(5, 5, 5, 5, 5); // +50
+  for (const broken of ["preservesMechanic", "addressesWeakness", "noUnsupportedClaims"] as const) {
+    const d = decideRevision(original, revised, { ...allYes, [broken]: false });
+    assert.equal(d.outcome, "kept-original", broken);
+  }
+});
+
+test("a rejected revision keeps the original, even with a big gain", () => {
+  const original = scoreOfConcept(3, 3, 3, 3, 3);
+  const revised = scoreOfConcept(5, 5, 5, 1, 5); // fit = 1 → rejected
+  assert.equal(revised.rejected, true);
+  assert.equal(decideRevision(original, revised, allYes).outcome, "kept-original");
+});
+
+test("an equal or lower score keeps the original", () => {
+  const original = scoreOfConcept(4, 4, 4, 4, 4);
+  assert.equal(decideRevision(original, scoreOfConcept(4, 4, 4, 4, 4), allYes).outcome, "kept-original");
+  assert.equal(decideRevision(original, scoreOfConcept(3, 4, 4, 4, 4), allYes).outcome, "kept-original");
+});
+
+test("no revision (or no checks) keeps the original with gain = null", () => {
+  const original = scoreOfConcept(4, 4, 4, 4, 4);
+  const d = decideRevision(original, null, null);
+  assert.equal(d.outcome, "kept-original");
+  assert.equal(d.gain, null);
 });

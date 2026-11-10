@@ -8,8 +8,8 @@ import { z } from "zod";
  * - The `validate…` functions are our own rulebook, run on our server afterwards,
  *   with the stricter checks (ranges, counts, uniqueness, non-empty text).
  *
- * Today's results are hypotheses: no hour-based timing predictions, no URLs,
- * no invented outlets or numbers.
+ * Today's results are hypotheses: no momentum classifications, no hour-based
+ * timing predictions, no URLs, no invented outlets or numbers.
  */
 
 /* ---------- Generator: three candidate opportunities ---------- */
@@ -30,13 +30,18 @@ export const CandidateDraftSchema = z.object({
   whyItWillSpread: z.string().describe("Why this format has distribution and algorithmic potential."),
   whyNow: z.string().describe("The cultural or platform reasoning for acting now, framed as a hypothesis."),
   timing: z.object({
-    stage: z.enum(["rising", "accelerating", "near-peak", "unclear"]),
-    reasoning: z.string().describe("Why you believe it is at this stage. No hour or date predictions."),
-    whatWouldConfirm: z.string().describe("The observable signals that would confirm or refute this stage."),
+    hypothesis: z
+      .string()
+      .describe(
+        "A clearly hedged timing hypothesis from general knowledge. No momentum labels (rising, accelerating, near peak), hours or dates.",
+      ),
+    whatWouldConfirm: z.string().describe("The observable signals that would confirm or refute the hypothesis."),
   }),
   audioRole: z
     .enum(["audio-led", "audio-optional", "no-audio"])
-    .describe("audio-led: the idea is built around a particular sound or track."),
+    .describe(
+      "audio-led: built around a particular existing song, sound or track. Original narration, voiceover or dialogue does not count.",
+    ),
   audioVariations: z
     .array(z.string())
     .describe(
@@ -179,5 +184,103 @@ export function validateCandidateSet(value: unknown): Validated<{ candidates: Ca
 /** Our own check on the evaluator's answer, after the API's. */
 export function validateEvaluation(value: unknown): Validated<EvaluationDraft> {
   const result = StrictEvaluationSchema.safeParse(value);
+  return result.success ? { ok: true, value: result.data } : { ok: false, problems: describeIssues(result.error) };
+}
+
+/* ---------- Checkpoint 4: editor (critique + at most one revision) ---------- */
+
+const CONCEPT_CRITERION_IDS = [
+  "remixability",
+  "comprehension",
+  "audioPortability",
+  "brandPlatformFit",
+  "crossPlatform",
+] as const;
+
+export const EditorSchema = z.object({
+  weakness: z.string().describe("The single most significant creative weakness, in one or two sentences."),
+  affectedCriterion: z
+    .enum(CONCEPT_CRITERION_IDS)
+    .describe("The concept criterion this weakness most affects."),
+  revisionJustified: z.boolean().describe("True only if one revision could meaningfully improve the idea."),
+  decisionReason: z.string().describe("One sentence explaining the decision."),
+  revisions: z
+    .array(CandidateDraftSchema)
+    .describe("Exactly one revised candidate if revisionJustified is true; otherwise an empty list."),
+  changeSummary: z.string().describe("One or two sentences on what changed and why. Empty if no revision."),
+});
+
+export type EditorDraft = z.infer<typeof EditorSchema>;
+
+const StrictEditorSchema = z
+  .object({
+    weakness: nonEmpty,
+    affectedCriterion: z.enum(CONCEPT_CRITERION_IDS),
+    revisionJustified: z.boolean(),
+    decisionReason: nonEmpty,
+    // The revision itself is validated separately, so a bad revision keeps the
+    // original (an inspectable outcome) instead of failing the whole step.
+    revisions: z.array(z.unknown()).max(1),
+    changeSummary: z.string(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.revisionJustified !== (value.revisions.length === 1)) {
+      ctx.addIssue({ code: "custom", message: "Exactly one revision is required when justified, none otherwise." });
+    }
+    if (!noUrls({ weakness: value.weakness, decisionReason: value.decisionReason })) {
+      ctx.addIssue({ code: "custom", message: "Critique must not contain URLs." });
+    }
+  });
+
+export function validateEditor(
+  value: unknown,
+): Validated<Omit<EditorDraft, "revisions"> & { revisions: unknown[] }> {
+  const result = StrictEditorSchema.safeParse(value);
+  return result.success ? { ok: true, value: result.data } : { ok: false, problems: describeIssues(result.error) };
+}
+
+/** Same rulebook as the generator's candidates, applied to the single revision. */
+export function validateRevisedCandidate(value: unknown): Validated<CandidateDraft> {
+  const result = StrictCandidateSchema.safeParse(value);
+  if (!result.success) return { ok: false, problems: describeIssues(result.error) };
+  if (!noUrls(result.data)) return { ok: false, problems: ["Revision must not contain URLs."] };
+  return { ok: true, value: result.data };
+}
+
+/* ---------- Checkpoint 4: rescoring the revision ---------- */
+
+export const RescoreSchema = z.object({
+  remixability: ConceptScoreSchema,
+  comprehension: ConceptScoreSchema,
+  audioPortability: ConceptScoreSchema,
+  brandPlatformFit: ConceptScoreSchema,
+  crossPlatform: ConceptScoreSchema,
+  culturalRelevanceEvidenceNeeded: z.string().describe("Not a score. What live evidence would establish it."),
+  emergingMomentumEvidenceNeeded: z.string().describe("Not a score. What live evidence would establish it."),
+  meaningfulAudioVariations: z.number().describe("As before: meaningful, non-copying alternatives. 0 if none."),
+  preservesMechanic: z.boolean().describe("Does the revision keep the original core creative mechanic?"),
+  addressesWeakness: z.boolean().describe("Does the revision address the named weakness?"),
+  introducesUnsupportedClaims: z
+    .boolean()
+    .describe("Does the revision add cultural, momentum or performance claims that can't be supported without data?"),
+  checksRationale: z.string().describe("One sentence explaining the three yes/no checks."),
+});
+
+export type RescoreDraft = z.infer<typeof RescoreSchema>;
+
+const StrictRescoreSchema = RescoreSchema.extend({
+  remixability: StrictScore,
+  comprehension: StrictScore,
+  audioPortability: StrictScore,
+  brandPlatformFit: StrictScore,
+  crossPlatform: StrictScore,
+  culturalRelevanceEvidenceNeeded: nonEmpty,
+  emergingMomentumEvidenceNeeded: nonEmpty,
+  meaningfulAudioVariations: z.number().int().min(0).max(20),
+  checksRationale: nonEmpty,
+}).refine(noUrls, { message: "Rationales must not contain URLs." });
+
+export function validateRescore(value: unknown): Validated<RescoreDraft> {
+  const result = StrictRescoreSchema.safeParse(value);
   return result.success ? { ok: true, value: result.data } : { ok: false, problems: describeIssues(result.error) };
 }
