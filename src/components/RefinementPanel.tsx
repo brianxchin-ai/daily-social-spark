@@ -14,7 +14,13 @@ export function RefinementPanel({
   original: Candidate;
   originalEvaluation: CandidateEvaluation;
 }) {
-  if (refinement.status === "skipped") return null;
+  if (refinement.status === "skipped") {
+    return (
+      <Notice tone="warn" title="Refinement skipped">
+        {refinement.reason} No editor or rescore call was made, and the evaluated leader is shown unrevised.
+      </Notice>
+    );
+  }
 
   if (refinement.status === "failed") {
     return (
@@ -37,7 +43,8 @@ export function RefinementPanel({
       <p className="text-[14px] leading-relaxed text-ink-soft">
         <strong className="text-ink">One round of notes, at most one revision.</strong> A separate editor call names
         the leading idea&apos;s biggest creative weakness. If a revision is justified, the reviewer rescores it with the
-        same criteria, and our code keeps whichever version the rules favor.
+        same criteria and checks whether the original evidence still applies. Our code keeps the revision only if it
+        passes every rule, including a Concept Score gain of at least 5 and no loss of verified evidence.
       </p>
 
       <CritiqueBlock critique={critique} />
@@ -84,6 +91,9 @@ export function RefinementPanel({
             </ul>
             {revision.checksRationale && (
               <p className="text-[13px] leading-relaxed text-ink-soft">Reviewer on the checks: {revision.checksRationale}</p>
+            )}
+            {revision.evidenceRationale && (
+              <p className="text-[13px] leading-relaxed text-ink-soft">Reviewer on the evidence: {revision.evidenceRationale}</p>
             )}
           </div>
 
@@ -173,7 +183,7 @@ function BeforeAfter({ original, revised }: { original: CandidateEvaluation; rev
       <tfoot>
         <tr className="border-t-2 border-ink">
           <th scope="row" className="py-3 pr-2 text-[13px] font-bold">
-            Concept Score <span className="readout font-normal text-ink-soft">provisional</span>
+            Concept Score <span className="readout font-normal text-ink-soft">decides the gain</span>
           </th>
           <td className="py-3 text-center">
             <span className="headline text-[28px]" title={`Exact: ${original.score.conceptScore.toFixed(2)}`}>

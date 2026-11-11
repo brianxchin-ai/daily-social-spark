@@ -55,6 +55,7 @@ export async function critiqueAndRevise(
   leader: CandidateDraft,
   leaderResults: CriterionResult[],
   timeoutMs = 120_000,
+  signal?: AbortSignal,
 ): Promise<{
   critique: Critique;
   revision: { ok: true; draft: CandidateDraft } | { ok: false; problems: string[] } | null;
@@ -72,6 +73,7 @@ ${describeLeader(leader, leaderResults)}`,
     maxTokens: 10_000, // worst case ≈ $0.10 of output
     timeoutMs,
     validate: validateEditor,
+    signal,
   });
 
   const critique: Critique = {

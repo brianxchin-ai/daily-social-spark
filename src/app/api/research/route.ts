@@ -56,9 +56,12 @@ export async function POST(request: Request) {
 
   try {
     const now = new Date();
-    const { ledger, usages } = await runScout(scan, now);
-    const { token, expiresAt } = signLedger(ledger, scan, ready.secret, now);
+    // request.signal fires if the person cancels: the Scout stops and makes no further calls.
+    const { ledger, usages } = await runScout(scan, now, request.signal);
     const usage = summarize(usages);
+    // Carry the research cost inside the signed ledger so the result can report the whole scan.
+    ledger.researchUsage = usage;
+    const { token, expiresAt } = signLedger(ledger, scan, ready.secret, now);
     console.info(
       `[research] sources=${ledger.sources.length} signals=${ledger.signals.length} observations=${ledger.observations.length} searches=${usage.webSearches} total=$${usage.estimatedCostUsd.toFixed(4)}`,
     );

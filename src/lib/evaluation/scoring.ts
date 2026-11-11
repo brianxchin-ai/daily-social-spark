@@ -488,3 +488,41 @@ export function decideRevision(
     checks,
   };
 }
+
+/* ---------- Day 3: explaining ties (display only; ranking is unchanged) ---------- */
+
+export interface TieExplanation {
+  /** Higher-ranked candidate of the tied pair. */
+  ahead: string;
+  behind: string;
+  /** The shared ranking score, unrounded. */
+  score: number;
+  /** What broke the tie, exactly as rankCandidates does it. */
+  decidedBy: { criterionId: CriterionId; ahead: number; behind: number } | "generation-order";
+}
+
+/**
+ * For each pair of adjacent ranked candidates with equal ranking scores,
+ * report which agreed tie-break decided their order. Mirrors rankCandidates;
+ * it never changes the ranking.
+ */
+export function explainTies(scores: CandidateScore[], resultsById: Map<string, CriterionResult[]>): TieExplanation[] {
+  const ranked = scores.filter((s) => !s.rejected && s.rank !== null).sort((a, b) => a.rank! - b.rank!);
+  const value = (id: string, c: CriterionId) => resultsById.get(id)?.find((r) => r.criterionId === c)?.score ?? 0;
+  const ties: TieExplanation[] = [];
+  for (let i = 0; i + 1 < ranked.length; i++) {
+    const a = ranked[i];
+    const b = ranked[i + 1];
+    if (Math.abs(a.rankingScore - b.rankingScore) > EPSILON) continue;
+    const decider = TIE_BREAK_ORDER.find((c) => value(a.candidateId, c) !== value(b.candidateId, c));
+    ties.push({
+      ahead: a.candidateId,
+      behind: b.candidateId,
+      score: a.rankingScore,
+      decidedBy: decider
+        ? { criterionId: decider, ahead: value(a.candidateId, decider), behind: value(b.candidateId, decider) }
+        : "generation-order",
+    });
+  }
+  return ties;
+}

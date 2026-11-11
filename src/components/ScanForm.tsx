@@ -10,6 +10,7 @@ interface ScanFormProps {
   onBrandChange: (value: string) => void;
   onPlatformChange: (value: Platform) => void;
   onSubmit: () => void;
+  onCancel: () => void;
 }
 
 const PLATFORM_PARTS: Record<Platform, [string, string]> = {
@@ -27,6 +28,7 @@ export function ScanForm({
   onBrandChange,
   onPlatformChange,
   onSubmit,
+  onCancel,
 }: ScanFormProps) {
   return (
     <form
@@ -96,25 +98,37 @@ export function ScanForm({
         </div>
       </fieldset>
 
-      <button
-        type="submit"
-        disabled={isScanning}
-        className="group flex items-center justify-between border-2 border-ink bg-ember px-5 py-4 text-night shadow-[5px_5px_0_var(--ink)] transition-all hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[3px_3px_0_var(--ink)] active:translate-x-[5px] active:translate-y-[5px] active:shadow-none disabled:cursor-wait disabled:opacity-70"
-      >
-        <span className="headline text-[34px]">
-          {isScanning ? (
-            <>
-              Scanning<span className="animate-blink motion-reduce:animate-none">_</span>
-            </>
-          ) : (
-            "Run scan"
-          )}
-        </span>
-        <span className="readout flex items-center gap-2 font-bold">
-          <span className="hidden rounded-sm border border-night/40 px-1.5 py-0.5 sm:inline">⏎ Enter</span>
-          <span aria-hidden className="text-[22px] transition-transform group-hover:translate-x-1">→</span>
-        </span>
-      </button>
+      {isScanning ? (
+        // While a scan runs, the same slot becomes Cancel: same shape, quieter color.
+        <button
+          key="cancel"
+          type="button"
+          onClick={(event) => {
+            // Don't let this click fall through to the Run scan button that replaces it.
+            event.preventDefault();
+            onCancel();
+          }}
+          className="group flex items-center justify-between border-2 border-ink bg-surface px-5 py-4 text-ink shadow-[5px_5px_0_var(--ink)] transition-all hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[3px_3px_0_var(--ink)] active:translate-x-[5px] active:translate-y-[5px] active:shadow-none"
+        >
+          <span className="headline text-[34px]">Cancel scan</span>
+          <span className="readout flex items-center gap-2 font-bold">
+            <span className="hidden rounded-sm border border-ink/40 px-1.5 py-0.5 sm:inline">Esc</span>
+            <span aria-hidden className="text-[22px]">✕</span>
+          </span>
+        </button>
+      ) : (
+        <button
+          key="run"
+          type="submit"
+          className="group flex items-center justify-between border-2 border-ink bg-ember px-5 py-4 text-night shadow-[5px_5px_0_var(--ink)] transition-all hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[3px_3px_0_var(--ink)] active:translate-x-[5px] active:translate-y-[5px] active:shadow-none"
+        >
+          <span className="headline text-[34px]">Run scan</span>
+          <span className="readout flex items-center gap-2 font-bold">
+            <span className="hidden rounded-sm border border-night/40 px-1.5 py-0.5 sm:inline">⏎ Enter</span>
+            <span aria-hidden className="text-[22px] transition-transform group-hover:translate-x-1">→</span>
+          </span>
+        </button>
+      )}
     </form>
   );
 }

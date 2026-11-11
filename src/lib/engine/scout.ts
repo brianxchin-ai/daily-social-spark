@@ -68,6 +68,7 @@ export function extractScoutContent(content: Anthropic.Beta.Messages.BetaContent
 export async function runScout(
   request: ScanRequest,
   now: Date,
+  signal?: AbortSignal,
 ): Promise<{ ledger: EvidenceLedger; usages: ScanUsage[] }> {
   const today = now.toISOString().slice(0, 10);
   const usages: ScanUsage[] = [];
@@ -80,6 +81,7 @@ export async function runScout(
     maxTokens: 8_000, // worst case ≈ $0.08 of output
     maxSearches: MAX_SEARCHES,
     timeoutMs: 150_000,
+    signal,
   });
   usages.push(searched.usage);
 
@@ -136,6 +138,7 @@ ${annotated}`,
       schema: LedgerDraftSchema,
       maxTokens: 6_000, // worst case ≈ $0.06 of output
       timeoutMs: 60_000,
+      signal,
       validate: (value) => {
         const parsed = LedgerDraftSchema.safeParse(value);
         return parsed.success

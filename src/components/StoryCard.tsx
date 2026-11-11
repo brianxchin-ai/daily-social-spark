@@ -26,7 +26,7 @@ export function StoryCard({
       }`}
     >
       <div
-        className={`readout flex items-center justify-between gap-3 px-5 py-2.5 pr-24 ${
+        className={`readout flex items-center justify-between gap-3 px-5 py-2.5 pr-28 ${
           dashed ? "text-ink-soft" : "bg-night text-night-ink"
         }`}
       >

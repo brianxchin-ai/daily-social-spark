@@ -306,3 +306,32 @@ test("regression: an idea grounded in a signal with no validated observations is
   // A grounded signal that does have observations gets no such warning.
   assert.ok(!checkGrounding({ groundedIn: ["G1"], evidenceBasis: "G1 shows it." }, ledger).warnings.some((w) => w.includes("no validated observations")));
 });
+
+/* ---------- Checkpoint 3: tie explanations (display only) ---------- */
+
+test("ties: the live-test case (both 65) reports the comprehension tie-break, without changing the ranking", async () => {
+  const { explainTies } = await import("./scoring.ts");
+  const tiny = [...evidence(null, null), ...concept(4, 4, 5, 4, 4)]; // concept 80 → ranking 65
+  const hallelujah = [...evidence(null, null), ...concept(4, 5, 4, 4, 4)]; // concept 80 → ranking 65
+  const deadpan = [...evidence(null, null), ...concept(4, 3, 4, 4, 3)];
+  const inputs = [input("tiny", 0, tiny), input("hallelujah", 1, hallelujah), input("deadpan", 2, deadpan)];
+  const r = rankCandidates(inputs);
+  assert.equal(r.leaderId, "hallelujah");
+  const ties = explainTies(r.scores, new Map(inputs.map((i) => [i.candidateId, i.results])));
+  assert.equal(ties.length, 1);
+  assert.equal(ties[0].ahead, "hallelujah");
+  assert.equal(ties[0].behind, "tiny");
+  assert.equal(ties[0].score, 65);
+  assert.deepEqual(ties[0].decidedBy, { criterionId: "comprehension", ahead: 5, behind: 4 });
+});
+
+test("ties: identical scores on every tie-break fall to generation order; distinct scores report no tie", async () => {
+  const { explainTies } = await import("./scoring.ts");
+  const same = [...evidence(null, null), ...concept(4, 4, 4, 4, 4)];
+  const inputs = [input("first", 0, same), input("second", 1, same)];
+  const r = rankCandidates(inputs);
+  const ties = explainTies(r.scores, new Map(inputs.map((i) => [i.candidateId, i.results])));
+  assert.equal(ties[0].decidedBy, "generation-order");
+  const distinct = [input("a", 0, same), input("b", 1, [...evidence(null, null), ...concept(5, 4, 4, 4, 4)])];
+  assert.deepEqual(explainTies(rankCandidates(distinct).scores, new Map(distinct.map((i) => [i.candidateId, i.results]))), []);
+});

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { runScan, ScanError } from "@/lib/scan";
+import { runScan, ScanCanceled, ScanError, type ScanPhase } from "@/lib/scan";
 import type { Platform, Spark } from "@/lib/types";
 import { useEngineStatus } from "@/lib/use-engine-status";
 import { ScanForm } from "./ScanForm";
@@ -22,7 +22,10 @@ export function ScanExperience() {
   const [platform, setPlatform] = useState<Platform>("tiktok");
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const [state, setState] = useState<ScanState>({ status: "idle" });
+  const [phase, setPhase] = useState<ScanPhase>("research");
   const latestRun = useRef(0);
+  const cancelRef = useRef<AbortController | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const engineStatus = useEngineStatus();
 
@@ -41,17 +44,46 @@ export function ScanExperience() {
     setValidationMessage(null);
 
     const runId = ++latestRun.current;
+    const controller = new AbortController();
+    cancelRef.current = controller;
+    setNotice(null);
     setState({ status: "scanning", brand: brand.trim(), runId });
     try {
-      const spark = await runScan({ brand, platform });
+      setPhase("research");
+      const spark = await runScan(
+        { brand, platform },
+        (p) => {
+          if (runId === latestRun.current) setPhase(p);
+        },
+        controller.signal,
+      );
       if (runId === latestRun.current) setState({ status: "done", spark });
     } catch (error) {
-      if (runId !== latestRun.current) return;
+      if (error instanceof ScanCanceled || runId !== latestRun.current) return;
       const message =
         error instanceof ScanError ? error.message : "Something went wrong. Please try again.";
       setState({ status: "error", message });
     }
   }
+
+  /** Stop the scan in progress and return to the start screen. Nothing is retried. */
+  function cancelScan() {
+    cancelRef.current?.abort();
+    cancelRef.current = null;
+    latestRun.current++; // any late answer from the canceled run is ignored
+    setState({ status: "idle" });
+    setNotice("Scan canceled. Nothing was retried.");
+  }
+
+  // Esc cancels a scan in progress.
+  useEffect(() => {
+    if (state.status !== "scanning") return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") cancelScan();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [state.status]);
 
   // Once a scan starts, the masthead steps back so the Spark is the loudest thing on the page.
   const hasRun = state.status !== "idle";
@@ -70,14 +102,15 @@ export function ScanExperience() {
             today<span className="text-ember">.</span>
           </h1>
           <p className={`max-w-sm text-[15px] leading-relaxed text-ink-soft ${hasRun ? "hidden" : ""}`}>
-            The top short-form opportunity with momentum behind it—informed by cultural,
-            algorithmic, and platform signals, with the evidence to back it up.
+            A creative head start on social. Discover the top short-form opportunity informed by cultural and
+            platform signals.
           </p>
         </div>
         <ScanForm
           brand={brand}
           platform={platform}
           isScanning={state.status === "scanning"}
+          onCancel={cancelScan}
           validationMessage={validationMessage}
           onBrandChange={(value) => {
             setBrand(value);
@@ -91,6 +124,11 @@ export function ScanExperience() {
       <div ref={stageRef} className="w-full max-w-[620px] scroll-mt-6 justify-self-center lg:justify-self-start">
         {state.status === "idle" && (
           <StoryCard dashed slateLeft="◌ Awaiting scan" slateRight="Ch. 01">
+            {notice && (
+              <p role="status" className="readout font-bold text-ink">
+                ✕ {notice}
+              </p>
+            )}
             <p className="headline text-[44px] text-ink-soft/40">
               Your spark
               <br />
@@ -102,7 +140,8 @@ export function ScanExperience() {
             </p>
             {engineStatus?.engine === "claude" && (
               <p className="readout text-hypo">
-                ◇ Claude engine · each scan is a live, paid call to {engineStatus.model}
+                ◇ Claude engine · each scan makes live, paid calls to {engineStatus.model}
+                {engineStatus.research === "live" ? ", starting with live web research" : ""}
               </p>
             )}
           </StoryCard>
@@ -113,6 +152,9 @@ export function ScanExperience() {
             brand={state.brand}
             engine={engineStatus?.engine ?? "demo"}
             model={engineStatus?.model ?? null}
+            researchLive={engineStatus?.research === "live"}
+            phase={phase}
+            onCancel={cancelScan}
           />
         )}
         {state.status === "error" && (

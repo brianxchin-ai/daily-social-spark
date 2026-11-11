@@ -49,7 +49,7 @@ export async function refineLeader(
   candidates: Candidate[],
   evaluations: CandidateEvaluation[],
   leaderId: string | null,
-  context: { ledger: EvidenceLedger | null; deadline: number },
+  context: { ledger: EvidenceLedger | null; deadline: number; signal?: AbortSignal },
 ): Promise<{ refinement: RefinementReport; finalCandidate: Candidate | null; usages: ScanUsage[] }> {
   if (!leaderId) {
     return {
@@ -62,7 +62,7 @@ export async function refineLeader(
   const leader = candidates.find((c) => c.id === leaderId)!;
   const leaderEvaluation = evaluations.find((e) => e.candidateId === leaderId)!;
   const usages: ScanUsage[] = [];
-  const { ledger, deadline } = context;
+  const { ledger, deadline, signal } = context;
 
   const remaining = deadline - Date.now();
   if (remaining < MIN_REFINE_MS) {
@@ -84,6 +84,7 @@ export async function refineLeader(
       toDraft(leader),
       leaderEvaluation.results,
       Math.min(120_000, remaining - RESCORE_RESERVE_MS),
+      signal,
     );
     usages.push(edited.usage);
   } catch (error) {
@@ -158,6 +159,7 @@ export async function refineLeader(
         ledger,
       },
       Math.min(90_000, left - 5_000),
+      signal,
     );
     usages.push(rescored.usage);
   } catch (error) {

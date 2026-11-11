@@ -1,4 +1,4 @@
-import { EngineError, generateCandidates, MODEL, type ScanUsage } from "@/lib/engine/claude";
+import { canceledError, EngineError, generateCandidates, MODEL, type ScanUsage } from "@/lib/engine/claude";
 import { generateDemoSpark } from "@/lib/engine/demo";
 import { evaluateCandidates } from "@/lib/engine/evaluator";
 import { refineLeader, toDraft } from "@/lib/engine/refine";
@@ -110,7 +110,9 @@ export async function POST(request: Request) {
     console.info(`[scan] research=${research.status}`);
 
     // 1. Generator: three distinct candidates (one call), grounded in the ledger when there is one.
-    const generated = await generateCandidates(scan, ledger, timeLeft(120_000));
+    // request.signal fires if the person cancels: the call in progress stops and no later call starts.
+    const signal = request.signal;
+    const generated = await generateCandidates(scan, ledger, timeLeft(120_000), signal);
     const candidates: Candidate[] = generated.candidates.map((draft, i) => {
       const grounding = checkGrounding(draft, ledger);
       return {
@@ -130,7 +132,7 @@ export async function POST(request: Request) {
       scan,
       candidates.map((c) => ({ id: c.id, draft: toDraft(c), groundedIn: c.groundedIn })),
       ledger,
-      { timeoutMs: timeLeft(90_000) },
+      { timeoutMs: timeLeft(90_000), signal },
     );
 
     // 3. Our code: evidence rules, scoring arithmetic, rejection rules, ranking.
@@ -159,7 +161,9 @@ export async function POST(request: Request) {
     });
 
     // 4. One bounded refinement of the leader, within the time budget. Never fails the scan.
-    const refined = await refineLeader(scan, candidates, evaluations, ranking.leaderId, { ledger, deadline });
+    if (signal.aborted) throw canceledError("scan");
+    const refined = await refineLeader(scan, candidates, evaluations, ranking.leaderId, { ledger, deadline, signal });
+    if (signal.aborted) throw canceledError("scan");
 
     const spark: HypothesisSpark = {
       id: `ai-${scan.platform}-${stamp}`,

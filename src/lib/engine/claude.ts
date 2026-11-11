@@ -65,6 +65,8 @@ export async function callStructured<T>(options: {
   /** Server-side limit for this call, in milliseconds. No retry after a timeout. */
   timeoutMs: number;
   validate: (value: unknown) => { ok: true; value: T } | { ok: false; problems: string[] };
+  /** Fires when the person cancels the scan: the call in progress is stopped. */
+  signal?: AbortSignal;
 }): Promise<{ value: T; usage: ScanUsage }> {
   const anthropic = getClient();
   const { step } = options;
@@ -88,7 +90,7 @@ export async function callStructured<T>(options: {
           effort: "medium",
           format: { type: "json_schema", schema: jsonSchema },
         },
-      }, { timeout: options.timeoutMs })
+      }, { timeout: options.timeoutMs, signal: options.signal })
       .withResponse();
     response = result.data;
     requestId = result.request_id ?? null;
@@ -154,6 +156,7 @@ export async function callWithSearch(options: {
   maxTokens: number;
   maxSearches: number;
   timeoutMs: number;
+  signal?: AbortSignal;
 }): Promise<{ content: Anthropic.Beta.Messages.BetaContentBlock[]; usage: ScanUsage }> {
   const anthropic = getClient();
   const { step } = options;
@@ -167,6 +170,7 @@ export async function callWithSearch(options: {
     const remainingSearches = options.maxSearches - (usage.webSearches ?? 0);
     const remainingMs = deadline - Date.now();
     if (part > 0 && (remainingSearches <= 0 || remainingMs < 5_000)) break;
+    if (options.signal?.aborted) throw canceledError(step);
 
     let response;
     try {
@@ -189,7 +193,7 @@ export async function callWithSearch(options: {
             },
           ],
           output_config: { effort: "medium" },
-        }, { timeout: remainingMs })
+        }, { timeout: remainingMs, signal: options.signal })
         .withResponse();
       response = result.data;
       usage.requestId ??= result.request_id ?? null;
@@ -246,6 +250,7 @@ export async function generateCandidates(
   request: ScanRequest,
   ledger: EvidenceLedger | null,
   timeoutMs = 120_000,
+  signal?: AbortSignal,
 ): Promise<{ candidates: CandidateDraft[]; usage: ScanUsage }> {
   const { value, usage } = await callStructured({
     step: "generator",
@@ -260,6 +265,7 @@ Propose three distinct short-form opportunities for this brand on this platform.
     maxTokens: 14_000, // worst case ≈ $0.14 of output
     timeoutMs,
     validate: validateCandidateSet,
+    signal,
   });
   return { candidates: value.candidates, usage };
 }
@@ -269,7 +275,14 @@ function estimateCost(inputTokens: number, outputTokens: number): number {
 }
 
 /** Translate SDK errors into plain, safe messages. Most specific first. */
+/** The person canceled the scan. Status 499: the client closed the request. */
+export function canceledError(step: string): EngineError {
+  console.info(`[claude:${step}] canceled by the user; no further calls`);
+  return new EngineError("The scan was canceled.", 499);
+}
+
 function toEngineError(error: unknown, step: string): EngineError {
+  if (error instanceof Anthropic.APIUserAbortError) return canceledError(step);
   if (error instanceof Anthropic.AuthenticationError) {
     return new EngineError("The API key was rejected. Check ANTHROPIC_API_KEY in .env.local.", 500);
   }

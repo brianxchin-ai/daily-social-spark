@@ -257,6 +257,12 @@ export interface EvidenceLedger {
    * contain neither the brand nor any of the category terms it named.
    */
   discovery: { searches: number; brandFreeSearches: number; crossCategorySearches: number; categoryTerms: string[] };
+  /** Set by the research route before signing: what the research request cost. */
+  researchUsage?: {
+    calls: { step: string; inputTokens: number; outputTokens: number; webSearches: number; estimatedCostUsd: number }[];
+    webSearches: number;
+    estimatedCostUsd: number;
+  };
 }
 
 /* ---------- Step A: source register and citations (from API data only) ---------- */

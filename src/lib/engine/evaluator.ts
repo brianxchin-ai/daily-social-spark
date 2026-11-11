@@ -89,7 +89,7 @@ export async function evaluateCandidates(
   request: ScanRequest,
   candidates: { id: string; draft: CandidateDraft; groundedIn: string[] }[],
   ledger: EvidenceLedger | null,
-  options: { timeoutMs?: number; random?: () => number } = {},
+  options: { timeoutMs?: number; random?: () => number; signal?: AbortSignal } = {},
 ): Promise<{ assessments: CandidateAssessment[]; usage: ScanUsage }> {
   const order = shuffled(candidates, options.random);
   const byLabel = new Map<Label, (typeof candidates)[number]>(order.map((c, i) => [LABELS[i], c]));
@@ -111,6 +111,7 @@ Evaluate candidates A, B and C.`;
     maxTokens: 10_000, // worst case ≈ $0.10 of output
     timeoutMs: options.timeoutMs ?? 90_000,
     validate: validateEvaluation,
+    signal: options.signal,
   });
 
   const assessments = value.evaluations.map((e): CandidateAssessment => {
@@ -140,6 +141,7 @@ export async function rescoreRevision(
     ledger: EvidenceLedger | null;
   },
   timeoutMs = 90_000,
+  signal?: AbortSignal,
 ): Promise<{
   results: CriterionResult[];
   meaningfulAudioVariations: number;
@@ -178,6 +180,7 @@ culturalClaimChanged: did the revision change the underlying cultural claim or s
     maxTokens: 5_000, // worst case ≈ $0.05 of output
     timeoutMs,
     validate: validateRescore,
+    signal,
   });
 
   const concept = toResults(value, null, []).filter((r) => r.criterionId !== "culturalRelevance" && r.criterionId !== "emergingMomentum");

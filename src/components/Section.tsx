@@ -20,7 +20,8 @@ export function Section({
         <h3 className="readout font-bold">
           <span className="text-ember">{String(index).padStart(2, "0")}</span> / {title}
         </h3>
-        <OriginBadge origin={origin} />
+        {/* Demo sections keep the label (their content is invented). AI results are labeled once, in the header. */}
+        {origin === "demo" && <OriginBadge origin={origin} />}
       </div>
       {children}
     </section>
