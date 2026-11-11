@@ -18,6 +18,8 @@ export interface ScanUsage {
   outputTokens: number;
   estimatedCostUsd: number;
   requestId: string | null;
+  /** Web searches billed in this call (Scout only). */
+  webSearches?: number;
 }
 
 /** An error whose message is safe to show in the browser (never the raw SDK error). */
@@ -126,6 +128,105 @@ export async function callStructured<T>(options: {
     throw new EngineError(`Claude's ${step} answer didn't pass our format checks, so nothing was shown.`, 502, usage);
   }
   return { value: checked.value, usage };
+}
+
+/* ---------- Web search call (Scout step 1) ---------- */
+
+/** Anthropic's web search fee: $10 per 1,000 searches. Failed searches aren't billed. */
+const SEARCH_PRICE_USD = 0.01;
+
+/**
+ * One call with Anthropic's web search tool. No structured output here: the
+ * API attaches live citations to the text, and citations can't be combined
+ * with enforced JSON. Returns every content block so our code can build the
+ * source register from what the API actually retrieved.
+ *
+ * Limits: `maxSearches` across the whole call, one automatic resume if the
+ * API pauses a long search turn (an API mechanic, not a retry), and a single
+ * deadline for both parts. No retries.
+ */
+export async function callWithSearch(options: {
+  step: string;
+  system: string;
+  user: string;
+  maxTokens: number;
+  maxSearches: number;
+  timeoutMs: number;
+}): Promise<{ content: Anthropic.Beta.Messages.BetaContentBlock[]; usage: ScanUsage }> {
+  const anthropic = getClient();
+  const { step } = options;
+  const deadline = Date.now() + options.timeoutMs;
+  const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: "user", content: options.user }];
+  const content: Anthropic.Beta.Messages.BetaContentBlock[] = [];
+  const usage: ScanUsage = { step, model: MODEL, inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0, requestId: null, webSearches: 0 };
+  let stopReason: string | null = null;
+
+  for (let part = 0; part < 2; part++) {
+    const remainingSearches = options.maxSearches - (usage.webSearches ?? 0);
+    const remainingMs = deadline - Date.now();
+    if (part > 0 && (remainingSearches <= 0 || remainingMs < 5_000)) break;
+
+    let response;
+    try {
+      const result = await anthropic.beta.messages
+        .create({
+          model: MODEL,
+          max_tokens: options.maxTokens,
+          betas: ["server-side-fallback-2026-07-01"],
+          fallbacks: "default",
+          system: options.system,
+          messages,
+          tools: [
+            {
+              type: "web_search_20260209",
+              name: "web_search",
+              max_uses: remainingSearches,
+              // Direct calls (no dynamic-filtering code step), so every result
+              // reaches us as a web_search_tool_result block we can register.
+              allowed_callers: ["direct"],
+            },
+          ],
+          output_config: { effort: "medium" },
+        }, { timeout: remainingMs })
+        .withResponse();
+      response = result.data;
+      usage.requestId ??= result.request_id ?? null;
+    } catch (error) {
+      // If an earlier part already billed, keep its cost on the error.
+      const safe = toEngineError(error, step);
+      throw usage.inputTokens + usage.outputTokens > 0 ? new EngineError(safe.message, safe.status, usage) : safe;
+    }
+
+    usage.model = response.model;
+    usage.inputTokens += response.usage.input_tokens;
+    usage.outputTokens += response.usage.output_tokens;
+    usage.webSearches = (usage.webSearches ?? 0) + (response.usage.server_tool_use?.web_search_requests ?? 0);
+    usage.estimatedCostUsd = estimateCost(usage.inputTokens, usage.outputTokens) + (usage.webSearches ?? 0) * SEARCH_PRICE_USD;
+    content.push(...response.content);
+    stopReason = response.stop_reason;
+
+    console.info(
+      `[claude:${step}] part=${part + 1} model=${response.model} in=${response.usage.input_tokens} out=${response.usage.output_tokens} searches=${response.usage.server_tool_use?.web_search_requests ?? 0} stop=${response.stop_reason} req=${usage.requestId}`,
+    );
+
+    if (response.stop_reason !== "pause_turn") break;
+    // Resume: send the paused turn back unchanged; the server continues it.
+    messages.splice(1, messages.length - 1, {
+      role: "assistant",
+      content: content as unknown as Anthropic.Beta.Messages.BetaContentBlockParam[],
+    });
+  }
+
+  if (stopReason === "refusal") {
+    throw new EngineError(`Claude declined the ${step} step. Try a different brand or category.`, 422, usage);
+  }
+  if (stopReason === "max_tokens") {
+    throw new EngineError(`Claude's ${step} notes were cut off before they finished.`, 502, usage);
+  }
+  if (stopReason === "pause_turn") {
+    throw new EngineError(`The ${step} step didn't finish within its search and time limits.`, 504, usage);
+  }
+  return { content, usage };
 }
 
 /* ---------- Generator ---------- */
