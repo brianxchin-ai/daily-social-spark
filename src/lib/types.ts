@@ -13,6 +13,8 @@ import type {
   RevisionDecision,
   ScoreMode,
 } from "./evaluation/scoring";
+import type { DiversityReport } from "@/lib/evaluation/diversity";
+import type { EvidenceLedger } from "@/lib/research/ledger";
 
 export type Platform = "tiktok" | "instagram-reels" | "youtube-shorts";
 
@@ -135,6 +137,22 @@ export interface Candidate {
   /** The fuller creative concept behind the short headline. */
   concept: string;
   mechanic: string;
+  /** The creative territory in a few words. */
+  territory: string;
+  /** Ledger signal IDs that directly evidence the mechanism (checked against the ledger). Only these can verify. */
+  groundedIn: string[];
+  /** Ledger signal IDs used only as context. Never proof of the mechanism. */
+  contextIn: string[];
+  /** What the Scout's evidence establishes, per the Generator. */
+  evidenceBasis: string;
+  /** The Generator's own creative inference. */
+  creativeLeap: string;
+  /** What the execution hypothesizes might work. */
+  executionHypothesis: string;
+  /** How the platform shapes the hook, pacing, participation and format. */
+  platformExecution: string;
+  /** Problems our code found in the grounding (unknown IDs, unquoted figures). */
+  groundingWarnings?: string[];
   whyItWillSpread: string;
   whyNow: string;
   timing: TimingHypothesis;
@@ -192,6 +210,8 @@ export type RefinementReport =
         evaluation: CandidateEvaluation | null;
         checks: RevisionChecks | null;
         checksRationale: string | null;
+        /** Day 3: why the original evidence does or doesn't still apply to the revision. */
+        evidenceRationale?: string | null;
       } | null;
       decision: RevisionDecision;
     };
@@ -209,7 +229,21 @@ export interface HypothesisSpark {
   /** The version presented: the leader, or its revision if it won. Null if none cleared the bar. */
   finalCandidate: Candidate | null;
   generation: GenerationInfo;
+  /** Day 3: what research informed this scan, if any. Never "verified" unless the signed ledger checked out. */
+  research: ResearchOutcome;
+  /** Day 3: code's labels on the range of the three ideas (near-duplicates, unused off-category signals). */
+  diversity: DiversityReport;
 }
+
+/**
+ * - verified: a signed ledger for this brand and platform, unaltered and unexpired.
+ * - rejected: a ledger was sent but failed verification; it was not used.
+ * - unavailable: research was attempted but didn't produce a ledger.
+ * - off: live research isn't enabled.
+ */
+export type ResearchOutcome =
+  | { status: "verified"; ledger: EvidenceLedger; expiresAt: string }
+  | { status: "rejected" | "unavailable" | "off"; reason: string };
 
 /** What a scan returns. */
 export type Spark = DemoSpark | HypothesisSpark;

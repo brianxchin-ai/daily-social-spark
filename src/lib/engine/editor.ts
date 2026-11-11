@@ -19,6 +19,7 @@ Your job, in order:
    - keeps the same core creative mechanic (it must still be recognizably the same idea),
    - changes only what is needed to address that weakness,
    - adds no cultural, momentum, performance or statistical claims, and no URLs, outlets or handles,
+   - keeps the same groundedIn signals and the same underlying cultural claim, so the evidence behind the original still applies (don't add or change evidence),
    - keeps every field complete, with a headline of 12 words or fewer.
 
 Do not score, rank or predict scores. A separate reviewer rescores any revision.
@@ -53,6 +54,7 @@ export async function critiqueAndRevise(
   request: ScanRequest,
   leader: CandidateDraft,
   leaderResults: CriterionResult[],
+  timeoutMs = 120_000,
 ): Promise<{
   critique: Critique;
   revision: { ok: true; draft: CandidateDraft } | { ok: false; problems: string[] } | null;
@@ -68,7 +70,7 @@ The leading idea:
 ${describeLeader(leader, leaderResults)}`,
     schema: EditorSchema,
     maxTokens: 10_000, // worst case ≈ $0.10 of output
-    timeoutMs: 120_000,
+    timeoutMs,
     validate: validateEditor,
   });
 

@@ -49,6 +49,7 @@ const signal = (observations: Obs[], over: Partial<Sig> = {}): Sig => ({
   name: "Makeup bag edits",
   category: "creator-behavior",
   summary: "s",
+  categoryRelation: "in-category",
   lineage: "None identified",
   novelty: "uncertain",
   whatIsNew: "",
@@ -62,7 +63,7 @@ const signal = (observations: Obs[], over: Partial<Sig> = {}): Sig => ({
 
 function ledgerFor(sources: Src[], observations: Obs[], opts: { brand?: string; inferences?: string[] } = {}) {
   const register = registerFor(sources);
-  const draft: LedgerDraft = { signals: [signal(observations, { inferences: opts.inferences ?? [] })], gaps: [] };
+  const draft: LedgerDraft = { signals: [signal(observations, { inferences: opts.inferences ?? [] })], gaps: [], categoryTerms: [], searchPurposes: [] };
   return checkLedger({ brand: opts.brand ?? "Glossier", platform: "tiktok", now: NOW, draft, register });
 }
 
@@ -350,8 +351,9 @@ test("brand-free searches are counted, and brand-centric discovery is flagged", 
     ],
     [{ url: "https://a.com/1", citedText: "q" }],
   );
-  const l = checkLedger({ brand: "Glossier", platform: "tiktok", now: NOW, draft: { signals: [], gaps: [] }, register });
-  assert.deepEqual(l.discovery, { searches: 3, brandFreeSearches: 1 });
+  const l = checkLedger({ brand: "Glossier", platform: "tiktok", now: NOW, draft: { signals: [], gaps: [], categoryTerms: [], searchPurposes: [] }, register });
+  assert.equal(l.discovery.searches, 3);
+  assert.equal(l.discovery.brandFreeSearches, 1);
   assert.ok(l.adjustments.some((a) => a.startsWith("Discovery was brand-centric")));
 });
 
@@ -360,8 +362,8 @@ test("the filing schema allows up to 10 signals and rejects more", async () => {
   const { LedgerDraftSchema, MAX_SIGNALS } = await import("./ledger.ts");
   const one = signal([obs(["C1"])]);
   assert.equal(MAX_SIGNALS, 10);
-  assert.equal(LedgerDraftSchema.safeParse({ signals: Array(10).fill(one), gaps: [] }).success, true);
-  assert.equal(LedgerDraftSchema.safeParse({ signals: Array(11).fill(one), gaps: [] }).success, false);
+  assert.equal(LedgerDraftSchema.safeParse({ signals: Array(10).fill(one), gaps: [], categoryTerms: [], searchPurposes: [] }).success, true);
+  assert.equal(LedgerDraftSchema.safeParse({ signals: Array(11).fill(one), gaps: [], categoryTerms: [], searchPurposes: [] }).success, false);
 });
 
 /* ---------- Publication dates vs. behavior dates ---------- */
@@ -454,7 +456,7 @@ test("an observation with no dates keeps both unknown", () => {
  */
 
 function novelLedger(signals: Sig[], sources: Src[]) {
-  return checkLedger({ brand: "Glossier", platform: "tiktok", now: NOW, draft: { signals, gaps: [] }, register: registerFor(sources) });
+  return checkLedger({ brand: "Glossier", platform: "tiktok", now: NOW, draft: { signals, gaps: [], categoryTerms: [], searchPurposes: [] }, register: registerFor(sources) });
 }
 const one = (quote = "A creator used the phrase in a video.") => [{ url: "https://one.com/a", quote }];
 
@@ -687,4 +689,53 @@ test("separate constructions keep their own accurate lineages", () => {
     ["'Aurapilled'", "the [blank]-pilled construction", "derivative"],
     ["'Cortisol-coded'", "the [blank]-coded construction", "derivative"],
   ]);
+});
+
+/* ---------- CP2 refinements: cross-category discovery and measurement dates ---------- */
+
+test("acceptance: a brand-free search isn't automatically a cross-category search", async () => {
+  const { countCrossCategory } = await import("./ledger.ts");
+  const queries = ["TikTok beauty trends November 2026", "new comment-reply rituals on TikTok", "Glossier TikTok", "deadpan humor formats 2026"];
+  const purposes = [
+    { query: "TikTok beauty trends November 2026", purpose: "cross-category" }, // mislabeled: names the category
+    { query: "new comment-reply rituals on TikTok", purpose: "cross-category" },
+    { query: "Glossier TikTok", purpose: "brand" },
+    // "deadpan humor formats 2026" is brand-free but not labeled cross-category
+  ];
+  assert.equal(countBrandFree(queries, "Glossier"), 3);
+  assert.equal(countCrossCategory(queries, purposes, "Glossier", ["beauty", "makeup", "skincare"]), 1);
+});
+
+test("discovery that never leaves the category is flagged", () => {
+  const register = buildRegister([{ query: "TikTok skincare routines", results: [], errorCode: null }], []);
+  const l = checkLedger({
+    brand: "Glossier",
+    platform: "tiktok",
+    now: NOW,
+    draft: { signals: [], gaps: [], categoryTerms: ["beauty", "skincare"], searchPurposes: [{ query: "TikTok skincare routines", purpose: "cross-category" }] },
+    register,
+  });
+  assert.equal(l.discovery.crossCategorySearches, 0);
+  assert.ok(l.adjustments.some((a) => a.startsWith("Discovery stayed within the brand's category")));
+});
+
+test("acceptance: a measurement date is not promoted to a publication date", async () => {
+  const { looksLikePublicationDate } = await import("./ledger.ts");
+  assert.equal(looksLikePublicationDate("Follower counts are as of November 5, 2026.", "November 5, 2026"), false);
+  assert.equal(looksLikePublicationDate("Measured November 8, 2026 from 887 posts.", "November 8, 2026"), false);
+  assert.equal(looksLikePublicationDate("Published November 5, 2026.", "November 5, 2026"), true);
+  assert.equal(looksLikePublicationDate("Nov 5, 2026 — Culture desk", "Nov 5, 2026"), true);
+
+  const l = ledgerFor(
+    [{ url: ARTICLE, quote: "Follower counts are as of November 5, 2026." }],
+    [obs(["C1"], { dateText: "November 5, 2026", dateBasis: "published" }), obs(["C1"], { statement: "Creators use the format." })],
+  );
+  assert.ok(l.observations.every((o) => o.published === null && o.behavior.status === "unknown"));
+  assert.ok(l.adjustments.some((a) => a.includes("not a publication date")));
+});
+
+test("a date labeled 'other' (measurement, example, page element) is neither published nor behavior", () => {
+  const l = ledgerFor([{ url: ARTICLE, quote: "Data from November 4, 2026 shows creators using it." }], [obs(["C1"], { dateText: "November 4, 2026", dateBasis: "other" })]);
+  assert.equal(l.observations[0].published, null);
+  assert.equal(l.observations[0].behavior.status, "unknown");
 });

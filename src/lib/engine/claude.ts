@@ -4,6 +4,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { ZodType } from "zod";
 import { CandidateSetSchema, validateCandidateSet, type CandidateDraft } from "@/lib/spark-schema";
+import { generatorSystem, ledgerDigest } from "@/lib/prompts/creative";
+import type { EvidenceLedger } from "@/lib/research/ledger";
 import { PLATFORMS, type ScanRequest } from "@/lib/types";
 
 /** Confirmed from Anthropic's live model and pricing docs on 2026-11-10. */
@@ -231,36 +233,32 @@ export async function callWithSearch(options: {
 
 /* ---------- Generator ---------- */
 
-const GENERATOR_SYSTEM = `You are a senior social strategist. You propose organic short-form social opportunities for a brand: formats, behaviors or cultural moments with momentum that the brand could credibly make content for.
-
-You have NO live data, browsing, or platform analytics. Everything you produce is a hypothesis drawn from general knowledge, and it will be labeled as unverified. Therefore:
-- Never invent URLs, publication or outlet names, creator handles, view counts, growth percentages, or any other statistic.
-- Never predict hours, dates or deadlines, and never classify momentum (no "rising", "accelerating", "near peak" or similar). Write timing only as an explicit hypothesis, and say what observable signal would confirm or refute it.
-- Prefer formats that are gaining heat but not yet saturated, or proven formats still performing for other brands and creators.
-- Each opportunity must fit the platform's native conventions and be realistic for the brand to produce.
-- Do not rate, score or rank your own ideas. A separate reviewer evaluates them.
-
-Write exactly three candidates, and make them genuinely different: each built on a distinct creative mechanic, not three versions of one idea.
-
-Audio: "audio-led" means built around a particular existing song, sound or audio track. Original narration, voiceover or dialogue does not make an idea audio-led. Treat dependence on one specific track as a weakness. If an idea is audio-led, give at least three alternative executions that keep the mechanic recognizable and compelling without copying the original track (original voiceover, silence, visual-only, different audio).
-
-Copy: the headline is a short display line, like a campaign line: 12 words or fewer, telling the brand what to make. Describe the full creative idea in the concept field; it is not limited to 12 words. Keep copy tight and specific. Use American English spelling (e.g. "behavior", "recognize", "favor"). Write em dashes closed, with no spaces around them (Chicago style).`;
-
 export function platformLabel(platform: ScanRequest["platform"]): string {
   return PLATFORMS.find((p) => p.id === platform)?.label ?? platform;
 }
 
-/** Generator call: three distinct candidates, validated, never self-scored. */
+/**
+ * Generator call: three distinct candidates, validated, never self-scored.
+ * With a verified ledger, ideas are built from its signals; without one, they
+ * are Day 2-style hypotheses from general knowledge.
+ */
 export async function generateCandidates(
   request: ScanRequest,
+  ledger: EvidenceLedger | null,
+  timeoutMs = 120_000,
 ): Promise<{ candidates: CandidateDraft[]; usage: ScanUsage }> {
   const { value, usage } = await callStructured({
     step: "generator",
-    system: GENERATOR_SYSTEM,
-    user: `Brand or category: ${request.brand}\nPlatform: ${platformLabel(request.platform)}\n\nPropose three distinct short-form opportunities for this brand on this platform right now.`,
+    system: generatorSystem(request.platform, ledger !== null),
+    user: `Brand or category: ${request.brand}
+Platform: ${platformLabel(request.platform)}
+
+${ledger ? ledgerDigest(ledger) : "No evidence ledger for this scan."}
+
+Propose three distinct short-form opportunities for this brand on this platform.`,
     schema: CandidateSetSchema,
-    maxTokens: 12_000, // worst case ≈ $0.12 of output
-    timeoutMs: 120_000,
+    maxTokens: 14_000, // worst case ≈ $0.14 of output
+    timeoutMs,
     validate: validateCandidateSet,
   });
   return { candidates: value.candidates, usage };

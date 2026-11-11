@@ -131,7 +131,7 @@ function CritiqueBlock({ critique }: { critique: { weakness: string; affectedCri
 function BeforeAfter({ original, revised }: { original: CandidateEvaluation; revised: CandidateEvaluation }) {
   const concept = CRITERIA.filter((c) => c.basis === "concept");
   const scoreOf = (e: CandidateEvaluation, id: string) => e.results.find((r) => r.criterionId === id)?.score ?? null;
-  const gain = revised.score.applicableScore - original.score.applicableScore;
+  const gain = revised.score.conceptScore - original.score.conceptScore;
   return (
     <table className="w-full table-fixed border-collapse text-left">
       <thead>
@@ -176,16 +176,16 @@ function BeforeAfter({ original, revised }: { original: CandidateEvaluation; rev
             Concept Score <span className="readout font-normal text-ink-soft">provisional</span>
           </th>
           <td className="py-3 text-center">
-            <span className="headline text-[28px]" title={`Exact: ${original.score.applicableScore.toFixed(2)}`}>
-              {formatScore(original.score.applicableScore)}
+            <span className="headline text-[28px]" title={`Exact: ${original.score.conceptScore.toFixed(2)}`}>
+              {formatScore(original.score.conceptScore)}
             </span>
           </td>
           <td className="py-3 text-center">
             <span
               className={`headline text-[28px] ${revised.score.rejected ? "text-ink-soft line-through decoration-2" : ""}`}
-              title={`Exact: ${revised.score.applicableScore.toFixed(2)}`}
+              title={`Exact: ${revised.score.conceptScore.toFixed(2)}`}
             >
-              {formatScore(revised.score.applicableScore)}
+              {formatScore(revised.score.conceptScore)}
             </span>
             <span className={`readout block ${gain >= 0 ? "text-hypo" : "text-ember"}`}>
               {gain >= 0 ? "+" : ""}

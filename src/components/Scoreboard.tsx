@@ -75,9 +75,9 @@ export function Scoreboard({
                 <td key={e.candidateId} className="px-1 py-3 text-center">
                   <span
                     className={`headline text-[32px] ${e.score.rejected ? "text-ink-soft line-through decoration-2" : ""}`}
-                    title={`Exact: ${e.score.applicableScore.toFixed(2)}`}
+                    title={`Exact: ${e.score.conceptScore.toFixed(2)}`}
                   >
-                    {formatScore(e.score.applicableScore)}
+                    {formatScore(e.score.conceptScore)}
                   </span>
                   <span className={`readout block ${e.score.rejected ? "text-ink-soft" : "text-hypo"}`}>
                     {e.score.rejected ? "Rejected" : e.score.rank === 1 ? "Leading" : "Ranked"}
@@ -142,7 +142,7 @@ function CandidateDetails({ evaluation, candidate }: { evaluation: CandidateEval
           <span className="text-[15px] leading-snug font-semibold">{candidate.headline}</span>
         </span>
         <span className="flex shrink-0 items-center gap-2">
-          <span className="headline text-[24px]">{formatScore(score.applicableScore)}</span>
+          <span className="headline text-[24px]">{formatScore(score.conceptScore)}</span>
           <span aria-hidden className="readout text-ink-soft transition-transform group-open:rotate-90">
             ▸
           </span>
@@ -185,7 +185,7 @@ function CandidateDetails({ evaluation, candidate }: { evaluation: CandidateEval
           })}
         </dl>
         <p className="readout text-ink-soft">
-          Exact Concept Score {score.applicableScore.toFixed(2)} · Evaluator label {evaluation.evaluatorLabel}
+          Exact Concept Score {score.conceptScore.toFixed(2)} · Evaluator label {evaluation.evaluatorLabel}
         </p>
       </div>
     </details>

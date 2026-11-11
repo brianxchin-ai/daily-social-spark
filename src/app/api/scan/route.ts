@@ -1,8 +1,11 @@
 import { EngineError, generateCandidates, MODEL, type ScanUsage } from "@/lib/engine/claude";
 import { generateDemoSpark } from "@/lib/engine/demo";
 import { evaluateCandidates } from "@/lib/engine/evaluator";
-import { refineLeader } from "@/lib/engine/refine";
+import { refineLeader, toDraft } from "@/lib/engine/refine";
+import { checkDiversity } from "@/lib/evaluation/diversity";
+import { checkGrounding } from "@/lib/evaluation/evidence";
 import { rankCandidates } from "@/lib/evaluation/scoring";
+import { MIN_SECRET_LENGTH, verifyLedger } from "@/lib/research/signing";
 import {
   PLATFORMS,
   type Candidate,
@@ -11,8 +14,38 @@ import {
   type GenerationInfo,
   type HypothesisSpark,
   type Platform,
+  type ResearchOutcome,
+  type ScanRequest,
   type Spark,
 } from "@/lib/types";
+
+// Request 2 of a live-evidence scan. Each request stays under typical
+// serverless limits; refinement is skipped (and labeled) if time runs short.
+export const maxDuration = 300;
+// SPARK_SCAN_BUDGET_MS exists only so tests can exercise the time-budget path.
+const REQUEST_BUDGET_MS = Number(process.env.SPARK_SCAN_BUDGET_MS) || 270_000;
+
+/**
+ * Decide what research, if any, may inform this scan. A ledger counts as
+ * verified only if its signature, brand, platform and expiry all check out;
+ * anything else is never treated as trustworthy research.
+ */
+function resolveResearch(token: unknown, reason: unknown, scan: ScanRequest, now: Date): ResearchOutcome {
+  const secret = process.env.SPARK_LEDGER_SECRET ?? "";
+  const live = process.env.SPARK_RESEARCH === "live" && secret.length >= MIN_SECRET_LENGTH;
+  if (!live) return { status: "off", reason: "Live research isn't enabled, so this is an unverified creative hypothesis." };
+  if (token === undefined || token === null || token === "") {
+    const why = typeof reason === "string" && reason.trim() ? reason.trim().slice(0, 200) : "No research was provided for this scan.";
+    return { status: "unavailable", reason: why };
+  }
+  const verified = verifyLedger(token, scan, secret, now);
+  if (!verified.ok) return { status: "rejected", reason: `${verified.message} It was not used.` };
+  if (verified.ledger.signals.length === 0) {
+    const gap = verified.ledger.gaps[0];
+    return { status: "unavailable", reason: `Research found no usable signals${gap ? `: ${gap}` : "."}` };
+  }
+  return { status: "verified", ledger: verified.ledger, expiresAt: verified.expiresAt };
+}
 
 /**
  * /api/scan: the server-side doorway between the page and the engine.
@@ -47,7 +80,12 @@ export async function POST(request: Request) {
     return Response.json({ engine, error: "Request body must be JSON." }, { status: 400 });
   }
 
-  const { brand, platform } = (body ?? {}) as { brand?: unknown; platform?: unknown };
+  const { brand, platform, researchToken, researchError } = (body ?? {}) as {
+    brand?: unknown;
+    platform?: unknown;
+    researchToken?: unknown;
+    researchError?: unknown;
+  };
   if (typeof brand !== "string" || !brand.trim() || brand.length > 120) {
     return Response.json({ engine, error: "Enter a brand or category (up to 120 characters)." }, { status: 400 });
   }
@@ -63,21 +101,39 @@ export async function POST(request: Request) {
 
   try {
     const stamp = Date.now();
+    const deadline = stamp + REQUEST_BUDGET_MS;
+    const timeLeft = (cap: number) => Math.max(5_000, Math.min(cap, deadline - Date.now() - 5_000));
 
-    // 1. Generator: three distinct candidates (one call).
-    const generated = await generateCandidates(scan);
-    const candidates: Candidate[] = generated.candidates.map((draft, i) => ({
-      id: `cand-${stamp}-${i + 1}`,
-      ...draft,
-    }));
+    // 0. Research: only a verified ledger counts as evidence.
+    const research = resolveResearch(researchToken, researchError, scan, new Date());
+    const ledger = research.status === "verified" ? research.ledger : null;
+    console.info(`[scan] research=${research.status}`);
 
-    // 2. Evaluator: a separate call, anonymized and shuffled.
+    // 1. Generator: three distinct candidates (one call), grounded in the ledger when there is one.
+    const generated = await generateCandidates(scan, ledger, timeLeft(120_000));
+    const candidates: Candidate[] = generated.candidates.map((draft, i) => {
+      const grounding = checkGrounding(draft, ledger);
+      return {
+        id: `cand-${stamp}-${i + 1}`,
+        ...draft,
+        groundedIn: grounding.groundedIn,
+        contextIn: grounding.contextIn,
+        groundingWarnings: grounding.warnings,
+      };
+    });
+
+    // Range check: labels near-duplicates and unused off-category signals. No extra call, no retry.
+    const diversity = checkDiversity(candidates, ledger);
+
+    // 2. Evaluator: a separate call, anonymized and shuffled; evidence scores are proposals.
     const evaluated = await evaluateCandidates(
       scan,
-      candidates.map((c, i) => ({ id: c.id, draft: generated.candidates[i] })),
+      candidates.map((c) => ({ id: c.id, draft: toDraft(c), groundedIn: c.groundedIn })),
+      ledger,
+      { timeoutMs: timeLeft(90_000) },
     );
 
-    // 3. Our code: scoring arithmetic, rejection rules, ranking, tie-breaks.
+    // 3. Our code: evidence rules, scoring arithmetic, rejection rules, ranking.
     const ranking = rankCandidates(
       evaluated.assessments.map((a) => {
         const audioRole = candidates.find((c) => c.id === a.candidateId)!.audioRole;
@@ -102,9 +158,8 @@ export async function POST(request: Request) {
       };
     });
 
-    // 4. One bounded refinement of the leader: critique, at most one revision,
-    //    rescore, and a deterministic keep/replace decision. Never fails the scan.
-    const refined = await refineLeader(scan, candidates, evaluations, ranking.leaderId);
+    // 4. One bounded refinement of the leader, within the time budget. Never fails the scan.
+    const refined = await refineLeader(scan, candidates, evaluations, ranking.leaderId, { ledger, deadline });
 
     const spark: HypothesisSpark = {
       id: `ai-${scan.platform}-${stamp}`,
@@ -122,10 +177,12 @@ export async function POST(request: Request) {
       refinement: refined.refinement,
       finalCandidate: refined.finalCandidate,
       generation: summarize([generated.usage, evaluated.usage, ...refined.usages]),
+      research,
+      diversity,
     };
 
     console.info(
-      `[scan] ranked ${evaluations.map((e) => `${e.evaluatorLabel}=${e.score.applicableScore.toFixed(2)}${e.score.rejected ? "(rejected)" : ""}`).join(" ")} leader=${ranking.leaderId ?? "none"} total=$${spark.generation.estimatedCostUsd.toFixed(4)}`,
+      `[scan] ranked ${evaluations.map((e) => `${e.evaluatorLabel}=${e.score.rankingScore.toFixed(2)}${e.score.provisional ? "p" : ""}/c${e.score.conceptScore.toFixed(1)}/${e.score.status}${e.score.rejected ? "(rejected)" : ""}`).join(" ")} leader=${ranking.leaderId ?? "none"} total=$${spark.generation.estimatedCostUsd.toFixed(4)}`,
     );
     return Response.json({ engine, spark });
   } catch (error) {

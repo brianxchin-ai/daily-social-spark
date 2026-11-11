@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test src/lib/evaluation/*.test.ts src/lib/research/*.test.ts"
+    "test": "node --test src/lib/evaluation/*.test.ts src/lib/research/*.test.ts src/lib/prompts/*.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",

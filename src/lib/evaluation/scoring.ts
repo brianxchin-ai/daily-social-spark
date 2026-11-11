@@ -133,8 +133,15 @@ export const TIE_BREAK_ORDER: readonly CriterionId[] = [
   "crossPlatform",
 ];
 
-export const PASS_THRESHOLD = 50; // applicable score out of 100
+export const PASS_THRESHOLD = 50; // Concept Score out of 100
 export const MIN_AUDIO_VARIATIONS = 3;
+
+/**
+ * Day 3: an unverified evidence criterion counts as this neutral midpoint for
+ * RANKING ONLY. It is an assumption, never a measured score, and is always
+ * labeled as such. Any aggregate that uses it is a Provisional Ranking Score.
+ */
+export const NEUTRAL_PLACEHOLDER = 3;
 
 export type CriterionStatus = "scored" | "unverified";
 
@@ -144,6 +151,10 @@ export interface CriterionResult {
   /** Integer 1–5 when scored; null when unverified. Never a placeholder number. */
   score: number | null;
   rationale: string;
+  /** Brand/category + platform fit only: the two parts, judged separately (the criterion takes the lower). */
+  parts?: { brand: number; platform: number };
+  /** Evidence criteria only: the ledger observations the score rests on. */
+  observationIds?: string[];
 }
 
 export type AudioRole = "audio-led" | "audio-optional" | "no-audio";
@@ -165,6 +176,14 @@ export interface CandidateInput {
  */
 export type ScoreMode = "concept" | "partial" | "full";
 
+/** How the recommendation may be described, from its verified criteria. */
+export type EvidenceStatus = "evidence-backed" | "partially-evidenced" | "unverified-hypothesis";
+const STATUS_BY_MODE: Record<ScoreMode, EvidenceStatus> = {
+  full: "evidence-backed",
+  partial: "partially-evidenced",
+  concept: "unverified-hypothesis",
+};
+
 export interface RejectionReason {
   code: "below-threshold" | "fit-fails" | "audio-dependent";
   message: string;
@@ -180,6 +199,18 @@ export interface CandidateScore {
   applicableWeight: number;
   /** True only when every evidence criterion is scored. */
   evidenceBacked: boolean;
+  /** The five concept criteria only, 0–100, unrounded. Used for the 50-point bar and revision gains. */
+  conceptScore: number;
+  /**
+   * All seven criteria at their weights, 0–100, unrounded. Unverified evidence
+   * criteria count as NEUTRAL_PLACEHOLDER. This is what ranks candidates.
+   */
+  rankingScore: number;
+  /** True when rankingScore uses any placeholder: call it a Provisional Ranking Score. */
+  provisional: boolean;
+  /** The criteria filled with the placeholder (assumed, not measured). */
+  placeholders: CriterionId[];
+  status: EvidenceStatus;
   rejected: boolean;
   /** "provisional-creative" on Day 2; "evidence-based" once evidence exists. */
   rejectionKind: "provisional-creative" | "evidence-based" | null;
@@ -260,18 +291,58 @@ function scoreOf(input: CandidateInput, id: CriterionId): number {
   return input.results.find((r) => r.criterionId === id)?.score ?? 0;
 }
 
+/**
+ * Brand/category + platform fit from its two separately judged parts: the
+ * criterion takes the LOWER, so excellent fit on one can't hide poor fit on
+ * the other. The criterion's 10% weight is unchanged.
+ */
+export function combineFit(
+  brand: { score: number; rationale: string },
+  platform: { score: number; rationale: string },
+): CriterionResult {
+  return {
+    criterionId: "brandPlatformFit",
+    status: "scored",
+    score: Math.min(brand.score, platform.score),
+    rationale: `Brand ${brand.score}/5: ${brand.rationale} Platform ${platform.score}/5: ${platform.rationale}`,
+    parts: { brand: brand.score, platform: platform.score },
+  };
+}
+
+/** Concept criteria only. */
+export function conceptScoreOf(results: CriterionResult[]): number {
+  return applicableScore(results.filter((r) => criterion(r.criterionId).basis === "concept")).score;
+}
+
+/**
+ * All seven criteria at their weights, with each unverified evidence
+ * criterion counted as NEUTRAL_PLACEHOLDER. Exact integer arithmetic.
+ */
+export function rankingScoreOf(results: CriterionResult[]): { score: number; placeholders: CriterionId[] } {
+  const placeholders: CriterionId[] = [];
+  const filled = results.map((r): CriterionResult => {
+    if (r.status === "scored") return r;
+    placeholders.push(r.criterionId);
+    return { ...r, status: "scored", score: NEUTRAL_PLACEHOLDER };
+  });
+  return { score: applicableScore(filled).score, placeholders };
+}
+
 export function scoreCandidate(input: CandidateInput): CandidateScore {
   assertWellFormed(input);
   const { score, weight } = applicableScore(input.results);
   const mode = scoreMode(input.results);
   const evidenceBacked = mode === "full";
+  const conceptScore = conceptScoreOf(input.results);
+  const ranking = rankingScoreOf(input.results);
   const reasons: RejectionReason[] = [];
 
-  // Compare unrounded values; a 49.99 never sneaks through as "50".
-  if (score < PASS_THRESHOLD) {
+  // The bar is on the Concept Score, as agreed. Compare unrounded values; a
+  // 49.99 never sneaks through as "50".
+  if (conceptScore < PASS_THRESHOLD) {
     reasons.push({
       code: "below-threshold",
-      message: `${mode === "concept" ? "Concept" : "Overall"} score ${score.toFixed(1)} is below ${PASS_THRESHOLD}.`,
+      message: `Concept score ${conceptScore.toFixed(1)} is below ${PASS_THRESHOLD}.`,
     });
   }
   if (scoreOf(input, "brandPlatformFit") === 1) {
@@ -292,6 +363,11 @@ export function scoreCandidate(input: CandidateInput): CandidateScore {
     applicableScore: score,
     applicableWeight: weight,
     evidenceBacked,
+    conceptScore,
+    rankingScore: ranking.score,
+    provisional: ranking.placeholders.length > 0,
+    placeholders: ranking.placeholders,
+    status: STATUS_BY_MODE[mode],
     rejected,
     rejectionKind: rejected ? (evidenceBacked ? "evidence-based" : "provisional-creative") : null,
     rejectionReasons: reasons,
@@ -301,13 +377,18 @@ export function scoreCandidate(input: CandidateInput): CandidateScore {
 
 const EPSILON = 1e-9;
 
-/** Score, reject and rank candidates. Deterministic: same input, same order. */
+/**
+ * Score, reject and rank candidates. Deterministic: same input, same order.
+ * Ranks by the seven-criterion ranking score (placeholders for unverified
+ * evidence). With no evidence at all, that order equals the Concept Score order.
+ * No extra rule favors better-evidenced candidates.
+ */
 export function rankCandidates(inputs: CandidateInput[]): Ranking {
   const byId = new Map(inputs.map((i) => [i.candidateId, i]));
   const scored = inputs.map(scoreCandidate);
 
   const compare = (a: CandidateScore, b: CandidateScore): number => {
-    if (Math.abs(a.applicableScore - b.applicableScore) > EPSILON) return b.applicableScore - a.applicableScore;
+    if (Math.abs(a.rankingScore - b.rankingScore) > EPSILON) return b.rankingScore - a.rankingScore;
     const ia = byId.get(a.candidateId)!;
     const ib = byId.get(b.candidateId)!;
     for (const id of TIE_BREAK_ORDER) {
@@ -368,6 +449,8 @@ export function decideRevision(
   original: CandidateScore,
   revised: CandidateScore | null,
   revisionChecks: RevisionChecks | null,
+  /** Day 3: evidence criteria verified for the original but not for the revision. */
+  evidence?: { lostVerified: CriterionId[] },
 ): RevisionDecision {
   if (!revised || !revisionChecks) {
     return {
@@ -377,12 +460,24 @@ export function decideRevision(
       checks: [{ rule: "A valid, scored revision exists", passed: false }],
     };
   }
-  const gain = revised.applicableScore - original.applicableScore;
+  // Gains are measured on the Concept Score, whatever evidence exists.
+  const gain = revised.conceptScore - original.conceptScore;
   const checks = [
     { rule: "Preserves the original core mechanic", passed: revisionChecks.preservesMechanic },
     { rule: "Addresses the weakness named in the critique", passed: revisionChecks.addressesWeakness },
     { rule: "Adds no unsupported cultural, momentum or performance claims", passed: revisionChecks.noUnsupportedClaims },
     { rule: "Passes the same rejection rules as the original", passed: !revised.rejected },
+    ...(evidence
+      ? [
+          {
+            rule:
+              evidence.lostVerified.length === 0
+                ? "Keeps every verified evidence criterion"
+                : `Keeps every verified evidence criterion (lost: ${evidence.lostVerified.map((id) => criterion(id).name).join(", ")})`,
+            passed: evidence.lostVerified.length === 0,
+          },
+        ]
+      : []),
     // Small tolerance so exact-arithmetic gains like 5.0 never fail on rounding.
     { rule: `Improves the Concept Score by at least ${MIN_REVISION_GAIN} points`, passed: gain >= MIN_REVISION_GAIN - EPSILON },
   ];

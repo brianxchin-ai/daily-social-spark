@@ -27,6 +27,21 @@ export const CandidateDraftSchema = z.object({
   mechanic: z
     .string()
     .describe("The underlying creative mechanic in one sentence, independent of this brand."),
+  territory: z.string().describe("The creative territory in a few words, e.g. 'result-first reveal' or 'comment-reply ritual'."),
+  groundedIn: z
+    .array(z.string())
+    .describe("Ledger signal IDs whose observations directly evidence this idea's mechanism. Empty if there is no ledger."),
+  contextIn: z
+    .array(z.string())
+    .describe("Ledger signal IDs used only as context (related category, audience or behavior). Never proof of the mechanism."),
+  evidenceBasis: z
+    .string()
+    .describe("Only what the ledger's observations establish, citing IDs. 'No live evidence for this scan.' if there is no ledger."),
+  creativeLeap: z.string().describe("Your own inference: how the signal becomes an idea for this brand."),
+  executionHypothesis: z.string().describe("What you think might work and why, framed as a hypothesis."),
+  platformExecution: z
+    .string()
+    .describe("How the selected platform shapes this idea's hook, pacing, audience participation and format."),
   whyItWillSpread: z.string().describe("Why this format has distribution and algorithmic potential."),
   whyNow: z.string().describe("The cultural or platform reasoning for acting now, framed as a hypothesis."),
   timing: z.object({
@@ -83,29 +98,34 @@ const ConceptScoreSchema = z.object({
   rationale: z.string().describe("One concise sentence (25 words or fewer) explaining the score."),
 });
 
+const EvidenceProposalSchema = z.object({
+  proposedScore: z
+    .number()
+    .describe("Integer 1 to 5 from the ledger's cited observations, or 0 if it can't be scored from the evidence."),
+  observationIds: z.array(z.string()).describe("The ledger observation IDs (O1, O2…) the score rests on."),
+  rationale: z.string().describe("One sentence. If 0, say what evidence would be needed."),
+});
+
+/** The criteria the evaluator scores for each candidate (shared by evaluation and rescoring). */
+const AssessmentFields = {
+  remixability: ConceptScoreSchema,
+  comprehension: ConceptScoreSchema,
+  audioPortability: ConceptScoreSchema,
+  brandFit: ConceptScoreSchema.describe("Does the execution work for this brand or category? Judged separately from platform."),
+  platformFit: ConceptScoreSchema.describe("Does it feel native to the selected platform? Judged separately from brand."),
+  crossPlatform: ConceptScoreSchema,
+  culturalRelevance: EvidenceProposalSchema,
+  emergingMomentum: EvidenceProposalSchema,
+  meaningfulAudioVariations: z
+    .number()
+    .describe(
+      "How many of the listed audio variations genuinely preserve the mechanic without copying the original track. 0 if none are listed.",
+    ),
+};
+
 export const EvaluationSchema = z.object({
   evaluations: z
-    .array(
-      z.object({
-        label: z.enum(["A", "B", "C"]),
-        remixability: ConceptScoreSchema,
-        comprehension: ConceptScoreSchema,
-        audioPortability: ConceptScoreSchema,
-        brandPlatformFit: ConceptScoreSchema,
-        crossPlatform: ConceptScoreSchema,
-        culturalRelevanceEvidenceNeeded: z
-          .string()
-          .describe("Not a score. One sentence: what live evidence would establish cultural relevance."),
-        emergingMomentumEvidenceNeeded: z
-          .string()
-          .describe("Not a score. One sentence: what live evidence would establish emerging momentum."),
-        meaningfulAudioVariations: z
-          .number()
-          .describe(
-            "How many of the listed audio variations genuinely preserve the mechanic without copying the original track. 0 if none are listed.",
-          ),
-      }),
-    )
+    .array(z.object({ label: z.enum(["A", "B", "C"]), ...AssessmentFields }))
     .describe("One entry per candidate, A, B and C."),
 });
 
@@ -121,6 +141,13 @@ const StrictCandidateSchema = CandidateDraftSchema.extend({
   headline: nonEmpty,
   concept: nonEmpty,
   mechanic: nonEmpty,
+  territory: nonEmpty,
+  groundedIn: z.array(nonEmpty).max(3),
+  contextIn: z.array(nonEmpty).max(3),
+  evidenceBasis: nonEmpty,
+  creativeLeap: nonEmpty,
+  executionHypothesis: nonEmpty,
+  platformExecution: nonEmpty,
   whyItWillSpread: nonEmpty,
   whyNow: nonEmpty,
   audioVariations: z.array(nonEmpty),
@@ -143,23 +170,26 @@ const StrictCandidateSetSchema = z
   });
 
 const StrictScore = z.object({ score: z.number().int().min(1).max(5), rationale: nonEmpty });
+const StrictProposal = z.object({
+  proposedScore: z.number().int().min(0).max(5),
+  observationIds: z.array(z.string()).max(12),
+  rationale: nonEmpty,
+});
+const StrictAssessment = {
+  remixability: StrictScore,
+  comprehension: StrictScore,
+  audioPortability: StrictScore,
+  brandFit: StrictScore,
+  platformFit: StrictScore,
+  crossPlatform: StrictScore,
+  culturalRelevance: StrictProposal,
+  emergingMomentum: StrictProposal,
+  meaningfulAudioVariations: z.number().int().min(0).max(20),
+};
 
 const StrictEvaluationSchema = z
   .object({
-    evaluations: z
-      .array(
-        EvaluationSchema.shape.evaluations.element.extend({
-          remixability: StrictScore,
-          comprehension: StrictScore,
-          audioPortability: StrictScore,
-          brandPlatformFit: StrictScore,
-          crossPlatform: StrictScore,
-          culturalRelevanceEvidenceNeeded: nonEmpty,
-          emergingMomentumEvidenceNeeded: nonEmpty,
-          meaningfulAudioVariations: z.number().int().min(0).max(20),
-        }),
-      )
-      .length(3),
+    evaluations: z.array(EvaluationSchema.shape.evaluations.element.extend(StrictAssessment)).length(3),
   })
   .superRefine((value, ctx) => {
     const labels = value.evaluations.map((e) => e.label).sort().join("");
@@ -249,15 +279,20 @@ export function validateRevisedCandidate(value: unknown): Validated<CandidateDra
 
 /* ---------- Checkpoint 4: rescoring the revision ---------- */
 
+const SUPPORT = ["yes", "partly", "no", "not-applicable"] as const;
+
 export const RescoreSchema = z.object({
-  remixability: ConceptScoreSchema,
-  comprehension: ConceptScoreSchema,
-  audioPortability: ConceptScoreSchema,
-  brandPlatformFit: ConceptScoreSchema,
-  crossPlatform: ConceptScoreSchema,
-  culturalRelevanceEvidenceNeeded: z.string().describe("Not a score. What live evidence would establish it."),
-  emergingMomentumEvidenceNeeded: z.string().describe("Not a score. What live evidence would establish it."),
-  meaningfulAudioVariations: z.number().describe("As before: meaningful, non-copying alternatives. 0 if none."),
+  ...AssessmentFields,
+  evidenceStillSupports: z
+    .object({
+      culturalRelevance: z.enum(SUPPORT),
+      emergingMomentum: z.enum(SUPPORT),
+    })
+    .describe(
+      "Does the original's cited evidence still support the REVISED idea's cultural claim? not-applicable if the original had no verified score for it.",
+    ),
+  culturalClaimChanged: z.boolean().describe("Did the revision change the underlying cultural claim or signal?"),
+  evidenceRationale: z.string().describe("One sentence explaining the evidence answers."),
   preservesMechanic: z.boolean().describe("Does the revision keep the original core creative mechanic?"),
   addressesWeakness: z.boolean().describe("Does the revision address the named weakness?"),
   introducesUnsupportedClaims: z
@@ -269,15 +304,9 @@ export const RescoreSchema = z.object({
 export type RescoreDraft = z.infer<typeof RescoreSchema>;
 
 const StrictRescoreSchema = RescoreSchema.extend({
-  remixability: StrictScore,
-  comprehension: StrictScore,
-  audioPortability: StrictScore,
-  brandPlatformFit: StrictScore,
-  crossPlatform: StrictScore,
-  culturalRelevanceEvidenceNeeded: nonEmpty,
-  emergingMomentumEvidenceNeeded: nonEmpty,
-  meaningfulAudioVariations: z.number().int().min(0).max(20),
+  ...StrictAssessment,
   checksRationale: nonEmpty,
+  evidenceRationale: nonEmpty,
 }).refine(noUrls, { message: "Rationales must not contain URLs." });
 
 export function validateRescore(value: unknown): Validated<RescoreDraft> {

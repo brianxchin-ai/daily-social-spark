@@ -95,7 +95,7 @@ export async function runScout(
       register.sources.length === 0
         ? "Search returned no usable sources."
         : "No statement in the notes could be tied to a quote from a retrieved source.";
-    const draft: LedgerDraft = { signals: [], gaps: [reason] };
+    const draft: LedgerDraft = { signals: [], gaps: [reason], categoryTerms: [], searchPurposes: [] };
     return { ledger: checkLedger({ brand: request.brand, platform: request.platform, now, draft, register }), usages };
   }
 

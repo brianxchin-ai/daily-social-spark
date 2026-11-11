@@ -69,3 +69,16 @@ test("prompts: depth before stopping, coherent signals, specific lineage", () =>
     "lineageQuery: the exact search",
   ]) assert.ok(SCOUT_FILING_PROMPT.includes(phrase), phrase);
 });
+
+test("Scout prompts: a cross-category, behavior-first search and measurement dates", () => {
+  for (const phrase of [
+    "At least 1 of these must be a cross-category, behavior-first search",
+    "A brand-free search inside the category (\"TikTok beauty trends\") does not count",
+    "A culturally unusual signal is not a verified emerging trend",
+    "Don't stop before examining your most promising discoveries",
+    "A date attached to a measurement, example or page element",
+  ]) assert.ok(search.includes(phrase), phrase);
+  for (const phrase of ['"other" for a date attached to a measurement', "categoryTerms:", "searchPurposes:", "categoryRelation:"]) {
+    assert.ok(SCOUT_FILING_PROMPT.includes(phrase), phrase);
+  }
+});

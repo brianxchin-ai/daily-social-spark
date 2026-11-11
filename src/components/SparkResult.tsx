@@ -322,7 +322,7 @@ function HypothesisVerdict({ evaluation }: { evaluation: CandidateEvaluation }) 
         <div className="col-span-2 flex min-w-0 flex-col gap-1 border-t-2 border-ink px-4 py-3 sm:col-span-1 sm:border-t-0 sm:border-l-2">
           <dt className="readout text-ink-soft">Concept Score · provisional</dt>
           <dd className="headline text-[40px] sm:text-[52px]">
-            {formatScore(evaluation.score.applicableScore)}
+            {formatScore(evaluation.score.conceptScore)}
             <span className="text-[0.55em] text-ink-soft">/100</span>
           </dd>
         </div>

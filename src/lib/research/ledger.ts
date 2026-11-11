@@ -68,6 +68,9 @@ export const LedgerDraftSchema = z.object({
       z.object({
         name: z.string().min(1).describe("Short name of the pattern, e.g. 'makeup bag declutter edits'."),
         category: z.enum(SIGNAL_CATEGORIES),
+        categoryRelation: z
+          .enum(["in-category", "adjacent", "off-category"])
+          .describe("How the signal relates to the brand's own category: inside it, next to it, or from a different part of culture."),
         summary: z.string().min(1).describe("One or two sentences on what the sources show, without adding claims."),
         lineage: z
           .string()
@@ -105,9 +108,9 @@ export const LedgerDraftSchema = z.object({
                   "An absolute date copied exactly from a cited quote, e.g. 'October 28, 2026' or 'October 2026'. Empty string if the quotes contain no absolute date. Never a relative phrase like 'this week'.",
                 ),
               dateBasis: z
-                .enum(["published", "behavior", "none"])
+                .enum(["published", "behavior", "other", "none"])
                 .describe(
-                  "published: dateText is when the article was published (a dateline). behavior: dateText is when the behavior or event itself happened. none: no date.",
+                  "published: the quote states when the article was published (a dateline, 'Published…'). behavior: when the behavior or event itself happened. other: a date attached to a measurement, example or page element ('counts as of…'). none: no date.",
                 ),
               attributedTo: z
                 .string()
@@ -121,6 +124,19 @@ export const LedgerDraftSchema = z.object({
     )
     .max(MAX_SIGNALS),
   gaps: z.array(z.string()).max(10).describe("What you looked for but could not find or confirm."),
+  categoryTerms: z
+    .array(z.string())
+    .max(12)
+    .describe("Words that name the brand's own category or industry, e.g. 'beauty', 'makeup', 'skincare'."),
+  searchPurposes: z
+    .array(
+      z.object({
+        query: z.string().describe("A search you ran, copied exactly."),
+        purpose: z.enum(["brand", "category", "cross-category", "depth"]),
+      }),
+    )
+    .max(12)
+    .describe("Why you ran each search."),
 });
 export type LedgerDraft = z.infer<typeof LedgerDraftSchema>;
 
@@ -197,6 +213,8 @@ export interface LedgerSignal {
   id: string; // G1, G2…
   name: string;
   category: (typeof SIGNAL_CATEGORIES)[number];
+  /** The Scout's judgment of how far the signal sits from the brand's category. */
+  categoryRelation: "in-category" | "adjacent" | "off-category";
   summary: string;
   /** The Scout's assessment, lightly checked by code. Separate from evidence strength and momentum. */
   novelty: Novelty;
@@ -233,8 +251,12 @@ export interface EvidenceLedger {
   gaps: string[];
   /** What our checks changed or rejected, for the trace. */
   adjustments: string[];
-  /** How many searches looked beyond the brand (the Scout must run at least 2). */
-  discovery: { searches: number; brandFreeSearches: number };
+  /**
+   * Discovery breadth. brandFreeSearches is pure text matching. crossCategorySearches
+   * are searches the Scout labeled cross-category that were actually run and
+   * contain neither the brand nor any of the category terms it named.
+   */
+  discovery: { searches: number; brandFreeSearches: number; crossCategorySearches: number; categoryTerms: string[] };
 }
 
 /* ---------- Step A: source register and citations (from API data only) ---------- */
@@ -480,7 +502,7 @@ export function checkLedger(input: {
         kind: o.kind,
         citationIds: valid,
         sourceIds,
-        ...dates(o.dateText, o.dateBasis, valid, citationById, now),
+        ...dates(o.dateText, o.dateBasis, valid, citationById, now, adjustments),
         attributedTo,
         originKey: attributedTo ? `by:${keyOf(attributedTo)}` : `site:${domain}`,
         owned: isOwned(domain, attributedTo, brand, platform),
@@ -496,6 +518,7 @@ export function checkLedger(input: {
       id: signalId,
       name: rawSignal.name,
       category: rawSignal.category,
+      categoryRelation: rawSignal.categoryRelation,
       summary: rawSignal.summary,
       ...checkNovelty(rawSignal, signalObs.length, signalId, adjustments, register.queries),
       observationIds: signalObs.map((o) => o.id),
@@ -513,6 +536,10 @@ export function checkLedger(input: {
   }
 
   const brandFreeSearches = countBrandFree(register.queries, brand);
+  const crossCategorySearches = countCrossCategory(register.queries, draft.searchPurposes, brand, draft.categoryTerms);
+  if (register.queries.length > 0 && crossCategorySearches === 0) {
+    adjustments.push("Discovery stayed within the brand's category: no recorded search looked beyond it.");
+  }
   if (register.queries.length > 0 && brandFreeSearches < MIN_BRAND_FREE_SEARCHES) {
     adjustments.push(
       `Discovery was brand-centric: only ${brandFreeSearches} of ${register.queries.length} searches looked beyond the brand (at least ${MIN_BRAND_FREE_SEARCHES} expected).`,
@@ -533,11 +560,36 @@ export function checkLedger(input: {
     inferences,
     gaps: draft.gaps,
     adjustments,
-    discovery: { searches: register.queries.length, brandFreeSearches },
+    discovery: { searches: register.queries.length, brandFreeSearches, crossCategorySearches, categoryTerms: draft.categoryTerms },
   };
 }
 
 export const MIN_BRAND_FREE_SEARCHES = 2;
+
+const words = (q: string) => q.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(Boolean);
+
+/**
+ * Brand-free is not cross-category. A search counts as cross-category only if
+ * the Scout labeled it so, it was actually run, and it names neither the
+ * brand nor any category term the Scout listed. Whether those terms fully
+ * describe the category is a semantic judgment code can't make.
+ */
+export function countCrossCategory(
+  queries: string[],
+  purposes: { query: string; purpose: string }[],
+  brand: string,
+  categoryTerms: string[],
+): number {
+  const brandKey = brand.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const terms = categoryTerms.flatMap(words).filter((t) => t.length > 2);
+  const labeled = new Set(purposes.filter((p) => p.purpose === "cross-category").map((p) => words(p.query).join(" ")));
+  return queries.filter((q) => {
+    const w = words(q);
+    if (!labeled.has(w.join(" "))) return false;
+    if (brandKey && w.join("").includes(brandKey)) return false;
+    return !w.some((x) => terms.some((t) => x === t || x.startsWith(t) || t.startsWith(x)));
+  }).length;
+}
 
 /** Searches that don't name the brand (case- and spacing-insensitive). */
 export function countBrandFree(queries: string[], brand: string): number {
@@ -606,16 +658,33 @@ export function momentumEligibility(obs: LedgerObservation[], now: Date): Criter
 
 /* ---------- Dates: publication vs. behavior ---------- */
 
+const PUBLICATION_CUE = /\b(published|posted|updated|first appeared|dated|written|byline|story by)\b/i;
+const NON_PUBLICATION_CUE = /\b(as of|measured|counts?|figures?|data|statistics|followers?|views?|ranked|tracked|sample)\b/i;
+
+/**
+ * A quote supports a publication date only if it says so ("Published…",
+ * "Posted on…") or is just a dateline (the date and little else). A date
+ * attached to a measurement, example or page element ("Follower counts are
+ * as of November 5") is never a publication date.
+ */
+export function looksLikePublicationDate(quote: string, dateText: string): boolean {
+  const rest = squash(quote).replace(squash(dateText), " ").replace(/[^a-z]+/g, " ").trim();
+  if (PUBLICATION_CUE.test(quote)) return true;
+  if (NON_PUBLICATION_CUE.test(quote)) return false;
+  return rest.split(" ").filter(Boolean).length <= 3; // a bare dateline, e.g. "Nov 5, 2026 —"
+}
+
 /**
  * Split the Scout's one date per observation into the two kinds we keep apart.
  * A "published" date (or an unlabeled one) never becomes the behavior's date.
  */
 function dates(
   dateText: string,
-  dateBasis: "published" | "behavior" | "none",
+  dateBasis: "published" | "behavior" | "other" | "none",
   citationIds: string[],
   citationById: Map<string, CitationRecord>,
   now: Date,
+  adjustments: string[],
 ): { behavior: Timeframe; published: PublishedDate | null } {
   const quotes = citationIds.map((id) => citationById.get(id)!.quote);
   const noBehavior: Timeframe = { status: "unknown", reason: "No cited text says when the behavior happened." };
@@ -623,8 +692,13 @@ function dates(
 
   const resolved = resolveTimeframe(dateText, quotes, now);
   if (dateBasis === "behavior") return { behavior: resolved, published: null };
-  if (resolved.status !== "known") return { behavior: noBehavior, published: null };
+  // "other" (measurement, example, page element) and unlabeled dates are neither kind.
+  if (dateBasis !== "published" || resolved.status !== "known") return { behavior: noBehavior, published: null };
   const holder = citationIds.map((id) => citationById.get(id)!).find((c) => squash(c.quote).includes(squash(resolved.dateText)))!;
+  if (!looksLikePublicationDate(holder.quote, resolved.dateText)) {
+    adjustments.push(`"${resolved.dateText}" is attached to a measurement, example or page element, not a publication date, so it wasn't used as one.`);
+    return { behavior: noBehavior, published: null };
+  }
   return {
     behavior: noBehavior,
     published: { date: resolved.date, precision: resolved.precision, dateText: resolved.dateText, sourceId: holder.sourceId, shared: false },

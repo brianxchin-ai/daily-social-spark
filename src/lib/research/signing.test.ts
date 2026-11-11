@@ -21,7 +21,7 @@ const ledger = {
   inferences: [],
   gaps: [],
   adjustments: [],
-  discovery: { searches: 1, brandFreeSearches: 1 },
+  discovery: { searches: 1, brandFreeSearches: 1, crossCategorySearches: 0, categoryTerms: [] },
 } satisfies EvidenceLedger;
 
 const later = (ms: number) => new Date(NOW.getTime() + ms);

@@ -39,12 +39,15 @@ Novelty and lineage (assess every signal):
 
 How to search: breadth, then depth (at most ${MAX_SEARCHES} searches; use only as many as improve discovery):
 1. Breadth: start with at least 2 searches that do not contain the brand name, across broader culture, creator behaviors, niche communities, memes, language and new formats. You may use one search on the brand or category for context.
+   - At least 1 of these must be a cross-category, behavior-first search: it names neither the brand nor its category or industry (for a beauty brand, no "beauty", "makeup" or "skincare"). Look for emerging behaviors, humor, linguistic constructions, audience rituals, creator mechanics or niche-community patterns anywhere in culture. A brand-free search inside the category ("TikTok beauty trends") does not count.
+   - A culturally unusual signal is not a verified emerging trend. Report it with the same evidence standards.
 2. Depth, only where useful: for the 1–2 most promising signals, use remaining searches to find an independent second source (when a signal rests on one source) and/or run a quick lineage check on the underlying template for older examples that could undermine a claim of novelty.
-3. Before you stop: if a signal you'd shortlist rests on a single source, or its lineage hasn't been checked, use a remaining search on that, as long as searches remain and it would be useful. Otherwise stop when another search wouldn't improve discovery. Don't use all ${MAX_SEARCHES} by default.
+3. Before you stop: if a signal you'd shortlist rests on a single source, or its lineage hasn't been checked, use a remaining search on that, as long as searches remain and it would be useful. Don't stop before examining your most promising discoveries. Otherwise stop when another search wouldn't improve discovery. Don't use all ${MAX_SEARCHES} by default.
 - Prefer recent primary or near-primary evidence (${profile.usefulSourceHints.join("; ")}) over listicles and trend roundups. Avoid stale reports.
 
 Dating (important):
 - Cite the sentence or dateline that shows when each piece was published, and, separately, any text that says when the behavior or event itself happened.
+- A date attached to a measurement, example or page element ("follower counts as of…", "data from…") is not a publication date.
 - A publication date says when something was reported, not when the behavior began.
 - Write dates exactly as the sources write them. Do not turn relative phrases ("this week") into dates, and never treat a page's "last updated" date as when something happened. If the behavior's timing isn't cited, say it is unknown.
 
@@ -69,7 +72,7 @@ Rules:
 - An observation states only what its cited quotes say. If you can't point to a quote, put the point in "inferences" instead. Early-potential hypotheses go in "inferences".
 - kind "growth" only when a cited quote itself describes an increase or spread over time. Otherwise "presence".
 - dateText: copy an absolute date (e.g. "October 28, 2026" or "October 2026") exactly as it appears in one of the observation's cited quotes. If none contains an absolute date, use an empty string. Never use relative phrases ("this week", "recently") or a page's last-updated date.
-- dateBasis: "published" when dateText is the article's publication date or dateline; "behavior" only when the cited text says that is when the behavior or event itself happened; "none" if dateText is empty. A publication date is never a behavior date.
+- dateBasis: "published" only when the cited text states the article's publication (a dateline, "Published…", "Posted on…"); "behavior" only when the cited text says that is when the behavior or event itself happened; "other" for a date attached to a measurement, example or page element ("follower counts are as of…"); "none" if dateText is empty. A publication date is never a behavior date, and an "other" date is neither.
 - lineage: the established mechanisms or influences the signal draws on (e.g. "the [blank]maxxing construction"), or "None identified". Having ancestors doesn't rule out emerging. Give each construction its own accurate lineage; don't group different constructions (e.g. "-pilled", "-coded", "-maxxing") under one parent. If the lineage can't be established, write "Uncertain" rather than inventing one.
 - novelty: emerging (a potentially distinctive new mechanism, even with known influences), evolving (a meaningful transformation of an existing mechanism: new meaning, behavior or adoption dynamic), derivative (an established mechanism with a new surface variation: subject, modifier, wording or aesthetic), established, or uncertain. A recent article about an old expression is not emerging. If you can't tell, use uncertain.
 - whatIsNew: what is new about the underlying mechanism, not the wording or subject. Required for emerging and evolving.
@@ -78,6 +81,9 @@ Rules:
 - creativeOpportunity: why it could still be creatively useful, as a hypothesis, or an empty string.
 - attributedTo: who the source credits for the information (e.g. "TikTok newsroom", a company press release), or an empty string.
 - Include numbers only if they appear in the cited quotes.
+- categoryRelation: "in-category" (inside the brand's own category), "adjacent" (next to it) or "off-category" (from a different part of culture).
 - gaps: what couldn't be found or confirmed.
+- categoryTerms: the words that name the brand's own category or industry (for a beauty brand: "beauty", "makeup", "skincare", "cosmetics").
+- searchPurposes: for each search you ran (copied exactly from "Searches you ran"), its purpose: "brand", "category", "cross-category" (names neither the brand nor its category) or "depth" (corroboration or lineage).
 
 Use American English spelling. Write em dashes closed, with no spaces around them.`;
