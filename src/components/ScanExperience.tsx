@@ -14,13 +14,23 @@ type ScanState =
   | { status: "idle" }
   | { status: "scanning"; brand: string; runId: number }
   | { status: "done"; spark: Spark }
-  | { status: "error"; message: string; limited: boolean };
+  | { status: "error"; message: string; limit: string | null };
+
+/** The card heading for each kind of usage refusal. */
+const LIMIT_SLATES: Record<string, string> = {
+  daily: "◆ Daily limit reached",
+  network: "◆ Daily limit reached",
+  budget: "◆ Beta budget reached",
+  busy: "◆ Scan already running",
+  handoff: "◆ Start a new scan",
+  unavailable: "⚠ Live scans paused",
+};
 
 /** One plain line about the visitor's public-beta allowance. */
 function allowanceLine(limits: BetaLimits): string {
   if (limits.available === false) return "⚠ Live scans are paused: usage tracking is unavailable right now.";
   if (limits.budgetAvailable === false) {
-    return `⚠ Live scans are paused: the beta's shared budget is used up. They resume${limits.budgetResetsAt ? ` on ${localDate(limits.budgetResetsAt)}` : " next cycle"}.`;
+    return `⚠ Live scans are paused: the beta's shared budget is used up. They resume ${limits.budgetResetsAt ? localDate(limits.budgetResetsAt) : "next cycle"}.`;
   }
   const resets = limits.resetsAt ? ` · resets ${localTime(limits.resetsAt)}` : "";
   const noun = limits.limit === 1 ? "scan" : "scans";
@@ -76,7 +86,7 @@ export function ScanExperience() {
       if (error instanceof ScanCanceled || runId !== latestRun.current) return;
       const message =
         error instanceof ScanError ? error.message : "Something went wrong. Please try again.";
-      setState({ status: "error", message, limited: error instanceof ScanLimited });
+      setState({ status: "error", message, limit: error instanceof ScanLimited ? error.kind : null });
     } finally {
       setStatusKey((k) => k + 1);
     }
@@ -177,15 +187,18 @@ export function ScanExperience() {
           />
         )}
         {state.status === "error" && (
-          <StoryCard dashed slateLeft={state.limited ? "◆ Beta limit reached" : "⚠ Scan failed"}>
+          <StoryCard dashed slateLeft={state.limit ? LIMIT_SLATES[state.limit] ?? "◆ Scan not started" : "⚠ Scan failed"}>
             <p role="alert" className="text-[15px]">
               {state.message}
             </p>
-            <p className="readout text-ink-soft">
-              {state.limited
-                ? "Public-beta limits keep live scans affordable for everyone. No scan was started."
-                : "No placeholder content was substituted. Fix the issue above and run the scan again."}
-            </p>
+            {state.limit === null && (
+              <p className="readout text-ink-soft">
+                No placeholder content was substituted. Fix the issue above and run the scan again.
+              </p>
+            )}
+            {(state.limit === "daily" || state.limit === "network" || state.limit === "budget") && (
+              <p className="readout text-ink-soft">Public-beta limits keep live scans affordable for everyone.</p>
+            )}
           </StoryCard>
         )}
         {state.status === "done" && <SparkResult key={state.spark.id} spark={state.spark} />}

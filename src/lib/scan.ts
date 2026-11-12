@@ -27,7 +27,16 @@ const SCAN_TIMEOUT_MS = 5 * 60_000;
 export class ScanError extends Error {}
 
 /** A public-beta usage limit stopped the scan before any paid call. Not a failure of the scan itself. */
-export class ScanLimited extends ScanError {}
+export class ScanLimited extends ScanError {
+  readonly kind: string;
+  constructor(message: string, kind: string) {
+    super(message);
+    this.kind = kind;
+  }
+}
+
+const limitKind = (payload: Record<string, unknown> | null) =>
+  ((payload?.limit as { kind?: string } | undefined)?.kind ?? "unavailable");
 
 /** Thrown when the person cancels a scan. Not an error to show: the page simply resets. */
 export class ScanCanceled extends Error {}
@@ -43,6 +52,8 @@ export interface BetaLimits {
   budgetAvailable?: boolean;
   budgetResetsAt?: string;
   active?: boolean;
+  /** Deployment check: whether the server could identify the visitor's network. */
+  network?: "identified" | "unidentified";
 }
 
 export interface EngineStatus {
@@ -58,9 +69,13 @@ export function localTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZoneName: "short" });
 }
 
-/** "Dec 1" in the visitor's own time zone. */
+/**
+ * "Nov 30, 7:00 PM EST" in the visitor's own time zone. Resets happen at
+ * midnight UTC, which is the evening before in the Americas, so the date
+ * alone would mislead: always show the time with it.
+ */
 export function localDate(iso: string): string {
-  return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" });
+  return new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
 }
 
 /**
@@ -78,7 +93,7 @@ export function limitMessage(payload: Record<string, unknown> | null): string | 
     case "network":
       return `${base} It resets at ${at ? localTime(at) : "midnight UTC"}.`;
     case "budget":
-      return `${base} They resume ${at ? `on ${localDate(at)}` : "next cycle"}. Thanks for testing!`;
+      return `${base} They resume ${at ? localDate(at) : "next cycle"}. Thanks for testing!`;
     default:
       return base;
   }
@@ -144,7 +159,7 @@ async function runResearch(
   const result = await postJson("/api/research", request, RESEARCH_TIMEOUT_MS, cancel);
   // A usage limit stops the scan here: no creative request is sent.
   const limited = limitMessage(result.payload);
-  if (limited) throw new ScanLimited(limited);
+  if (limited) throw new ScanLimited(limited, limitKind(result.payload));
   // The attempt this research belongs to: the creative request continues it.
   const attemptId = typeof result.payload?.attemptId === "string" ? result.payload.attemptId : null;
   const token = typeof result.payload?.token === "string" ? result.payload.token : null;
@@ -196,7 +211,7 @@ export async function runScan(
     );
   }
   const limited = limitMessage(result.payload);
-  if (limited) throw new ScanLimited(limited);
+  if (limited) throw new ScanLimited(limited, limitKind(result.payload));
   const spark = result.payload?.spark as Spark | undefined;
   if (!result.ok || !spark) {
     const error = typeof result.payload?.error === "string" ? result.payload.error : null;

@@ -114,6 +114,8 @@ export function identify(request: Request, env: Env = process.env): Visitor {
   const network = ip
     ? createHash("sha256").update(`${env.SPARK_LEDGER_SECRET ?? ""}:network:${ip}`).digest("hex").slice(0, 16)
     : "local";
+  // Without the header every visitor would share one network allowance (6 a day for everyone).
+  if (env.VERCEL && !ip) console.warn("[usage] no client IP header on Vercel; all visitors share one network allowance");
   return { visitor, network, setCookie };
 }
 

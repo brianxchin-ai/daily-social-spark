@@ -55,6 +55,58 @@ Keys live under `dss:usage:v1:` by default. `SPARK_USAGE_KEY_PREFIX` changes the
 - **Cycle dates are approximate.** The app's budget cycle starts at 00:00 UTC on the reset day. Plan credits refresh on your billing date, and workspace spend limits reset on the 1st of the calendar month (UTC). These dates may not line up.
 - **Built for beta scale.** All usage lives in one small record, which suits tens of visitors, not thousands.
 
+## Deploying to Vercel
+
+### Budget reset day: the 13th
+
+Anthropic shows the next API credit on the 12th but not the time, so a reset at 00:00 UTC on the 12th could come before the credit arrives. The app resets on the **13th** instead (`SPARK_BUDGET_RESET_DAY=13`), at least a day after the credit should have arrived. That means a fresh $27 is never opened before the credit it relies on.
+
+The trade-off is a one-day lag. On the 12th, visitors are still spending the previous cycle's leftover budget. With no payment method and auto-reload off, no spending can turn into a charge: when credits run out, Anthropic simply refuses the calls.
+
+### Environment variables
+
+Enter these in Vercel → Project → Settings → Environment Variables. Mark the secrets as **Sensitive**, so their values can't be read back later.
+
+| Variable | Value | Sensitive |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | The **Public Beta workspace** key (never your personal key) | Yes |
+| `SPARK_LEDGER_SECRET` | A new random value, not your local one (see below) | Yes |
+| `UPSTASH_REDIS_REST_URL` | From the Upstash database's REST API section | Yes |
+| `UPSTASH_REDIS_REST_TOKEN` | The standard token (not read-only) | Yes |
+| `SPARK_ENGINE` | `claude` | No |
+| `SPARK_RESEARCH` | `live` | No |
+| `SPARK_USAGE_STORE` | `redis` | No |
+| `SPARK_PUBLIC_BUDGET_USD` | `27` | No |
+| `SPARK_BUDGET_RESET_DAY` | `13` | No |
+| `SPARK_DAILY_SCANS` | `3` | No |
+| `SPARK_NETWORK_DAILY_SCANS` | `6` | No |
+
+**Leave these unset:**
+- `SPARK_USAGE_KEY_PREFIX`, except during the staged checks below
+- `SPARK_SCAN_BUDGET_MS`, which is only for tests
+- `ANTHROPIC_BASE_URL`
+
+**To create the ledger secret** without it appearing on screen, run this in your own Terminal app:
+
+```bash
+openssl rand -base64 48 | pbcopy
+```
+
+It copies straight to your clipboard; paste it into Vercel.
+
+**Preview and Production use the same values.** Both spend from the same Anthropic workspace, so they share one Upstash database and one $27 budget. Giving Preview its own budget would quietly raise the public ceiling.
+
+### Staged rollout (no paid calls until stage D)
+
+| Stage | Preview settings | What it proves |
+|---|---|---|
+| A | None | The build deploys and the demo engine works |
+| B | Engine, research, API key, ledger secret, `SPARK_USAGE_STORE`, with no Upstash yet | Fails closed: both paid routes return 503 |
+| C | Add Upstash, plus `SPARK_USAGE_KEY_PREFIX=dss-test:preview` and `SPARK_PUBLIC_BUDGET_USD=0.01` | Real storage works on Vercel; every scan is refused before any paid call. The status reply at `/api/scan` shows `"network":"identified"` |
+| D | Remove the prefix, set the budget to `27`, and redeploy | One approved paid scan |
+
+Production gets the full settings only after stage D passes. Until then, a Production deployment with no settings runs the free demo engine.
+
 ## Roadmap: other audit findings (not started)
 
 1. Weak evidence verification. Most evidence ends up unverified (undated quotes, sources that are mostly trend roundups).

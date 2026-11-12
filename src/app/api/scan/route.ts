@@ -78,7 +78,15 @@ export async function GET(request: Request) {
   const who = identify(request);
   const left = await allowance(gate, who);
   const limits =
-    gate.mode === "off" ? { enforced: false } : { enforced: true, available: gate.mode === "enforced" && left !== null, ...left };
+    gate.mode === "off"
+      ? { enforced: false }
+      : {
+          enforced: true,
+          available: gate.mode === "enforced" && left !== null,
+          // Deployment check: whether a per-network identity was found (never the address itself).
+          network: who.network === "local" ? "unidentified" : "identified",
+          ...left,
+        };
   return json({ engine, model: MODEL, limits }, { who });
 }
 
