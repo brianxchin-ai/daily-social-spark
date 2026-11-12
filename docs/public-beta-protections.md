@@ -8,7 +8,7 @@ These rules keep Daily Social Spark affordable while it's open to the public. Th
 |---|---|---|
 | Paid scan attempts per browser per day | `SPARK_DAILY_SCANS` | 3 |
 | Paid scan attempts per network (IP address) per day | `SPARK_NETWORK_DAILY_SCANS` | 6 |
-| Shared public budget per credit cycle, in USD | `SPARK_PUBLIC_BUDGET_USD` | 30 |
+| Shared public budget per credit cycle, in USD | `SPARK_PUBLIC_BUDGET_USD` | 27 (under the $30 Anthropic workspace cap) |
 | Day of the month the budget cycle resets (1–28) | `SPARK_BUDGET_RESET_DAY` | 1 |
 | Scans running at once, per browser | fixed | 1 |
 
@@ -41,10 +41,12 @@ These rules keep Daily Social Spark affordable while it's open to the public. Th
 
 | Value | Use | On Vercel |
 |---|---|---|
-| `redis` | Public deployment. Needs `KV_REST_API_URL` + `KV_REST_API_TOKEN` (or `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`). | Required |
+| `redis` | Public deployment. Needs `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (or the `KV_REST_API_URL` + `KV_REST_API_TOKEN` pair that Vercel's integration adds; the KV pair wins if both are set). | Required |
 | `memory` | Local trials and tests. Single process only. | Refused |
 | `off` | Your own local use: no limits, nothing recorded. | Refused |
 | *(unset)* | Same as `off` locally. On Vercel, paid scans are refused. | Refused |
+
+Keys live under `dss:usage:v1:` by default. `SPARK_USAGE_KEY_PREFIX` changes the prefix; tests use their own (`dss-test:…`), so they never touch live records.
 
 ## What it does not guarantee
 

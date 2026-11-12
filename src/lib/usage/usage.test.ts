@@ -20,7 +20,7 @@ import {
 import { estimateCostUsd, priceFor } from "./pricing.ts";
 import { MemoryStore, RedisRestStore } from "./store.ts";
 
-const CONFIG: UsageConfig = { dailyAttempts: 3, networkDailyAttempts: 6, budgetUsd: 30, cycleResetDay: 1 };
+const CONFIG: UsageConfig = { dailyAttempts: 3, networkDailyAttempts: 6, budgetUsd: 27, cycleResetDay: 1 };
 const T0 = Date.UTC(2026, 10, 12, 15, 0, 0); // Nov 12, 2026, 15:00 UTC
 const FULL = RESERVE_USD.research + RESERVE_USD.creative;
 
@@ -334,6 +334,20 @@ describe("storage unavailable", () => {
     assert.equal(resolveGate({ SPARK_USAGE_STORE: "mystery" }).mode, "unavailable");
     const redis = resolveGate({ VERCEL: "1", SPARK_USAGE_STORE: "redis", KV_REST_API_URL: "https://x", KV_REST_API_TOKEN: "t" });
     assert.equal(redis.mode === "enforced" && redis.storeKind, "redis");
+    const bad = { SPARK_USAGE_STORE: "redis", UPSTASH_REDIS_REST_URL: "https://x", UPSTASH_REDIS_REST_TOKEN: "t", SPARK_USAGE_KEY_PREFIX: "a b*" };
+    assert.equal(resolveGate(bad).mode, "unavailable", "a prefix with spaces or wildcards is refused");
+  });
+
+  it("defaults to the agreed beta limits: 3 per browser, 6 per network, $27 per cycle", () => {
+    const gate = resolveGate({ SPARK_USAGE_STORE: "memory" });
+    assert.deepEqual(gate.mode === "enforced" && gate.config, { dailyAttempts: 3, networkDailyAttempts: 6, budgetUsd: 27, cycleResetDay: 1 });
+  });
+
+  it("keeps test records under their own key prefix", () => {
+    const gate = resolveGate({ SPARK_USAGE_STORE: "redis", UPSTASH_REDIS_REST_URL: "https://x", UPSTASH_REDIS_REST_TOKEN: "t", SPARK_USAGE_KEY_PREFIX: "dss-test:run1" });
+    assert.equal(gate.mode === "enforced" && (gate.store as RedisRestStore).stateKey, "dss-test:run1:state");
+    const live = resolveGate({ SPARK_USAGE_STORE: "redis", UPSTASH_REDIS_REST_URL: "https://x", UPSTASH_REDIS_REST_TOKEN: "t" });
+    assert.equal(live.mode === "enforced" && (live.store as RedisRestStore).stateKey, "dss:usage:v1:state");
   });
 });
 

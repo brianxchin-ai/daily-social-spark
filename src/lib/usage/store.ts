@@ -62,8 +62,8 @@ export class MemoryStore implements UsageStore {
 
 /* ---------- Upstash Redis over REST ---------- */
 
-const STATE_KEY = "dss:usage:v1:state";
-const LOCK_KEY = "dss:usage:v1:lock";
+/** Every key this store touches starts with this prefix (tests use their own, so they never touch live records). */
+export const DEFAULT_KEY_PREFIX = "dss:usage:v1";
 const LOCK_TTL_MS = 5_000;
 const LOCK_WAIT_MS = 4_000;
 const REQUEST_TIMEOUT_MS = 3_000;
@@ -78,12 +78,16 @@ export class RedisRestStore implements UsageStore {
   private readonly token: string;
   private readonly config: UsageConfig;
   private readonly now: () => number;
+  readonly stateKey: string;
+  readonly lockKey: string;
 
-  constructor(url: string, token: string, config: UsageConfig, now: () => number = Date.now) {
+  constructor(url: string, token: string, config: UsageConfig, now: () => number = Date.now, keyPrefix = DEFAULT_KEY_PREFIX) {
     this.url = url;
     this.token = token;
     this.config = config;
     this.now = now;
+    this.stateKey = `${keyPrefix}:state`;
+    this.lockKey = `${keyPrefix}:lock`;
   }
 
   private async command(args: (string | number)[]): Promise<unknown> {
@@ -111,7 +115,7 @@ export class RedisRestStore implements UsageStore {
     const lockId = randomBytes(12).toString("hex");
     const giveUpAt = Date.now() + LOCK_WAIT_MS;
     for (let wait = 25; ; wait = Math.min(wait * 2, 250)) {
-      const got = await this.command(["SET", LOCK_KEY, lockId, "NX", "PX", LOCK_TTL_MS]);
+      const got = await this.command(["SET", this.lockKey, lockId, "NX", "PX", LOCK_TTL_MS]);
       if (got === "OK") break;
       if (Date.now() > giveUpAt) throw new UsageUnavailable("storage is busy");
       await new Promise((resolve) => setTimeout(resolve, wait + Math.random() * wait));
@@ -119,7 +123,7 @@ export class RedisRestStore implements UsageStore {
 
     let committed = false;
     try {
-      const raw = await this.command(["GET", STATE_KEY]);
+      const raw = await this.command(["GET", this.stateKey]);
       let state: UsageState;
       if (typeof raw === "string") {
         try {
@@ -132,12 +136,12 @@ export class RedisRestStore implements UsageStore {
         state = emptyState(this.now(), this.config);
       }
       const result = fn(state);
-      const ok = await this.command(["EVAL", COMMIT_SCRIPT, 2, LOCK_KEY, STATE_KEY, lockId, JSON.stringify(state)]);
+      const ok = await this.command(["EVAL", COMMIT_SCRIPT, 2, this.lockKey, this.stateKey, lockId, JSON.stringify(state)]);
       if (ok !== 1) throw new UsageUnavailable("the usage update took too long and was discarded");
       committed = true;
       return result;
     } finally {
-      if (!committed) await this.command(["EVAL", RELEASE_SCRIPT, 1, LOCK_KEY, lockId]).catch(() => undefined);
+      if (!committed) await this.command(["EVAL", RELEASE_SCRIPT, 1, this.lockKey, lockId]).catch(() => undefined);
     }
   }
 }

@@ -9,7 +9,7 @@ import {
   type Refusal,
   type UsageConfig,
 } from "./policy.ts";
-import { MemoryStore, RedisRestStore, UsageUnavailable, type UsageStore } from "./store.ts";
+import { DEFAULT_KEY_PREFIX, MemoryStore, RedisRestStore, UsageUnavailable, type UsageStore } from "./store.ts";
 
 /**
  * The doorman for paid work: both paid routes ask it before calling Claude
@@ -54,7 +54,8 @@ export function resolveGate(env: Env, now: () => number = Date.now): UsageGate {
 
   const dailyAttempts = positive(env.SPARK_DAILY_SCANS, 3, { integer: true, max: 100 });
   const networkDailyAttempts = positive(env.SPARK_NETWORK_DAILY_SCANS, 6, { integer: true, max: 1000 });
-  const budgetUsd = positive(env.SPARK_PUBLIC_BUDGET_USD, 30, { max: 10_000 });
+  // $27 by default: a little under the $30 Anthropic workspace cap, so the app's own message comes first.
+  const budgetUsd = positive(env.SPARK_PUBLIC_BUDGET_USD, 27, { max: 10_000 });
   const cycleResetDay = positive(env.SPARK_BUDGET_RESET_DAY, 1, { integer: true, max: 28 });
   if (dailyAttempts === null || networkDailyAttempts === null || budgetUsd === null || cycleResetDay === null) {
     return { mode: "unavailable", reason: "a usage-limit setting is invalid" };
@@ -69,7 +70,9 @@ export function resolveGate(env: Env, now: () => number = Date.now): UsageGate {
     const url = env.KV_REST_API_URL ?? env.UPSTASH_REDIS_REST_URL;
     const token = env.KV_REST_API_TOKEN ?? env.UPSTASH_REDIS_REST_TOKEN;
     if (!url || !token) return { mode: "unavailable", reason: "usage storage credentials are missing" };
-    return { mode: "enforced", store: new RedisRestStore(url, token, config, now), config, storeKind: "redis" };
+    const prefix = env.SPARK_USAGE_KEY_PREFIX?.trim() || DEFAULT_KEY_PREFIX;
+    if (!/^[A-Za-z0-9:_-]{1,64}$/.test(prefix)) return { mode: "unavailable", reason: "SPARK_USAGE_KEY_PREFIX is invalid" };
+    return { mode: "enforced", store: new RedisRestStore(url, token, config, now, prefix), config, storeKind: "redis" };
   }
   return { mode: "unavailable", reason: "SPARK_USAGE_STORE has an unknown value" };
 }
