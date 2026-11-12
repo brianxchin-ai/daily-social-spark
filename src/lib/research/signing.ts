@@ -19,6 +19,8 @@ interface SignedPayload {
   brand: string;
   platform: Platform;
   exp: number;
+  /** The scan attempt this research belongs to (public beta), so it can't be reused by another. */
+  attempt?: string;
   ledger: EvidenceLedger;
 }
 
@@ -39,7 +41,7 @@ function assertSecret(secret: string) {
 
 export function signLedger(
   ledger: EvidenceLedger,
-  binding: { brand: string; platform: Platform },
+  binding: { brand: string; platform: Platform; attempt?: string },
   secret: string,
   now: Date,
   ttlMs = LEDGER_TTL_MS,
@@ -47,13 +49,14 @@ export function signLedger(
   assertSecret(secret);
   const exp = now.getTime() + ttlMs;
   const payload: SignedPayload = { v: 1, brand: normalizeBrand(binding.brand), platform: binding.platform, exp, ledger };
+  if (binding.attempt) payload.attempt = binding.attempt;
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
   return { token: `${body}.${mac(body, secret).toString("base64url")}`, expiresAt: new Date(exp).toISOString() };
 }
 
 export function verifyLedger(
   token: unknown,
-  binding: { brand: string; platform: Platform },
+  binding: { brand: string; platform: Platform; attempt?: string },
   secret: string,
   now: Date,
 ): VerifyResult {
@@ -86,6 +89,9 @@ export function verifyLedger(
   }
   if (payload.brand !== normalizeBrand(binding.brand) || payload.platform !== binding.platform) {
     return { ok: false, reason: "mismatch", message: "The research was gathered for a different brand or platform." };
+  }
+  if ((payload.attempt ?? null) !== (binding.attempt ?? null)) {
+    return { ok: false, reason: "mismatch", message: "The research belongs to a different scan." };
   }
   return { ok: true, ledger: payload.ledger, expiresAt: new Date(payload.exp).toISOString() };
 }

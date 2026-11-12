@@ -7,10 +7,12 @@ import { CandidateSetSchema, validateCandidateSet, type CandidateDraft } from "@
 import { generatorSystem, ledgerDigest } from "@/lib/prompts/creative";
 import type { EvidenceLedger } from "@/lib/research/ledger";
 import { PLATFORMS, type ScanRequest } from "@/lib/types";
+import { recordCost, recordUncertain } from "@/lib/usage/meter";
+import { estimateCostUsd, priceFor } from "@/lib/usage/pricing";
 
 /** Confirmed from Anthropic's live model and pricing docs on 2026-11-10. */
 export const MODEL = "claude-sonnet-5-5";
-const PRICE_PER_MTOK = { input: 2, output: 10 }; // USD; thinking tokens bill as output
+// Prices live in usage/pricing.ts and follow the model that actually answered.
 
 export interface ScanUsage {
   /** Which step made the call, e.g. "generator" or "evaluator". */
@@ -95,6 +97,7 @@ export async function callStructured<T>(options: {
     response = result.data;
     requestId = result.request_id ?? null;
   } catch (error) {
+    if (mayHaveBilled(error)) recordUncertain();
     throw toEngineError(error, step);
   }
 
@@ -103,9 +106,11 @@ export async function callStructured<T>(options: {
     model: response.model,
     inputTokens: response.usage.input_tokens,
     outputTokens: response.usage.output_tokens,
-    estimatedCostUsd: estimateCost(response.usage.input_tokens, response.usage.output_tokens),
+    estimatedCostUsd: estimateCostUsd(response.model, response.usage.input_tokens, response.usage.output_tokens),
     requestId,
   };
+  // Count it toward usage limits now, before any later check can fail.
+  recordCost(usage.estimatedCostUsd, response.model, priceFor(response.model).known);
   // Safe log: no key, headers, prompt or environment, only usage figures.
   console.info(
     `[claude:${step}] model=${usage.model} in=${usage.inputTokens} out=${usage.outputTokens} est=$${usage.estimatedCostUsd.toFixed(4)} stop=${response.stop_reason} req=${usage.requestId}`,
@@ -136,8 +141,6 @@ export async function callStructured<T>(options: {
 
 /* ---------- Web search call (Scout step 1) ---------- */
 
-/** Anthropic's web search fee: $10 per 1,000 searches. Failed searches aren't billed. */
-const SEARCH_PRICE_USD = 0.01;
 
 /**
  * One call with Anthropic's web search tool. No structured output here: the
@@ -198,16 +201,20 @@ export async function callWithSearch(options: {
       response = result.data;
       usage.requestId ??= result.request_id ?? null;
     } catch (error) {
+      if (mayHaveBilled(error)) recordUncertain();
       // If an earlier part already billed, keep its cost on the error.
       const safe = toEngineError(error, step);
       throw usage.inputTokens + usage.outputTokens > 0 ? new EngineError(safe.message, safe.status, usage) : safe;
     }
 
+    const partSearches = response.usage.server_tool_use?.web_search_requests ?? 0;
+    const partCost = estimateCostUsd(response.model, response.usage.input_tokens, response.usage.output_tokens, partSearches);
+    recordCost(partCost, response.model, priceFor(response.model).known);
     usage.model = response.model;
     usage.inputTokens += response.usage.input_tokens;
     usage.outputTokens += response.usage.output_tokens;
-    usage.webSearches = (usage.webSearches ?? 0) + (response.usage.server_tool_use?.web_search_requests ?? 0);
-    usage.estimatedCostUsd = estimateCost(usage.inputTokens, usage.outputTokens) + (usage.webSearches ?? 0) * SEARCH_PRICE_USD;
+    usage.webSearches = (usage.webSearches ?? 0) + partSearches;
+    usage.estimatedCostUsd += partCost;
     content.push(...response.content);
     stopReason = response.stop_reason;
 
@@ -270,8 +277,14 @@ Propose three distinct short-form opportunities for this brand on this platform.
   return { candidates: value.candidates, usage };
 }
 
-function estimateCost(inputTokens: number, outputTokens: number): number {
-  return (inputTokens * PRICE_PER_MTOK.input + outputTokens * PRICE_PER_MTOK.output) / 1_000_000;
+/**
+ * Could this failed call still have been billed? An error response from the
+ * API isn't billed, but a call cut off mid-flight (canceled, timed out, or
+ * disconnected) may have been, so the usage tally treats it as uncertain.
+ */
+function mayHaveBilled(error: unknown): boolean {
+  if (error instanceof Anthropic.APIUserAbortError || error instanceof Anthropic.APIConnectionError) return true;
+  return !(error instanceof Anthropic.APIError);
 }
 
 /** Translate SDK errors into plain, safe messages. Most specific first. */

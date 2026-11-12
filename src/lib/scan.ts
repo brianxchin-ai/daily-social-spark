@@ -26,14 +26,62 @@ const SCAN_TIMEOUT_MS = 5 * 60_000;
 
 export class ScanError extends Error {}
 
+/** A public-beta usage limit stopped the scan before any paid call. Not a failure of the scan itself. */
+export class ScanLimited extends ScanError {}
+
 /** Thrown when the person cancels a scan. Not an error to show: the page simply resets. */
 export class ScanCanceled extends Error {}
+
+/** The visitor's public-beta allowance, as reported by the server. */
+export interface BetaLimits {
+  enforced: boolean;
+  /** False when usage tracking can't be reached: live scans are paused. */
+  available?: boolean;
+  remaining?: number;
+  limit?: number;
+  resetsAt?: string;
+  budgetAvailable?: boolean;
+  budgetResetsAt?: string;
+  active?: boolean;
+}
 
 export interface EngineStatus {
   engine: EngineMode;
   model: string | null;
   /** Whether live research runs before the creative request. */
   research: "live" | "off";
+  limits?: BetaLimits;
+}
+
+/** "4:00 PM PST" in the visitor's own time zone. */
+export function localTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+}
+
+/** "Dec 1" in the visitor's own time zone. */
+export function localDate(iso: string): string {
+  return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+/**
+ * Turn a usage-limit refusal from the server into a plain message with the
+ * reset time in the visitor's own time zone. Null if it isn't one.
+ */
+export function limitMessage(payload: Record<string, unknown> | null): string | null {
+  const limit = payload?.limit as { kind?: string; resetsAt?: string; limit?: number } | undefined;
+  if (!limit?.kind) return null;
+  const base = typeof payload?.error === "string" ? payload.error : "This scan isn't available right now.";
+  const at = limit.resetsAt;
+  switch (limit.kind) {
+    case "daily":
+      return `${base} Your allowance resets at ${at ? localTime(at) : "midnight UTC"}. Nothing was charged for this attempt.`;
+    case "network":
+      return `${base} It resets at ${at ? localTime(at) : "midnight UTC"}.`;
+    case "budget":
+      return `${base} They resume ${at ? `on ${localDate(at)}` : "next cycle"}. Thanks for testing!`;
+    default:
+      return base;
+  }
 }
 
 /** Ask the server which engine is active, and whether live research is on. */
@@ -86,18 +134,24 @@ async function postJson(
 async function runResearch(
   request: ScanRequest,
   cancel?: AbortSignal,
-): Promise<{ token: string | null; reason: string | null }> {
+): Promise<{ token: string | null; reason: string | null; attemptId: string | null }> {
   const status = await fetch("/api/research", { cache: "no-store", signal: cancel })
     .then((r) => (r.ok ? r.json() : null))
     .catch(() => null);
   if (cancel?.aborted) throw new ScanCanceled("Scan canceled.");
-  if (status?.research !== "live") return { token: null, reason: null };
+  if (status?.research !== "live") return { token: null, reason: null, attemptId: null };
 
   const result = await postJson("/api/research", request, RESEARCH_TIMEOUT_MS, cancel);
+  // A usage limit stops the scan here: no creative request is sent.
+  const limited = limitMessage(result.payload);
+  if (limited) throw new ScanLimited(limited);
+  // The attempt this research belongs to: the creative request continues it.
+  const attemptId = typeof result.payload?.attemptId === "string" ? result.payload.attemptId : null;
   const token = typeof result.payload?.token === "string" ? result.payload.token : null;
-  if (result.ok && token) return { token, reason: null };
+  if (result.ok && token) return { token, reason: null, attemptId };
   const error = typeof result.payload?.error === "string" ? result.payload.error : null;
   return {
+    attemptId,
     token: null,
     reason: result.timedOut
       ? "Research took too long and was stopped (no retry)."
@@ -130,7 +184,7 @@ export async function runScan(
   // Request 2: the creative workflow. No retry.
   const result = await postJson(
     "/api/scan",
-    { ...scan, researchToken: research.token, researchError: research.reason },
+    { ...scan, researchToken: research.token, researchError: research.reason, attemptId: research.attemptId },
     SCAN_TIMEOUT_MS,
     cancel,
   );
@@ -141,6 +195,8 @@ export async function runScan(
         : "Couldn't reach the app's server. Is it still running?",
     );
   }
+  const limited = limitMessage(result.payload);
+  if (limited) throw new ScanLimited(limited);
   const spark = result.payload?.spark as Spark | undefined;
   if (!result.ok || !spark) {
     const error = typeof result.payload?.error === "string" ? result.payload.error : null;

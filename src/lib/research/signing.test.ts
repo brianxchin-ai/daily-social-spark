@@ -73,3 +73,17 @@ test("signing refuses a missing or short secret", () => {
 function pick(r: ReturnType<typeof verifyLedger>) {
   return r.ok ? "ok" : r.reason;
 }
+
+test("a handoff bound to a scan attempt verifies only for that attempt", () => {
+  const { token } = signLedger(ledger, { ...binding, attempt: "attempt-1" }, SECRET, NOW);
+  assert.equal(verifyLedger(token, { ...binding, attempt: "attempt-1" }, SECRET, later(1000)).ok, true);
+  const other = verifyLedger(token, { ...binding, attempt: "attempt-2" }, SECRET, later(1000));
+  assert.equal(!other.ok && other.reason, "mismatch");
+  const unbound = verifyLedger(token, binding, SECRET, later(1000));
+  assert.equal(unbound.ok, false, "a bound handoff can't be used outside its attempt");
+});
+
+test("an unbound handoff can't be claimed by an attempt", () => {
+  const { token } = signLedger(ledger, binding, SECRET, NOW);
+  assert.equal(verifyLedger(token, { ...binding, attempt: "attempt-1" }, SECRET, later(1000)).ok, false);
+});

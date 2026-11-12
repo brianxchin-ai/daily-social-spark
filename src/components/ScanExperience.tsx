@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { runScan, ScanCanceled, ScanError, type ScanPhase } from "@/lib/scan";
+import { localDate, localTime, runScan, ScanCanceled, ScanError, ScanLimited, type BetaLimits, type ScanPhase } from "@/lib/scan";
 import type { Platform, Spark } from "@/lib/types";
 import { useEngineStatus } from "@/lib/use-engine-status";
 import { ScanForm } from "./ScanForm";
@@ -14,7 +14,19 @@ type ScanState =
   | { status: "idle" }
   | { status: "scanning"; brand: string; runId: number }
   | { status: "done"; spark: Spark }
-  | { status: "error"; message: string };
+  | { status: "error"; message: string; limited: boolean };
+
+/** One plain line about the visitor's public-beta allowance. */
+function allowanceLine(limits: BetaLimits): string {
+  if (limits.available === false) return "⚠ Live scans are paused: usage tracking is unavailable right now.";
+  if (limits.budgetAvailable === false) {
+    return `⚠ Live scans are paused: the beta's shared budget is used up. They resume${limits.budgetResetsAt ? ` on ${localDate(limits.budgetResetsAt)}` : " next cycle"}.`;
+  }
+  const resets = limits.resetsAt ? ` · resets ${localTime(limits.resetsAt)}` : "";
+  const noun = limits.limit === 1 ? "scan" : "scans";
+  if (limits.remaining === 0) return `◆ You've used today's ${limits.limit} beta ${noun}${resets}`;
+  return `◆ Public beta · ${limits.remaining} of ${limits.limit} ${noun} left today${resets}`;
+}
 
 /** Owns the scan flow: control deck on the left, the story card stage on the right. */
 export function ScanExperience() {
@@ -27,7 +39,9 @@ export function ScanExperience() {
   const cancelRef = useRef<AbortController | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const stageRef = useRef<HTMLDivElement>(null);
-  const engineStatus = useEngineStatus();
+  // Bumped after every scan, so the beta allowance shown on the page stays current.
+  const [statusKey, setStatusKey] = useState(0);
+  const engineStatus = useEngineStatus(statusKey);
 
   // On narrow screens the stage sits below the form, so bring it into view.
   useEffect(() => {
@@ -62,7 +76,9 @@ export function ScanExperience() {
       if (error instanceof ScanCanceled || runId !== latestRun.current) return;
       const message =
         error instanceof ScanError ? error.message : "Something went wrong. Please try again.";
-      setState({ status: "error", message });
+      setState({ status: "error", message, limited: error instanceof ScanLimited });
+    } finally {
+      setStatusKey((k) => k + 1);
     }
   }
 
@@ -144,6 +160,9 @@ export function ScanExperience() {
                 {engineStatus.research === "live" ? ", starting with live web research" : ""}
               </p>
             )}
+            {engineStatus?.engine === "claude" && engineStatus.limits?.enforced && (
+              <p className="readout font-bold text-ink">{allowanceLine(engineStatus.limits)}</p>
+            )}
           </StoryCard>
         )}
         {state.status === "scanning" && (
@@ -158,12 +177,14 @@ export function ScanExperience() {
           />
         )}
         {state.status === "error" && (
-          <StoryCard dashed slateLeft="⚠ Scan failed">
+          <StoryCard dashed slateLeft={state.limited ? "◆ Beta limit reached" : "⚠ Scan failed"}>
             <p role="alert" className="text-[15px]">
               {state.message}
             </p>
             <p className="readout text-ink-soft">
-              No placeholder content was substituted. Fix the issue above and run the scan again.
+              {state.limited
+                ? "Public-beta limits keep live scans affordable for everyone. No scan was started."
+                : "No placeholder content was substituted. Fix the issue above and run the scan again."}
             </p>
           </StoryCard>
         )}
