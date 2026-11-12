@@ -9,8 +9,9 @@ export const STATUS_LABEL: Record<EvidenceStatus, string> = {
 
 const STATUS_HELP: Record<EvidenceStatus, string> = {
   "evidence-backed": "Cultural relevance and emerging momentum were both verified from cited, dated sources.",
-  "partially-evidenced": "One of the two evidence criteria was verified; the other is unverified.",
-  "unverified-hypothesis": "Neither evidence criterion was verified. Treat this as a creative hypothesis.",
+  "partially-evidenced": "One of the two evidence checks passed; the other couldn't be confirmed from dated sources.",
+  "unverified-hypothesis":
+    "The research couldn't confirm, from dated sources, that this is a current or growing trend. The idea may still be strong: treat it as a creative hypothesis and check it before you act.",
 };
 
 /** How much of a recommendation rests on verified evidence. */
@@ -37,13 +38,16 @@ export function statusHelp(status: EvidenceStatus): string {
 
 export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-/** One line on what research informed the scan. Never says "verified" unless the signed ledger checked out. */
+/**
+ * One line on what research informed the scan. "Completed" means the signed
+ * ledger checked out; it doesn't mean the idea's trend claims were verified.
+ */
 export function researchSummary(research: HypothesisSpark["research"]): { tone: "ok" | "warn" | "off"; text: string } {
   if (research.status === "verified") {
     const l = research.ledger;
     return {
       tone: "ok",
-      text: `Live research verified: ${plural(l.discovery.searches, "search", "searches")}, ${plural(l.sources.length, "source")}, ${plural(l.signals.length, "signal")}.`,
+      text: `Live research completed: ${plural(l.discovery.searches, "search", "searches")}, ${plural(l.sources.length, "source")}, ${plural(l.signals.length, "signal")}.`,
     };
   }
   if (research.status === "rejected") return { tone: "warn", text: `Research not used: ${research.reason}` };

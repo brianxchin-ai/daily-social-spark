@@ -107,7 +107,8 @@ function Header({
 }) {
   return (
     <header className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Right padding keeps the label row clear of the corner sash on narrow screens. */}
+      <div className="flex flex-wrap items-center gap-2 pr-20">
         <p className="readout text-ember">Trend ▸ {content.trendName}</p>
         <OriginBadge origin={origin} />
         {status && <StatusBadge status={status} />}

@@ -145,6 +145,10 @@ export function ScanExperience() {
           onPlatformChange={setPlatform}
           onSubmit={handleSubmit}
         />
+        {/* After a scan, keep the visitor's remaining beta allowance in view. */}
+        {hasRun && engineStatus?.engine === "claude" && engineStatus.limits?.enforced && (
+          <p className="readout -mt-4 text-ink-soft">{allowanceLine(engineStatus.limits)}</p>
+        )}
       </div>
 
       <div ref={stageRef} className="w-full max-w-[620px] scroll-mt-6 justify-self-center lg:justify-self-start">
