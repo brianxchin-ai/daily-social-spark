@@ -42,6 +42,11 @@ export const CandidateDraftSchema = z.object({
   platformExecution: z
     .string()
     .describe("How the selected platform shapes this idea's hook, pacing, audience participation and format."),
+  walkthrough: z
+    .string()
+    .describe(
+      "A short production walkthrough of ONE execution, start to finish, written as prose like a director's treatment: the opening shot and hook, what happens, the turn or payoff, and how it ends. 80 to 150 words, in one or two short paragraphs. No URLs, handles, statistics or performance claims.",
+    ),
   whyItWillSpread: z.string().describe("Why this format has distribution and algorithmic potential."),
   whyNow: z.string().describe("The cultural or platform reasoning for acting now, framed as a hypothesis."),
   timing: z.object({
@@ -148,6 +153,7 @@ const StrictCandidateSchema = CandidateDraftSchema.extend({
   creativeLeap: nonEmpty,
   executionHypothesis: nonEmpty,
   platformExecution: nonEmpty,
+  walkthrough: nonEmpty,
   whyItWillSpread: nonEmpty,
   whyNow: nonEmpty,
   audioVariations: z.array(nonEmpty),

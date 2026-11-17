@@ -20,7 +20,7 @@ Your job, in order:
    - changes only what is needed to address that weakness,
    - adds no cultural, momentum, performance or statistical claims, and no URLs, outlets or handles,
    - keeps the same groundedIn signals and the same underlying cultural claim, so the evidence behind the original still applies (don't add or change evidence),
-   - keeps every field complete, with a headline of 12 words or fewer.
+   - keeps every field complete, with a headline of 12 words or fewer, and rewrites the walkthrough so it matches the revised idea.
 
 Do not score, rank or predict scores. A separate reviewer rescores any revision.
 

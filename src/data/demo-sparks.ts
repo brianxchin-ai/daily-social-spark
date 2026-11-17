@@ -57,6 +57,9 @@ const tiktok: DemoTemplate = (brand) => ({
       note: "Placeholder search signal; real data will replace this.",
     },
   ],
+  walkthrough: `Open on two side-by-side shots that look identical, with the on-screen text "Spot the upgrade." Hold just long enough for viewers to start scanning. Someone from ${brand} leans into frame, says nothing and taps one tiny detail.
+
+Cut to a close-up that makes the change obvious, then back to the wide shot so it suddenly can't be unseen. End on the text "Watch it again," which turns the replay into the joke.`,
   formatIdeas: [
     {
       title: "The 1-second reveal",
@@ -117,6 +120,9 @@ const reels: DemoTemplate = (brand) => ({
       note: "Invented benchmark figures; not real platform data.",
     },
   ],
+  walkthrough: `One locked-off shot, no cuts and no music bed. A person from ${brand} sits at a desk and does the one thing ${brand} is known for, start to finish, narrating only when something needs explaining.
+
+The tension is that nothing is edited out: the small fumbles stay in and make it feel real. It ends the moment the task is done, with a quiet look to camera and the text "One take."`,
   formatIdeas: [
     {
       title: "The uninterrupted take",
@@ -171,6 +177,9 @@ const shorts: DemoTemplate = (brand) => ({
       note: "Invented analysis for layout purposes.",
     },
   ],
+  walkthrough: `Open with the most common myth about ${brand} as bold on-screen text. The person who actually makes it reads the myth aloud, pauses, and says "Let me show you."
+
+In under 40 seconds they demonstrate the truth with their hands, not slides. Close on them stamping the text "Busted" over the myth, and invite viewers to comment with the next myth to tackle.`,
   formatIdeas: [
     {
       title: "Myth on screen, maker on camera",

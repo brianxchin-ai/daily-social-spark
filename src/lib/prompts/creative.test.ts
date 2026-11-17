@@ -76,3 +76,13 @@ test("acceptance: the Generator is told to explore genuinely distinct mechanisms
   assert.ok(e.includes("don't reward unconventionality, or penalize a conventional approach, by itself"));
   assert.ok(e.includes("Signals listed as context (contextIn) never establish"));
 });
+
+test("generator: asks for one prose walkthrough, separate from the three format ideas", () => {
+  for (const hasEvidence of [true, false]) {
+    const g = generatorSystem("tiktok", hasEvidence);
+    assert.ok(g.includes("walkthrough: a short production walkthrough of ONE execution"));
+    assert.ok(g.includes("not a shot list"));
+    assert.ok(g.includes("No statistics, handles or performance claims"));
+    assert.ok(g.includes("formatIdeas: three further ways to run the idea, each different from the walkthrough"));
+  }
+});

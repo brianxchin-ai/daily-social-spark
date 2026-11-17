@@ -33,6 +33,7 @@ Evidence basis (writer's account; check it against the ledger): ${c.evidenceBasi
 Creative leap (writer's inference): ${c.creativeLeap}
 Execution hypothesis: ${c.executionHypothesis}
 Platform execution: ${c.platformExecution}
+Walkthrough of one execution: ${c.walkthrough}
 Why it could spread: ${c.whyItWillSpread}
 Audio role: ${c.audioRole}
 Audio variations:

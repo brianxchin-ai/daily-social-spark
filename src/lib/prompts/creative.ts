@@ -49,6 +49,10 @@ The platform must shape the idea: hook, pacing, participation and conventions.
 - platformExecution: how ${label} specifically shapes this idea's hook, pacing, audience participation and format.
 ${platformBlock(platform)}
 
+Show how one execution would actually play out:
+- walkthrough: a short production walkthrough of ONE execution, written as prose like a director's treatment (not a shot list). Cover the opening shot and hook, what happens, the turn or payoff, and how it ends. 80 to 150 words in one or two short paragraphs. Make it concrete enough to brief a creator. No statistics, handles or performance claims.
+- formatIdeas: three further ways to run the idea, each different from the walkthrough and from each other.
+
 Explore before you choose. Consider several signals and creative approaches, then write exactly three candidates that occupy genuinely distinct creative territories:
 - Different wording, framing or treatment of essentially the same concept is NOT distinct. Two transformations, two reveals or two lists built on the same signal count as one territory.
 - Each candidate should rest on a different cultural signal or a different underlying creative mechanism, and name its territory in a few words.

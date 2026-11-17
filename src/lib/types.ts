@@ -125,6 +125,8 @@ export interface DemoSpark {
   confidenceRationale: string;
   metrics: Metric[];
   evidence: EvidenceSource[];
+  /** A short prose treatment of one execution, start to finish. */
+  walkthrough: string;
   formatIdeas: FormatIdea[];
   risks: string[];
 }
@@ -151,6 +153,8 @@ export interface Candidate {
   executionHypothesis: string;
   /** How the platform shapes the hook, pacing, participation and format. */
   platformExecution: string;
+  /** A short prose treatment of one execution, start to finish. */
+  walkthrough: string;
   /** Problems our code found in the grounding (unknown IDs, unquoted figures). */
   groundingWarnings?: string[];
   whyItWillSpread: string;

@@ -45,3 +45,37 @@ export function FormatIdeas({ ideas }: { ideas: FormatIdea[] }) {
     </ul>
   );
 }
+
+/**
+ * Three further ways to run the idea, compact: a small frame with the hook,
+ * the title and one line. Side by side on wider screens, stacked on phones.
+ */
+export function FormatIdeasCompact({ ideas }: { ideas: FormatIdea[] }) {
+  return (
+    <ul className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+      {ideas.map((idea, index) => {
+        const hook = idea.hook.replace(/[“”"]/g, "");
+        return (
+          <li key={idea.title} className="grid grid-cols-[72px_minmax(0,1fr)] items-start gap-3 sm:grid-cols-1">
+            <div
+              className="flex aspect-[9/16] max-w-full flex-col justify-between rounded-lg p-2 text-white sm:aspect-[4/5]"
+              style={{ background: FRAME_BACKGROUNDS[index % FRAME_BACKGROUNDS.length] }}
+              aria-hidden
+            >
+              <span className="readout text-[9px] text-white/70">Hook</span>
+              <p className="hidden text-center text-[13px] leading-[1.5] font-bold sm:block">
+                <span className="box-decoration-clone rounded-[3px] bg-white px-1.5 py-0.5 text-[#0f1113]">{hook}</span>
+              </p>
+              <span />
+            </div>
+            <div className="flex min-w-0 flex-col gap-1">
+              <p className="headline text-[22px]">{idea.title}</p>
+              <p className="text-[13px] leading-snug font-semibold sm:sr-only">“{hook}”</p>
+              <p className="text-[13.5px] leading-snug text-ink-soft">{idea.description}</p>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
