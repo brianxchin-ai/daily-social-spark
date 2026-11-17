@@ -60,8 +60,11 @@ export function StrategyPanel({
                     {empty ? "Inspiration only" : "Direct evidence"}
                   </span>
                   <span>
-                    {id} · {s?.name ?? "unknown signal"}
-                    {s && <span className="text-ink-soft"> ({s.novelty}, {s.categoryRelation})</span>}
+                    {s?.name ?? "Unknown signal"}{" "}
+                    <span className="text-ink-soft">
+                      ({id}
+                      {s ? ` · ${s.novelty}, ${s.categoryRelation}` : ""})
+                    </span>
                   </span>
                 </li>
               );
@@ -70,7 +73,7 @@ export function StrategyPanel({
               <li key={id} className="flex flex-wrap items-baseline gap-x-2">
                 <span className="readout font-bold text-ink-soft">Context only, not proof</span>
                 <span>
-                  {id} · {signal(id)?.name ?? "unknown signal"}
+                  {signal(id)?.name ?? "Unknown signal"} <span className="text-ink-soft">({id})</span>
                 </span>
               </li>
             ))}

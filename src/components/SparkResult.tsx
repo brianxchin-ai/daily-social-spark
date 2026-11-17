@@ -276,7 +276,7 @@ function HypothesisSections({ spark, final }: { spark: HypothesisSpark; final: C
       <Drawer>
         {spark.longlist && (
           <DrawerPart title={`The longlist · ${spark.longlist.ideas.length} ideas considered`}>
-            <LonglistPanel longlist={spark.longlist} candidates={spark.candidates} />
+            <LonglistPanel longlist={spark.longlist} candidates={spark.candidates} signals={ledger?.signals} />
           </DrawerPart>
         )}
 

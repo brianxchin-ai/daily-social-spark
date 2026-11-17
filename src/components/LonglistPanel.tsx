@@ -1,3 +1,4 @@
+import type { LedgerSignal } from "@/lib/research/ledger";
 import type { DistributionDriver } from "@/lib/spark-schema";
 import type { Candidate, Longlist } from "@/lib/types";
 
@@ -16,7 +17,17 @@ const DRIVER_LABEL: Record<DistributionDriver, string> = {
  * bet for each. Picks come first, in pick order. These bets are the AI's
  * judgment about what drives organic reach, never a forecast.
  */
-export function LonglistPanel({ longlist, candidates }: { longlist: Longlist; candidates: Candidate[] }) {
+export function LonglistPanel({
+  longlist,
+  candidates,
+  signals = [],
+}: {
+  longlist: Longlist;
+  candidates: Candidate[];
+  /** The research signals, so ideas can name what they're built on. */
+  signals?: LedgerSignal[];
+}) {
+  const signalName = (id: string) => signals.find((s) => s.id === id)?.name ?? id;
   const picks = longlist.ideas
     .filter((i) => i.pick)
     .sort(
@@ -52,7 +63,9 @@ export function LonglistPanel({ longlist, candidates }: { longlist: Longlist; ca
                 </span>
               ))}
               {idea.groundedIn.length > 0 && (
-                <span className="readout px-1 py-px text-[10px] text-hypo">Built on {idea.groundedIn.join(", ")}</span>
+                <span className="px-1 py-px text-[12px] text-hypo">
+                  Built on: {idea.groundedIn.map(signalName).join("; ")}
+                </span>
               )}
             </div>
             {idea.pick && <p className="text-[13px] leading-relaxed text-ink-soft">Why it made the cut: {idea.pick.reason}</p>}
