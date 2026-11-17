@@ -1,4 +1,5 @@
 import { criterion, formatScore } from "@/lib/evaluation/scoring";
+import { freshestSignal } from "@/lib/evaluation/evidence";
 import { sourcesForIdea } from "@/lib/research/idea-sources";
 import type { EvidenceLedger } from "@/lib/research/ledger";
 import type { ReactNode } from "react";
@@ -88,14 +89,25 @@ function Header({
   origin: SparkOrigin;
   brand: string;
   audience?: string;
-  content: { trendName: string; headline: string; concept?: string };
+  content: { trendName: string; headline: string; concept?: string; basis?: "trend" | "original" };
 }) {
+  const original = content.basis === "original";
   return (
     <header className="flex flex-col gap-4">
       {/* Right padding keeps the label row clear of the corner sash on narrow screens. */}
       <div className="flex flex-wrap items-center gap-2 pr-20">
-        <p className="readout text-ember">Trend ▸ {content.trendName}</p>
+        <p className="readout text-ember">
+          {original ? "Original format" : "Trend"} ▸ {content.trendName}
+        </p>
         <OriginBadge origin={origin} />
+        {original && (
+          <span
+            className="readout rounded-sm border border-ink px-1.5 py-px text-[10px] font-bold"
+            title="Invented from attention and behavioral principles and timely context, not from a current trend."
+          >
+            ✦ Not built on a current trend
+          </span>
+        )}
       </div>
       <h2
         className={`headline text-balance ${
@@ -215,6 +227,11 @@ function selectionSentence(spark: HypothesisSpark, evaluation: CandidateEvaluati
   const tie = computeTies(spark.evaluation).find((t) => t.ahead === spark.evaluation.leaderId);
   const count = NUMBER_WORDS[spark.candidates.length] ?? spark.candidates.length;
   const pool = spark.longlist ? spark.longlist.ideas.length : 0;
+  const fallback =
+    evaluation.score.kind === "original" &&
+    spark.evaluation.evaluations.some((e) => e.score.kind !== "original")
+      ? " No fresh trend idea cleared the bar, so the best original format was recommended."
+      : "";
   const parts = [
     pool > 0
       ? `The Generator picked it as one of ${count} ideas, from a longlist of ${NUMBER_WORDS[pool] ?? pool}, for its distribution potential. The independent reviewer then ranked it first${
@@ -226,7 +243,7 @@ function selectionSentence(spark: HypothesisSpark, evaluation: CandidateEvaluati
   ];
   if (others > 0 && tie) parts.push(tieShort(tie, name));
   if (evaluation.candidateId !== spark.evaluation.leaderId) parts.push("The editor then revised it once.");
-  return parts.join(" ");
+  return parts.join(" ") + fallback;
 }
 
 /**
@@ -270,6 +287,8 @@ function HypothesisSections({ spark, final }: { spark: HypothesisSpark; final: C
           sources={sources}
           verified={finalEvaluation.score.relevanceVerified}
           researched={ledger !== null}
+          original={final.basis === "original"}
+          freshness={freshestSignal(final.groundedIn, ledger)?.freshness ?? null}
         />
       </Section>
 
@@ -367,6 +386,7 @@ function ThreeIdeas({
                   {e.score.rank ? `#${e.score.rank}` : "Rejected"}
                   {tied.has(c.id) ? " · tied" : ""}
                   {c.id === spark.evaluation.leaderId ? (revised ? " · original winner, revised above" : " · leader") : ""} ·{" "}
+                  {c.basis === "original" ? "original format · " : ""}
                   {c.territory}
                 </span>
                 <span className="text-[15px] leading-snug font-semibold">{c.headline}</span>

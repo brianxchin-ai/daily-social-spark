@@ -28,6 +28,13 @@ export function LonglistPanel({
   signals?: LedgerSignal[];
 }) {
   const signalName = (id: string) => signals.find((s) => s.id === id)?.name ?? id;
+  const freshness = (ids: string[]) => {
+    const own = signals.filter((s) => ids.includes(s.id) && s.freshness);
+    if (own.length === 0) return null;
+    const best = own.find((s) => s.freshness.status === "fresh") ?? own[0];
+    const f = best.freshness;
+    return f.status === "fresh" ? `Fresh · ${f.ageDays}d` : f.status === "stale" ? `Stale · ${f.ageDays}d` : "Undated";
+  };
   const picks = longlist.ideas
     .filter((i) => i.pick)
     .sort(
@@ -52,7 +59,9 @@ export function LonglistPanel({
               ) : (
                 <span className="readout text-[10px] text-ink-soft">Set aside</span>
               )}
-              <span className="readout text-ink-soft">· {idea.territory}</span>
+              <span className="readout text-ink-soft">
+                · {idea.basis === "original" ? "Original format" : "Trend"} · {idea.territory}
+              </span>
             </div>
             <p className="text-[15px] leading-snug font-semibold">{idea.headline}</p>
             <p className="text-[13.5px] leading-relaxed">{idea.distributionBet}</p>
@@ -65,6 +74,7 @@ export function LonglistPanel({
               {idea.groundedIn.length > 0 && (
                 <span className="px-1 py-px text-[12px] text-hypo">
                   Built on: {idea.groundedIn.map(signalName).join("; ")}
+                  {freshness(idea.groundedIn) ? ` (${freshness(idea.groundedIn)})` : ""}
                 </span>
               )}
             </div>

@@ -194,6 +194,12 @@ function SignalCard({
             </ul>
           </div>
         )}
+        {signal.freshness && (
+          <p className="text-[13px] leading-relaxed text-ink-soft">
+            Freshness: {signal.freshness.status === "fresh" ? "fresh" : signal.freshness.status === "stale" ? "stale" : "undated"}.{" "}
+            {signal.freshness.reason}
+          </p>
+        )}
         {signal.audienceNote && (
           <p className="text-[13px] leading-relaxed text-ink-soft">Who it reaches: {signal.audienceNote}</p>
         )}

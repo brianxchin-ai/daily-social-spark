@@ -241,6 +241,19 @@ export interface LedgerSignal {
   observationIds: string[];
   culturalRelevance: CriterionEligibility;
   momentum: CriterionEligibility;
+  /** Day 5: how recent the newest evidence for this signal is. Trend-based ideas need "fresh". */
+  freshness: Freshness;
+}
+
+/** How recent a signal's newest evidence is, measured by code. */
+export interface Freshness {
+  status: "fresh" | "stale" | "undated";
+  /** The newest evidence date found (YYYY-MM-DD, or YYYY-MM for month precision). */
+  newest: string | null;
+  ageDays: number | null;
+  /** Which kind of date it was: behavior and publication dates come first; a page's "last updated" is the fallback. */
+  basis: "behavior" | "published" | "page-updated" | null;
+  reason: string;
 }
 
 export interface EvidenceLedger {
@@ -538,6 +551,7 @@ export function checkLedger(input: {
       observationIds: signalObs.map((o) => o.id),
       culturalRelevance: { status: "unverified", maxScore: null, independentOrigins: 0, reason: "" },
       momentum: { status: "unverified", maxScore: null, independentOrigins: 0, reason: "" },
+      freshness: { status: "undated", newest: null, ageDays: null, basis: null, reason: "" },
     });
   });
 
@@ -547,6 +561,7 @@ export function checkLedger(input: {
     const own = observations.filter((o) => o.signalId === signal.id);
     signal.culturalRelevance = relevanceEligibility(own, now);
     signal.momentum = momentumEligibility(own, now);
+    signal.freshness = signalFreshness(own, register.sources, now);
   }
 
   const brandFreeSearches = countBrandFree(register.queries, brand);
@@ -668,6 +683,71 @@ export function momentumEligibility(obs: LedgerObservation[], now: Date): Criter
     return { status: "eligible", maxScore: 4, independentOrigins: n, reason: "One dated increase plus independent support (minimum evidence, capped at 4)." };
   }
   return { status: "unverified", maxScore: null, independentOrigins: n, reason: "A dated increase was reported, but no independent origin supports it." };
+}
+
+/* ---------- Day 5: freshness ---------- */
+
+/** A trend counts as fresh when its newest evidence is at most this old. */
+export const FRESH_WINDOW_DAYS = 30;
+
+const AGO = /^(\d+)\s+(minute|hour|day|week|month|year)s?\s+ago$/i;
+const UNIT_DAYS: Record<string, number> = { minute: 0, hour: 0, day: 1, week: 7, month: 30, year: 365 };
+
+/** The search API's free-text page age ("5 days ago", "Nov 14, 2026") as a date, or null. */
+export function pageAgeDate(pageUpdated: string | null, now: Date): string | null {
+  const t = (pageUpdated ?? "").trim();
+  if (!t) return null;
+  if (/^(today|just now)$/i.test(t)) return now.toISOString().slice(0, 10);
+  if (/^yesterday$/i.test(t)) return new Date(now.getTime() - DAY_MS).toISOString().slice(0, 10);
+  const ago = t.match(AGO);
+  if (ago) {
+    const days = Number(ago[1]) * UNIT_DAYS[ago[2].toLowerCase()];
+    return new Date(now.getTime() - days * DAY_MS).toISOString().slice(0, 10);
+  }
+  return parseAbsoluteDate(t)?.date ?? null;
+}
+
+/**
+ * How recent a signal's newest evidence is. For each observation, the best
+ * available date is used: when the behavior happened, else when it was
+ * published, else the source page's "last updated" date. The newest across
+ * the signal decides. Month-precision dates count from the 1st, so they can
+ * only make a signal look older, never fresher.
+ */
+export function signalFreshness(obs: LedgerObservation[], sources: SourceRecord[], now: Date): Freshness {
+  type Dated = { date: string; basis: NonNullable<Freshness["basis"]> };
+  const candidates: Dated[] = [];
+  for (const o of obs) {
+    if (o.behavior.status === "known") candidates.push({ date: o.behavior.date, basis: "behavior" });
+    else if (o.published) candidates.push({ date: o.published.date, basis: "published" });
+    else {
+      for (const id of o.sourceIds) {
+        const source = sources.find((s) => s.id === id);
+        const date = source && !source.setAside ? pageAgeDate(source.pageUpdated, now) : null;
+        if (date) candidates.push({ date, basis: "page-updated" });
+      }
+    }
+  }
+  const usable = candidates.filter((c) => {
+    const t = startOf(c.date);
+    return !Number.isNaN(t) && t <= now.getTime() + DAY_MS;
+  });
+  if (usable.length === 0) {
+    return { status: "undated", newest: null, ageDays: null, basis: null, reason: "No reliable date for any of its evidence." };
+  }
+  const newest = usable.reduce((a, b) => (startOf(b.date) > startOf(a.date) ? b : a));
+  const ageDays = Math.max(0, Math.floor((now.getTime() - startOf(newest.date)) / DAY_MS));
+  const what = newest.basis === "behavior" ? "behavior date" : newest.basis === "published" ? "publication date" : "page update";
+  const days = `${ageDays} ${ageDays === 1 ? "day" : "days"}`;
+  return ageDays <= FRESH_WINDOW_DAYS
+    ? { status: "fresh", newest: newest.date, ageDays, basis: newest.basis, reason: `Newest evidence (${what}) is ${days} old.` }
+    : {
+        status: "stale",
+        newest: newest.date,
+        ageDays,
+        basis: newest.basis,
+        reason: `Newest evidence (${what}) is ${days} old, older than ${FRESH_WINDOW_DAYS} days.`,
+      };
 }
 
 /* ---------- Dates: publication vs. behavior ---------- */

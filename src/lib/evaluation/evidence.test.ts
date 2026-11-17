@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildRegister, checkLedger, type LedgerDraft } from "../research/ledger.ts";
-import { checkGrounding, relevanceResult } from "./evidence.ts";
+import { buildRegister, checkLedger, pageAgeDate, signalFreshness, type LedgerDraft, type LedgerObservation, type SourceRecord } from "../research/ledger.ts";
+import { checkGrounding, freshestSignal, ideaKind, relevanceResult } from "./evidence.ts";
 import {
   combineFit,
   explainTies,
@@ -79,19 +79,19 @@ const [G1, G2] = ledger.signals;
 /** All six criteria; relevance is the reviewer's judgment. */
 const results = (
   cr: number,
-  remix: number,
-  comp: number,
-  audio: number,
+  stop: number,
+  share: number,
+  watch: number,
+  part: number,
   fit: number,
-  cross: number,
   verified = false,
 ): CriterionResult[] => [
   { criterionId: "culturalRelevance", status: "scored", score: cr, rationale: "r", verified, judgedFrom: "both" },
-  { criterionId: "remixability", status: "scored", score: remix, rationale: "r" },
-  { criterionId: "comprehension", status: "scored", score: comp, rationale: "r" },
-  { criterionId: "audioPortability", status: "scored", score: audio, rationale: "r" },
+  { criterionId: "stopPower", status: "scored", score: stop, rationale: "r" },
+  { criterionId: "shareability", status: "scored", score: share, rationale: "r" },
+  { criterionId: "watchThrough", status: "scored", score: watch, rationale: "r" },
+  { criterionId: "participation", status: "scored", score: part, rationale: "r" },
   { criterionId: "brandPlatformFit", status: "scored", score: fit, rationale: "r" },
-  { criterionId: "crossPlatform", status: "scored", score: cross, rationale: "r" },
 ];
 const input = (id: string, i: number, r: CriterionResult[]): CandidateInput => ({
   candidateId: id,
@@ -99,6 +99,8 @@ const input = (id: string, i: number, r: CriterionResult[]): CandidateInput => (
   results: r,
   audioRole: "no-audio",
   meaningfulAudioVariations: 0,
+  kind: "fresh-trend",
+  makeable: true,
 });
 const obsOf = (signalId: string) => ledger.observations.filter((o) => o.signalId === signalId).map((o) => o.id);
 
@@ -203,12 +205,12 @@ test("regression: an idea grounded in a signal with no validated observations is
 
 /* ---------- Tie explanations (display only) ---------- */
 
-test("ties: equal Spark Scores report the tie-break that decided them, without changing the ranking", () => {
-  const a = results(4, 4, 4, 5, 4, 4); // remix 4, comprehension 4, audio 5
-  const b = results(4, 4, 5, 4, 4, 4); // remix 4, comprehension 5, audio 4
+test("ties: unequal Spark Scores report no tie", () => {
+  const a = results(4, 4, 4, 4, 5, 4); // participation 5 (10%)
+  const b = results(4, 4, 4, 5, 4, 4); // watch-through 5 (15%)
   const inputs = [input("a", 0, a), input("b", 1, b)];
   const r = rankCandidates(inputs);
-  // comprehension weighs 15%, audio 10%: b scores higher outright, so there's no tie to report.
+  // Watch-through weighs more than participation: b scores higher outright, so there's no tie to report.
   assert.equal(r.leaderId, "b");
   assert.deepEqual(explainTies(r.scores, new Map(inputs.map((i) => [i.candidateId, i.results]))), []);
 });
@@ -223,12 +225,84 @@ test("ties: identical scores on every tie-break fall to generation order", () =>
 });
 
 test("ties: an exact tie reports the first tie-break criterion that differs", () => {
-  // Remixability and fit both weigh 20%: a has remix 5/fit 4, b has remix 4/fit 5, so the totals are equal.
-  const a = results(4, 5, 4, 4, 4, 4);
-  const b = results(4, 4, 4, 4, 5, 4);
+  // Stop power and shareability both weigh 20%: a has share 5/stop 4, b has share 4/stop 5, so the totals are equal.
+  const a = results(4, 4, 5, 4, 4, 4);
+  const b = results(4, 5, 4, 4, 4, 4);
   const inputs = [input("b", 0, b), input("a", 1, a)];
   const r = rankCandidates(inputs);
-  assert.equal(r.leaderId, "a"); // remixability is the first tie-break
+  assert.equal(r.leaderId, "a"); // shareability is the first tie-break
   const ties = explainTies(r.scores, new Map(inputs.map((i) => [i.candidateId, i.results])));
-  assert.deepEqual(ties[0].decidedBy, { criterionId: "remixability", ahead: 5, behind: 4 });
+  assert.deepEqual(ties[0].decidedBy, { criterionId: "shareability", ahead: 5, behind: 4 });
+});
+
+/* ---------- Day 5: freshness ---------- */
+
+test("freshness: page ages in the search API's formats become dates", () => {
+  assert.equal(pageAgeDate("5 days ago", NOW), "2026-11-06");
+  assert.equal(pageAgeDate("2 weeks ago", NOW), "2026-10-28");
+  assert.equal(pageAgeDate("today", NOW), "2026-11-11");
+  assert.equal(pageAgeDate("November 14, 2025", NOW), "2025-11-14");
+  assert.equal(pageAgeDate("recently", NOW), null);
+  assert.equal(pageAgeDate(null, NOW), null);
+});
+
+test("freshness: the ledger labels recent signals fresh", () => {
+  assert.equal(G1.freshness.status, "fresh");
+  assert.ok(G1.freshness.ageDays! <= 30);
+  assert.equal(freshestSignal([G1.id, G2.id], ledger)?.freshness.status, "fresh");
+});
+
+const obs = (over: Partial<LedgerObservation>): LedgerObservation => ({
+  id: "O1",
+  signalId: "G1",
+  statement: "s",
+  kind: "presence",
+  citationIds: [],
+  sourceIds: ["S1"],
+  behavior: { status: "unknown", reason: "none" },
+  published: null,
+  attributedTo: null,
+  originKey: "a",
+  owned: false,
+  ...over,
+});
+const src = (pageUpdated: string | null, setAside = false): SourceRecord => ({
+  id: "S1", url: "https://meme.example.com/routine", domain: "meme.example.com", title: "t", pageUpdated, query: null, setAside,
+});
+
+test("freshness: the 5.5-hour routine case (pages last updated 7–8 months ago) is stale", () => {
+  const f = signalFreshness([obs({})], [src("223 days ago")], NOW);
+  assert.equal(f.status, "stale");
+  assert.equal(f.basis, "page-updated");
+  assert.ok(f.ageDays! > 200);
+});
+
+test("freshness: behavior dates outrank page updates, so an old trend on a recently updated page stays stale", () => {
+  const f = signalFreshness(
+    [obs({ behavior: { status: "known", date: "2026-03-20", precision: "day", dateText: "March 20, 2026" } })],
+    [src("2 days ago")],
+    NOW,
+  );
+  assert.equal(f.status, "stale");
+  assert.equal(f.basis, "behavior");
+});
+
+test("freshness: no usable date is undated; set-aside sources don't count", () => {
+  assert.equal(signalFreshness([obs({})], [src(null)], NOW).status, "undated");
+  assert.equal(signalFreshness([obs({})], [src("3 days ago", true)], NOW).status, "undated");
+});
+
+test("idea kind: original formats are their own kind; trend ideas need a fresh signal", () => {
+  assert.equal(ideaKind({ basis: "original", groundedIn: [] }, null), "original");
+  assert.equal(ideaKind({ basis: "trend", groundedIn: [G1.id] }, ledger), "fresh-trend");
+  assert.equal(ideaKind({ basis: "trend", groundedIn: [] }, ledger), "stale-trend"); // a trend from memory
+  assert.equal(ideaKind({ basis: "trend", groundedIn: [G1.id] }, null), "stale-trend"); // no research
+  const staleLedger = { ...ledger, signals: ledger.signals.map((s) => ({ ...s, freshness: { ...s.freshness, status: "stale" as const } })) };
+  assert.equal(ideaKind({ basis: "trend", groundedIn: [G1.id] }, staleLedger), "stale-trend");
+});
+
+test("grounding: an original format's signals become context, never direct evidence", () => {
+  const g = checkGrounding({ basis: "original", groundedIn: ["G1"], contextIn: ["G2"], evidenceBasis: "Context only." }, ledger);
+  assert.deepEqual(g.groundedIn, []);
+  assert.deepEqual(g.contextIn.sort(), ["G1", "G2"]);
 });

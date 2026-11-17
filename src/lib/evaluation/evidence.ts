@@ -4,7 +4,7 @@ import {
   RELEVANCE_WINDOW_DAYS,
   type EvidenceLedger,
 } from "../research/ledger.ts";
-import type { CriterionResult } from "./scoring.ts";
+import type { CriterionResult, IdeaKind } from "./scoring.ts";
 
 /**
  * Cultural Relevance, Day 5: the reviewer's 1–5 score always stands. It is
@@ -56,11 +56,35 @@ export function relevanceResult(
   return { ...base, observationIds: cited.map((o) => o.id), verified: eligible.length > 0 && dated };
 }
 
+/**
+ * What an idea rests on (Day 5). An original format is its own kind. A trend
+ * idea counts as a fresh trend only if at least one signal it's grounded in
+ * has fresh evidence; otherwise it's a stale trend, which is always rejected.
+ */
+export function ideaKind(
+  candidate: { basis?: "trend" | "original"; groundedIn: string[] },
+  ledger: EvidenceLedger | null,
+): IdeaKind {
+  if (candidate.basis === "original") return "original";
+  const fresh = ledger?.signals.some((s) => candidate.groundedIn.includes(s.id) && s.freshness?.status === "fresh");
+  return fresh ? "fresh-trend" : "stale-trend";
+}
+
+/** The freshest of an idea's own signals, for display. */
+export function freshestSignal(groundedIn: string[], ledger: EvidenceLedger | null) {
+  const own = (ledger?.signals ?? []).filter((s) => groundedIn.includes(s.id) && s.freshness?.ageDays != null);
+  return own.sort((a, b) => a.freshness.ageDays! - b.freshness.ageDays!)[0] ?? null;
+}
+
 /** Signal IDs a candidate claims, kept only if they exist in the ledger. */
 export function checkGrounding(
-  candidate: { groundedIn: string[]; contextIn?: string[]; evidenceBasis: string },
+  candidate: { groundedIn: string[]; contextIn?: string[]; evidenceBasis: string; basis?: "trend" | "original" },
   ledger: EvidenceLedger | null,
 ): { groundedIn: string[]; contextIn: string[]; warnings: string[] } {
+  // An original format isn't built on a trend: any signals it names are context only.
+  if (candidate.basis === "original") {
+    candidate = { ...candidate, groundedIn: [], contextIn: [...candidate.groundedIn, ...(candidate.contextIn ?? [])] };
+  }
   const warnings: string[] = [];
   const context = candidate.contextIn ?? [];
   if (!ledger) {

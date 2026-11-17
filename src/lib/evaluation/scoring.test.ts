@@ -10,21 +10,22 @@ import {
   type AudioRole,
   type CandidateInput,
   type CriterionResult,
+  type IdeaKind,
 } from "./scoring.ts";
 
-/** All six criteria, in order: relevance, remix, comprehension, audio, fit, cross-platform. */
+/** All six criteria, in order: relevance, stop power, shareability, watch-through, participation, fit. */
 function candidate(
   id: string,
-  [cr, r, c, a, f, x]: number[],
-  opts: { index?: number; audioRole?: AudioRole; variations?: number; verified?: boolean } = {},
+  [cr, stop, share, watch, part, fit]: number[],
+  opts: { index?: number; audioRole?: AudioRole; variations?: number; verified?: boolean; kind?: IdeaKind; makeable?: boolean } = {},
 ): CandidateInput {
   const scores: Record<string, number> = {
     culturalRelevance: cr,
-    remixability: r,
-    comprehension: c,
-    audioPortability: a,
-    brandPlatformFit: f,
-    crossPlatform: x,
+    stopPower: stop,
+    shareability: share,
+    watchThrough: watch,
+    participation: part,
+    brandPlatformFit: fit,
   };
   const results: CriterionResult[] = CRITERIA.map((k) => ({
     criterionId: k.id,
@@ -39,30 +40,34 @@ function candidate(
     results,
     audioRole: opts.audioRole ?? "no-audio",
     meaningfulAudioVariations: opts.variations ?? 0,
+    kind: opts.kind ?? "fresh-trend",
+    makeable: opts.makeable ?? true,
   };
 }
 const all = (n: number) => [n, n, n, n, n, n];
 
-test("Day 5 framework: six criteria, momentum removed, weights as approved and summing to 100%", () => {
+test("reach-first rubric: six criteria, weights as approved and summing to 100%", () => {
   const weights = Object.fromEntries(CRITERIA.map((c) => [c.id, Math.round(c.weight * 100)]));
   assert.deepEqual(weights, {
-    culturalRelevance: 30,
-    remixability: 20,
-    comprehension: 15,
-    audioPortability: 10,
-    brandPlatformFit: 20,
-    crossPlatform: 5,
+    culturalRelevance: 20,
+    stopPower: 20,
+    shareability: 20,
+    watchThrough: 15,
+    participation: 10,
+    brandPlatformFit: 15,
   });
   assert.equal(Object.values(weights).reduce((s, w) => s + w, 0), 100);
-  assert.ok(!CRITERIA.some((c) => (c.id as string) === "emergingMomentum"));
+  for (const gone of ["emergingMomentum", "comprehension", "audioPortability", "crossPlatform", "remixability"]) {
+    assert.ok(!CRITERIA.some((c) => (c.id as string) === gone), gone);
+  }
 });
 
-test("worked example: 4,5,4,3,4,3 → 4.05/5 → 76.25/100", () => {
-  // .30×4 + .20×5 + .15×4 + .10×3 + .20×4 + .05×3 = 4.05 → (4.05 − 1) ÷ 4 × 100
+test("worked example: 4,5,4,3,4,3 → 3.9/5 → 72.5/100", () => {
+  // .20×4 + .20×5 + .20×4 + .15×3 + .10×4 + .15×3 = 3.9 → (3.9 − 1) ÷ 4 × 100
   const c = candidate("x", [4, 5, 4, 3, 4, 3]);
-  assert.ok(Math.abs(sparkScoreOf(c.results) - 76.25) < 1e-9);
+  assert.ok(Math.abs(sparkScoreOf(c.results) - 72.5) < 1e-9);
   assert.ok(Math.abs(applicableScore(c.results).weight - 1) < 1e-9);
-  assert.ok(Math.abs(scoreCandidate(c).rankingScore - 76.25) < 1e-9);
+  assert.ok(Math.abs(scoreCandidate(c).rankingScore - 72.5) < 1e-9);
 });
 
 test("all 5s → 100; all 1s → 0", () => {
@@ -77,19 +82,19 @@ test("every criterion must be scored 1–5: unscored, out-of-range, fractional o
   assert.throws(() => scoreCandidate(candidate("x", [4, 6, 4, 4, 4, 4])), /integer score 1–5/);
   assert.throws(() => scoreCandidate(candidate("x", [4, 3.5, 4, 4, 4, 4])), /integer score 1–5/);
   const missing = candidate("x", all(4));
-  missing.results = missing.results.filter((r) => r.criterionId !== "comprehension");
+  missing.results = missing.results.filter((r) => r.criterionId !== "watchThrough");
   assert.throws(() => scoreCandidate(missing), /Missing criterion/);
 });
 
 test("rejects a Spark Score below 50; exactly 50 passes", () => {
-  const low = scoreCandidate(candidate("x", [2, 3, 3, 3, 3, 3])); // 2.7 → 42.5
+  const low = scoreCandidate(candidate("x", [2, 3, 3, 3, 3, 3])); // 2.8 → 45
   assert.equal(low.rejected, true);
   assert.equal(low.rejectionReasons[0].code, "below-threshold");
   assert.equal(scoreCandidate(candidate("y", all(3))).rejected, false);
 });
 
 test("fit of 1 rejects, even with a high score", () => {
-  const s = scoreCandidate(candidate("x", [5, 5, 5, 5, 1, 5]));
+  const s = scoreCandidate(candidate("x", [5, 5, 5, 5, 5, 1]));
   assert.ok(s.rankingScore >= 50);
   assert.deepEqual(s.rejectionReasons.map((r) => r.code), ["fit-fails"]);
 });
@@ -118,14 +123,14 @@ test("ranks by Spark Score, highest first; verified relevance is reported but do
   assert.equal(r.scores.find((s) => s.candidateId === "b")!.relevanceVerified, false);
 });
 
-test("ties break on remixability first, then the rest of the agreed order, then generation order", () => {
-  // Remixability and fit both weigh 20%, so these totals are equal.
+test("ties break on shareability first, then the rest of the agreed order, then generation order", () => {
+  // Stop power and shareability both weigh 20%, so these totals are equal.
   const tie = rankCandidates([
-    candidate("b", [4, 4, 4, 4, 5, 4], { index: 0 }),
-    candidate("a", [4, 5, 4, 4, 4, 4], { index: 1 }),
+    candidate("stop", [4, 5, 4, 4, 4, 4], { index: 0 }),
+    candidate("share", [4, 4, 5, 4, 4, 4], { index: 1 }),
   ]);
   assert.equal(tie.scores[0].rankingScore, tie.scores[1].rankingScore);
-  assert.equal(tie.leaderId, "a", "higher remixability wins the tie");
+  assert.equal(tie.leaderId, "share", "higher shareability wins the tie");
   const identical = rankCandidates([
     candidate("second", all(4), { index: 1 }),
     candidate("first", all(4), { index: 0 }),
@@ -136,7 +141,7 @@ test("ties break on remixability first, then the rest of the agreed order, then 
 test("if every candidate is rejected, there is no leader; rejected ones list after ranked ones", () => {
   const none = rankCandidates([
     candidate("a", all(2), { index: 0 }),
-    candidate("b", [5, 5, 5, 5, 1, 5], { index: 1 }),
+    candidate("b", [5, 5, 5, 5, 5, 1], { index: 1 }),
     candidate("c", all(5), { index: 2, audioRole: "audio-led", variations: 1 }),
   ]);
   assert.equal(none.leaderId, null);
@@ -152,7 +157,7 @@ const scored = (scores: number[]) => scoreCandidate(candidate("x", scores));
 
 test("revision with exactly +5 and all checks passing replaces the original", () => {
   const original = scored(all(3)); // 50
-  const revised = scored([3, 4, 3, 3, 3, 3]); // remixability +1 × 20% → +5
+  const revised = scored([3, 4, 3, 3, 3, 3]); // stop power +1 × 20% → +5
   assert.ok(Math.abs(revised.rankingScore - original.rankingScore - 5) < 1e-9);
   const d = decideRevision(original, revised, allYes);
   assert.equal(d.outcome, "kept-revised");
@@ -160,7 +165,7 @@ test("revision with exactly +5 and all checks passing replaces the original", ()
 });
 
 test("a gain under 5 keeps the original (+3.75)", () => {
-  const d = decideRevision(scored(all(3)), scored([3, 3, 4, 3, 3, 3]), allYes); // comprehension +1 × 15%
+  const d = decideRevision(scored(all(3)), scored([3, 3, 3, 4, 3, 3]), allYes); // watch-through +1 × 15%
   assert.equal(d.outcome, "kept-original");
   assert.equal(d.checks.find((c) => c.rule.startsWith("Improves the Spark Score"))!.passed, false);
 });
@@ -172,7 +177,7 @@ test("a large gain still loses if the mechanic changed, the weakness wasn't addr
 });
 
 test("a rejected revision keeps the original, even with a big gain", () => {
-  const revised = scored([5, 5, 5, 5, 1, 5]);
+  const revised = scored([5, 5, 5, 5, 5, 1]);
   assert.equal(revised.rejected, true);
   assert.equal(decideRevision(scored(all(3)), revised, allYes).outcome, "kept-original");
 });
@@ -184,4 +189,45 @@ test("an equal or lower score keeps the original; no revision gives gain = null"
   const d = decideRevision(original, null, null);
   assert.equal(d.outcome, "kept-original");
   assert.equal(d.gain, null);
+});
+
+/* ---------- Day 5: fresh trends first, original formats as the fallback, stale trends never ---------- */
+
+test("a stale trend idea is always rejected, however well it scores", () => {
+  const s = scoreCandidate(candidate("x", all(5), { kind: "stale-trend" }));
+  assert.equal(s.rejected, true);
+  assert.ok(s.rejectionReasons.some((r) => r.code === "stale-trend"));
+});
+
+test("fresh trend ideas outrank original formats, even with a lower Spark Score", () => {
+  const r = rankCandidates([
+    candidate("original", all(5), { index: 0, kind: "original" }),
+    candidate("fresh", all(4), { index: 1, kind: "fresh-trend" }),
+  ]);
+  assert.equal(r.leaderId, "fresh");
+  assert.deepEqual(r.scores.map((s) => s.candidateId), ["fresh", "original"]);
+});
+
+test("an original format wins when no fresh trend idea clears the bar", () => {
+  const r = rankCandidates([
+    candidate("stale", all(5), { index: 0, kind: "stale-trend" }),
+    candidate("weak-fresh", all(2), { index: 1, kind: "fresh-trend" }), // below 50
+    candidate("original", all(4), { index: 2, kind: "original" }),
+  ]);
+  assert.equal(r.leaderId, "original");
+  assert.equal(r.scores.find((s) => s.candidateId === "stale")!.rejected, true);
+});
+
+test("the 5.5-hour routine case: a high-scoring parody of a stale trend loses to a fresh trend and to an original format", () => {
+  const r = rankCandidates([
+    candidate("routine-parody", [4, 4, 5, 5, 3, 5], { index: 0, kind: "stale-trend" }),
+    candidate("original", [3, 4, 4, 4, 4, 3], { index: 1, kind: "original" }),
+  ]);
+  assert.equal(r.leaderId, "original");
+});
+
+test("an idea that can't be made on a phone in a day is rejected, however well it scores", () => {
+  const s = scoreCandidate(candidate("x", all(5), { makeable: false }));
+  assert.equal(s.rejected, true);
+  assert.ok(s.rejectionReasons.some((r) => r.code === "not-makeable"));
 });

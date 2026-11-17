@@ -198,8 +198,122 @@ In under 40 seconds they demonstrate the truth with their hands, not slides. Clo
   ],
 });
 
+const facebook: DemoTemplate = (brand) => ({
+  trendName: "“Ask the family group chat” polls",
+  headline: `Let the comments decide one small thing about ${brand}—then actually do it`,
+  whyItWillSpread:
+    "Posts that hand a real decision to the comments are drawing long threads and tags as people pull in friends and relatives to vote. Comments and shares carry them across feeds and Groups.",
+  whyNow:
+    "A (placeholder) wave of brand pages ran comment-decides posts this week; Facebook tends to keep surfacing busy threads for a couple of days.",
+  window: { peakInHours: 30, closesInHours: 48, stage: "rising" },
+  confidence: 61,
+  confidenceRationale: "Demo rationale: high comment volume in sample data, but the format is easy to imitate and could tire quickly.",
+  metrics: [
+    { label: "Comments per post", value: "1.2K", context: "Demo metric · category avg 140" },
+    { label: "Share rate", value: "4.8%", context: "Demo metric" },
+    { label: "Pages adopting", value: "640", context: "Demo metric · last 24h" },
+  ],
+  evidence: [
+    {
+      id: "fb-1",
+      outlet: "Example Community Desk",
+      title: "Comment-decides posts are the new family debate",
+      url: "https://example.com/demo/comment-decides",
+      publishedAgo: "5 hours ago",
+      signal: "moderate",
+      note: "Placeholder article used to illustrate sourcing.",
+    },
+    {
+      id: "fb-2",
+      outlet: "Demo Engagement Report",
+      title: "Threads with a real stake get longer",
+      url: "https://example.com/demo/threads",
+      publishedAgo: "12 hours ago",
+      signal: "emerging",
+      note: "Invented report figures; not real platform data.",
+    },
+  ],
+  walkthrough: `A short Reel opens on someone from ${brand} holding up two options with the caption "You decide. We'll actually do it." They explain the stakes in one line, then point at the comments.
+
+The follow-up Reel, a day later, shows the winning option happening on camera, crediting a few commenters by first name. The second post closes the loop and invites the next vote.`,
+  formatIdeas: [
+    {
+      title: "Comments decide",
+      hook: "“Vote below. We'll do whatever wins.”",
+      description: `A two-option Reel where the comments choose something real about ${brand}.`,
+    },
+    {
+      title: "Pick one, text post",
+      hook: "“Send this to the person who always picks wrong”",
+      description: "A text-only post with two options, built to be shared into family and friend groups.",
+    },
+  ],
+  risks: [
+    "Only offer options you'll really deliver—a broken promise turns the thread against you.",
+    "Moderate the comments; open votes attract spam.",
+  ],
+});
+
+const snapchat: DemoTemplate = (brand) => ({
+  trendName: "“Pass the phone” Spotlight chains",
+  headline: `Hand the phone to a friend: one ${brand} moment, five people, ten seconds each`,
+  whyItWillSpread:
+    "Quick pass-the-phone clips, where friends each add a few seconds, feel personal and are being sent around group chats. Spotlight is picking up the funniest chains.",
+  whyNow:
+    "A (placeholder) burst of pass-the-phone Spotlights appeared over the weekend; chains like this usually run for a few days.",
+  window: { peakInHours: 20, closesInHours: 36, stage: "accelerating" },
+  confidence: 58,
+  confidenceRationale: "Demo rationale: strong sends in sample data, but few independent sources so far.",
+  metrics: [
+    { label: "Sends per view", value: "0.09", context: "Demo metric · category avg 0.02" },
+    { label: "Chains started", value: "1.8K", context: "Demo metric · last 24h" },
+    { label: "Avg. watch time", value: "11s", context: "Demo metric" },
+  ],
+  evidence: [
+    {
+      id: "sc-1",
+      outlet: "Example Youth Culture Desk",
+      title: "Pass the phone: the Snap chain going around group chats",
+      url: "https://example.com/demo/pass-the-phone",
+      publishedAgo: "3 hours ago",
+      signal: "moderate",
+      note: "Placeholder article used to illustrate sourcing.",
+    },
+    {
+      id: "sc-2",
+      outlet: "Demo Creator Panel",
+      title: "Friend-made clips outperform solo posts",
+      url: "https://example.com/demo/friend-clips",
+      publishedAgo: "10 hours ago",
+      signal: "emerging",
+      note: "Invented panel data; not real platform data.",
+    },
+  ],
+  walkthrough: `Front camera, mid-laugh: "Okay, ${brand} moment, go." The phone is handed around a group of friends, each adding one quick, unscripted beat before passing it on.
+
+Hard cuts keep it fast and rough. The last friend turns the camera on the group for a final reaction, and a caption invites viewers to start their own chain and send it to their group chat.`,
+  formatIdeas: [
+    {
+      title: "Pass the phone",
+      hook: "“Each friend gets ten seconds”",
+      description: `A Spotlight chain where friends each add a beat about ${brand}.`,
+    },
+    {
+      title: "Speed round",
+      hook: "“Three seconds each, no retakes”",
+      description: "The same chain, but each friend gets only three seconds, so it plays like a quick loop.",
+    },
+  ],
+  risks: [
+    "Get everyone's consent before posting group footage.",
+    "Keep it unpolished; a scripted chain reads as an ad.",
+  ],
+});
+
 export const DEMO_TEMPLATES: Record<Platform, DemoTemplate> = {
   tiktok,
   "instagram-reels": reels,
   "youtube-shorts": shorts,
+  facebook,
+  snapchat,
 };

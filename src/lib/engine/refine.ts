@@ -1,6 +1,6 @@
 import "server-only";
 
-import { checkGrounding } from "@/lib/evaluation/evidence";
+import { checkGrounding, ideaKind } from "@/lib/evaluation/evidence";
 import {
   decideRevision,
   MIN_REVISION_GAIN,
@@ -176,6 +176,8 @@ export async function refineLeader(
     results: rescored.results,
     audioRole: revised.audioRole,
     meaningfulAudioVariations: rescored.meaningfulAudioVariations,
+    kind: ideaKind(revised, ledger),
+    makeable: rescored.makeable,
   });
   const decision = decideRevision(leaderEvaluation.score, revisedScore, rescored.checks);
 
@@ -196,6 +198,7 @@ export async function refineLeader(
           evaluatorLabel: "Rescore",
           results: rescored.results,
           meaningfulAudioVariations: rescored.meaningfulAudioVariations,
+          makeableNote: rescored.makeableNote,
           score: revisedScore,
         },
         checks: rescored.checks,

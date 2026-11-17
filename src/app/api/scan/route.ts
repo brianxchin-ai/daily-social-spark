@@ -4,7 +4,7 @@ import { generateDemoSpark } from "@/lib/engine/demo";
 import { evaluateCandidates } from "@/lib/engine/evaluator";
 import { refineLeader, toDraft } from "@/lib/engine/refine";
 import { checkDiversity } from "@/lib/evaluation/diversity";
-import { checkGrounding } from "@/lib/evaluation/evidence";
+import { checkGrounding, ideaKind } from "@/lib/evaluation/evidence";
 import { rankCandidates } from "@/lib/evaluation/scoring";
 import { MIN_SECRET_LENGTH, verifyLedger } from "@/lib/research/signing";
 import {
@@ -209,13 +209,15 @@ async function runCreative(
   // 3. Our code: evidence rules, scoring arithmetic, rejection rules, ranking.
   const ranking = rankCandidates(
     evaluated.assessments.map((a) => {
-      const audioRole = candidates.find((c) => c.id === a.candidateId)!.audioRole;
+      const candidate = candidates.find((c) => c.id === a.candidateId)!;
       return {
         candidateId: a.candidateId,
         generationIndex: candidates.findIndex((c) => c.id === a.candidateId),
         results: a.results,
-        audioRole,
+        audioRole: candidate.audioRole,
         meaningfulAudioVariations: a.meaningfulAudioVariations,
+        kind: ideaKind(candidate, ledger),
+        makeable: a.makeable,
       };
     }),
   );
@@ -227,6 +229,7 @@ async function runCreative(
       evaluatorLabel: assessment.label,
       results: assessment.results,
       meaningfulAudioVariations: assessment.meaningfulAudioVariations,
+      makeableNote: assessment.makeableNote,
       score,
     };
   });

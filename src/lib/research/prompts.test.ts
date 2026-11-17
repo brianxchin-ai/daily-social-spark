@@ -82,3 +82,18 @@ test("Scout prompts: a cross-category, behavior-first search and measurement dat
     assert.ok(SCOUT_FILING_PROMPT.includes(phrase), phrase);
   }
 });
+
+test("the Scout knows each platform's in-scope formats", async () => {
+  const { scoutSearchPrompt } = await import("./prompts.ts");
+  assert.ok(scoutSearchPrompt("facebook", "2026-11-17").includes("Facebook Reels, feed posts, photos, multi-photo posts, text posts"));
+  assert.ok(scoutSearchPrompt("snapchat", "2026-11-17").includes("(Spotlight, Snaps, creators, Snap Stars)"));
+  assert.ok(scoutSearchPrompt("tiktok", "2026-11-17").includes("Live streams, AR effects and Lenses, ephemeral Stories and paid ads are out of scope"));
+});
+
+test("the Scout prefers recent coverage and treats month-old trends as likely past their moment", async () => {
+  const { scoutSearchPrompt, SCOUT_FILING_PROMPT } = await import("./prompts.ts");
+  const p = scoutSearchPrompt("tiktok", "2026-11-17");
+  assert.ok(p.includes("Recency matters most: prefer coverage from the last few weeks (today is 2026-11-17)"));
+  assert.ok(p.includes("more than about 30 days old is probably past its moment"));
+  assert.ok(SCOUT_FILING_PROMPT.includes("note in gaps when a signal's only evidence is more than about 30 days old"));
+});

@@ -1,4 +1,5 @@
 import type { IdeaSource } from "@/lib/research/idea-sources";
+import type { Freshness } from "@/lib/research/ledger";
 import { plural } from "./EvidenceStatus";
 
 /** The search API's page age is free text ("0 days ago", "1 days ago"); tidy the awkward cases. */
@@ -18,6 +19,8 @@ export function WhyThisIdea({
   sources,
   verified,
   researched,
+  original = false,
+  freshness = null,
 }: {
   paragraphs: string[];
   sources: IdeaSource[];
@@ -25,6 +28,10 @@ export function WhyThisIdea({
   verified: boolean;
   /** Did verified research run for this scan? */
   researched: boolean;
+  /** An original format, not built on a trend. */
+  original?: boolean;
+  /** The freshness of the trend it's built on. */
+  freshness?: Freshness | null;
 }) {
   return (
     <div className="flex flex-col gap-3.5">
@@ -34,6 +41,13 @@ export function WhyThisIdea({
         </p>
       ))}
 
+      <p className="readout font-bold text-ink">
+        {original
+          ? "✦ Original format · not built on a current trend"
+          : freshness?.status === "fresh"
+            ? `✓ Fresh trend · newest evidence ${freshness.ageDays === 0 ? "today" : `${freshness.ageDays} ${freshness.ageDays === 1 ? "day" : "days"} old`}`
+            : "◇ Trend freshness unknown"}
+      </p>
       <p className="readout text-hypo">
         ◇{" "}
         {!researched

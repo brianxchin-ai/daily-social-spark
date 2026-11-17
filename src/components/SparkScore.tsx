@@ -76,6 +76,12 @@ export function SparkScore({
             );
           })}
         </ul>
+        {evaluation.makeableNote && (
+          <p className="mt-3 border-t border-dashed border-line pt-2 text-[13px] leading-relaxed">
+            <span className="font-semibold">✓ Makeable on a phone in a day.</span>{" "}
+            <span className="text-ink-soft">{evaluation.makeableNote}</span>
+          </p>
+        )}
         <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
           Every criterion is scored by the AI reviewer, 1 to 5. Cultural relevance is marked{" "}
           <span className="text-hypo">verified</span> only when a cited, dated source from this scan’s research shows

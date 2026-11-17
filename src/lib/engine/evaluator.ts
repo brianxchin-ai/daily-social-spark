@@ -28,6 +28,7 @@ Headline: ${c.headline}
 Concept: ${c.concept}
 Mechanic: ${c.mechanic}
 Territory: ${c.territory}
+Basis: ${c.basis === "original" ? "original format (not built on a trend)" : "trend"}
 Grounded in signals (direct evidence): ${groundedIn.length ? groundedIn.join(", ") : "none"}
 Context only (not proof): ${c.contextIn.length ? c.contextIn.join(", ") : "none"}
 Evidence basis (writer's account; check it against the ledger): ${c.evidenceBasis}
@@ -60,6 +61,9 @@ export interface CandidateAssessment {
   label: Label;
   results: CriterionResult[];
   meaningfulAudioVariations: number;
+  /** Makeable on a phone by one or two people in a day, with the reviewer's note. */
+  makeable: boolean;
+  makeableNote: string;
 }
 
 type Assessment = Omit<EvaluationDraft["evaluations"][number], "label">;
@@ -123,6 +127,8 @@ Evaluate candidates A, B and C.`;
       label: e.label,
       results: toResults(e, ledger, c.groundedIn),
       meaningfulAudioVariations: e.meaningfulAudioVariations,
+      makeable: e.makeable,
+      makeableNote: e.makeableNote,
     };
   });
   return { assessments, usage };
@@ -146,6 +152,8 @@ export async function rescoreRevision(
 ): Promise<{
   results: CriterionResult[];
   meaningfulAudioVariations: number;
+  makeable: boolean;
+  makeableNote: string;
   checks: RevisionChecks;
   checksRationale: string;
   usage: ScanUsage;
@@ -185,6 +193,8 @@ introducesUnsupportedClaims: does A add factual cultural or performance claims (
   return {
     results,
     meaningfulAudioVariations: value.meaningfulAudioVariations,
+    makeable: value.makeable,
+    makeableNote: value.makeableNote,
     checks: {
       preservesMechanic: value.preservesMechanic,
       addressesWeakness: value.addressesWeakness,

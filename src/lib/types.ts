@@ -16,12 +16,14 @@ import type { DiversityReport } from "@/lib/evaluation/diversity";
 import type { DistributionDriver } from "@/lib/spark-schema";
 import type { EvidenceLedger } from "@/lib/research/ledger";
 
-export type Platform = "tiktok" | "instagram-reels" | "youtube-shorts";
+export type Platform = "tiktok" | "instagram-reels" | "youtube-shorts" | "facebook" | "snapchat";
 
 export const PLATFORMS: { id: Platform; label: string }[] = [
   { id: "tiktok", label: "TikTok" },
-  { id: "instagram-reels", label: "Instagram Reels" },
+  { id: "instagram-reels", label: "Instagram" },
   { id: "youtube-shorts", label: "YouTube Shorts" },
+  { id: "facebook", label: "Facebook" },
+  { id: "snapchat", label: "Snapchat" },
 ];
 
 /** What the person asks for when they press Run Scan. */
@@ -144,6 +146,8 @@ export interface Candidate {
   mechanic: string;
   /** The creative territory in a few words. */
   territory: string;
+  /** Built on a fresh research trend, or an original format not built on any trend. */
+  basis: "trend" | "original";
   /** Ledger signal IDs that directly evidence the mechanism (checked against the ledger). Only these can verify. */
   groundedIn: string[];
   /** Ledger signal IDs used only as context. Never proof of the mechanism. */
@@ -179,6 +183,8 @@ export interface CandidateEvaluation {
   evaluatorLabel: string;
   results: CriterionResult[];
   meaningfulAudioVariations: number;
+  /** The reviewer's note on what making it would take (Day 5). */
+  makeableNote?: string;
   score: CandidateScore;
 }
 
@@ -229,6 +235,7 @@ export interface LonglistIdea {
   headline: string;
   mechanic: string;
   territory: string;
+  basis: "trend" | "original";
   /** Ledger signal IDs, kept only if they exist in the ledger. */
   groundedIn: string[];
   distributionDrivers: DistributionDriver[];

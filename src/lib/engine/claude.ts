@@ -262,7 +262,7 @@ export async function generateCandidates(
 ): Promise<{ candidates: CandidateSet["candidates"]; longlist: CandidateSet["longlist"]; selection: CandidateSet["selection"]; usage: ScanUsage }> {
   const { value, usage } = await callStructured({
     step: "generator",
-    system: generatorSystem(request.platform, ledger !== null, Boolean(request.audience)),
+    system: generatorSystem(request.platform, ledger !== null, Boolean(request.audience), new Date().toISOString().slice(0, 10)),
     user: `Brand or category: ${request.brand}
 Platform: ${platformLabel(request.platform)}${audienceLine(request.audience)}
 

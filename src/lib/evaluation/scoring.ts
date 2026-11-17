@@ -11,15 +11,21 @@
  * redistributed. Cultural Relevance is now always scored by AI judgment; the
  * research can additionally verify it, which changes its label, not its score.
  * Every criterion is always scored, so there are no placeholders and one score.
+ *
+ * Day 5, later (approved by the user): the rubric was rebuilt around organic
+ * distribution. Stop power, watch-through and shareability were added;
+ * comprehension folded into stop power; remixability became participation;
+ * cross-platform potential was dropped; audio dependence is now a rejection
+ * rule only; and every idea must be makeable on a phone in a day.
  */
 
 export type CriterionId =
   | "culturalRelevance"
-  | "remixability"
-  | "comprehension"
-  | "audioPortability"
-  | "brandPlatformFit"
-  | "crossPlatform";
+  | "stopPower"
+  | "watchThrough"
+  | "shareability"
+  | "participation"
+  | "brandPlatformFit";
 
 /**
  * "concept": judged from the idea itself.
@@ -43,7 +49,7 @@ export const CRITERIA: readonly Criterion[] = [
   {
     id: "culturalRelevance",
     name: "Cultural relevance",
-    weight: 0.3,
+    weight: 0.2,
     question:
       "How relevant is the opportunity to current culture, conversations, behaviors, and emerging creative expression?",
     basis: "evidence",
@@ -54,51 +60,60 @@ export const CRITERIA: readonly Criterion[] = [
     },
   },
   {
-    id: "remixability",
-    name: "Remixability and repeatability",
+    id: "stopPower",
+    name: "Stop power",
     weight: 0.2,
-    question: "Can the underlying creative mechanic support multiple compelling interpretations and executions?",
+    question: "Does the first second stop the scroll and make the idea instantly clear, even with the sound off?",
     basis: "concept",
     anchors: {
-      1: "A one-off; hard to reinterpret.",
-      3: "Some variations, but they feel samey.",
-      5: "One mechanic, many distinct and compelling versions.",
+      1: "A slow or confusing start; easy to scroll past.",
+      3: "A decent opening, clear within a few seconds.",
+      5: "An instant, intriguing hook that's clear even on mute.",
     },
   },
   {
-    id: "comprehension",
-    name: "Immediate comprehension",
-    weight: 0.15,
-    question: "Can audiences quickly understand the concept or creative mechanic?",
-    basis: "concept",
-    anchors: {
-      1: "Needs explaining.",
-      3: "Clear within a few seconds.",
-      5: "Instantly obvious, even with the sound off.",
-    },
-  },
-  {
-    id: "audioPortability",
-    name: "Creative portability beyond specific audio",
-    weight: 0.1,
+    id: "shareability",
+    name: "Shareability",
+    weight: 0.2,
     question:
-      "Does the opportunity remain recognizable and compelling without depending on one particular song, sound, or audio track?",
+      "Would people send it to a friend, tag someone, or save it for later? (Social currency, relatability, usefulness.)",
     basis: "concept",
-    // Judges dependence on a specific existing song, sound or track, not the
-    // mere presence of audio. Original narration, voiceover or dialogue is not
-    // a dependency.
     anchors: {
-      1: "The mechanic only works with one specific song, sound or track; replacing it breaks the idea.",
-      3: "Leans on a particular sound's style or meme, but stays recognizable with alternatives.",
-      5: "No dependence on any particular track; works with original narration, dialogue, any audio, or none.",
+      1: "Nothing worth passing on or keeping.",
+      3: "Mildly relatable or useful.",
+      5: "People would immediately send it, tag someone or save it.",
+    },
+  },
+  {
+    id: "watchThrough",
+    name: "Watch-through and payoff",
+    weight: 0.15,
+    question: "Does the structure hold attention to the end and reward a rewatch or a full swipe?",
+    basis: "concept",
+    anchors: {
+      1: "Front-loaded; nothing pulls viewers to the end.",
+      3: "Holds attention, with a modest payoff.",
+      5: "Builds to a payoff worth waiting for, and invites a rewatch or a full swipe.",
+    },
+  },
+  {
+    id: "participation",
+    name: "Participation",
+    weight: 0.1,
+    question: "Can people easily copy, stitch, remix or answer it with their own version?",
+    basis: "concept",
+    anchors: {
+      1: "A one-off; hard to join in.",
+      3: "Some ways to join in, but the versions feel samey.",
+      5: "An easy, open template for many distinct versions.",
     },
   },
   {
     id: "brandPlatformFit",
-    name: "Brand/category + platform fit",
-    weight: 0.2,
+    name: "Brand, platform and audience fit",
+    weight: 0.15,
     question:
-      "Can the opportunity be credibly adapted to the user's selected brand or category, and does it feel native to their selected platform?",
+      "Can the opportunity be credibly adapted to the user's selected brand or category (and audience, if given), and does it feel native to their selected platform?",
     basis: "concept",
     anchors: {
       1: "Forced or off-brand, or feels non-native to the platform.",
@@ -106,27 +121,15 @@ export const CRITERIA: readonly Criterion[] = [
       5: "Natural for the brand and native to the platform.",
     },
   },
-  {
-    id: "crossPlatform",
-    name: "Cross-platform potential",
-    weight: 0.05,
-    question: "Could the underlying mechanic translate meaningfully to other social platforms?",
-    basis: "concept",
-    anchors: {
-      1: "Locked to one platform.",
-      3: "Translates with changes.",
-      5: "Translates readily to other platforms.",
-    },
-  },
 ];
 
-/** Order used to break ties: concept criteria first, as agreed, then cultural relevance. */
+/** Order used to break ties: the distribution criteria first, then participation, fit and relevance. */
 export const TIE_BREAK_ORDER: readonly CriterionId[] = [
-  "remixability",
-  "comprehension",
-  "audioPortability",
+  "shareability",
+  "stopPower",
+  "watchThrough",
+  "participation",
   "brandPlatformFit",
-  "crossPlatform",
   "culturalRelevance",
 ];
 
@@ -153,6 +156,17 @@ export interface CriterionResult {
 
 export type AudioRole = "audio-led" | "audio-optional" | "no-audio";
 
+/**
+ * Day 5: what an idea rests on.
+ * - fresh-trend: built on a research trend whose newest evidence is recent.
+ * - original: an original format, deliberately not built on any trend.
+ * - stale-trend: claims a trend, but no fresh research backs it. Always rejected.
+ * Fresh trend ideas rank ahead of original formats; an original wins only when
+ * no fresh trend idea clears the bar.
+ */
+export type IdeaKind = "fresh-trend" | "original" | "stale-trend";
+const KIND_TIER: Record<IdeaKind, number> = { "fresh-trend": 0, original: 1, "stale-trend": 2 };
+
 export interface CandidateInput {
   candidateId: string;
   /** Position in the generator's output, used as the final tie-break. */
@@ -161,10 +175,13 @@ export interface CandidateInput {
   audioRole: AudioRole;
   /** How many listed audio variations the evaluator judged meaningful (not copies). */
   meaningfulAudioVariations: number;
+  kind: IdeaKind;
+  /** The reviewer judged it makeable on a phone by one or two people in a day. */
+  makeable: boolean;
 }
 
 export interface RejectionReason {
-  code: "below-threshold" | "fit-fails" | "audio-dependent";
+  code: "below-threshold" | "fit-fails" | "audio-dependent" | "stale-trend" | "not-makeable";
   message: string;
 }
 
@@ -178,6 +195,7 @@ export interface CandidateScore {
   rankingScore: number;
   /** Cultural relevance is verified by the research (a label; it doesn't change the score). */
   relevanceVerified: boolean;
+  kind: IdeaKind;
   rejected: boolean;
   rejectionReasons: RejectionReason[];
   /** 1-based among non-rejected candidates; null when rejected. */
@@ -284,12 +302,25 @@ export function scoreCandidate(input: CandidateInput): CandidateScore {
       message: `Audio-led idea with ${input.meaningfulAudioVariations} meaningful alternative execution(s); at least ${MIN_AUDIO_VARIATIONS} are required.`,
     });
   }
+  if (!input.makeable) {
+    reasons.push({
+      code: "not-makeable",
+      message: "Not makeable on a phone by one or two people in a day (needs special locations, talent, sets, effects or paid production).",
+    });
+  }
+  if (input.kind === "stale-trend") {
+    reasons.push({
+      code: "stale-trend",
+      message: "Built on a trend with no fresh research behind it (newest evidence older than 30 days, undated, or none).",
+    });
+  }
 
   return {
     candidateId: input.candidateId,
     generationIndex: input.generationIndex,
     rankingScore: spark,
     relevanceVerified: input.results.find((r) => r.criterionId === "culturalRelevance")?.verified === true,
+    kind: input.kind,
     rejected: reasons.length > 0,
     rejectionReasons: reasons,
     rank: null,
@@ -300,14 +331,16 @@ const EPSILON = 1e-9;
 
 /**
  * Score, reject and rank candidates. Deterministic: same input, same order.
- * Ranks by the Spark Score (all six criteria). Verification of cultural
- * relevance is a label only: no extra rule favors better-evidenced candidates.
+ * Ranks fresh trend ideas ahead of original formats, then by the Spark Score
+ * (all six criteria). Verification of cultural relevance is a label only.
  */
 export function rankCandidates(inputs: CandidateInput[]): Ranking {
   const byId = new Map(inputs.map((i) => [i.candidateId, i]));
   const scored = inputs.map(scoreCandidate);
 
   const compare = (a: CandidateScore, b: CandidateScore): number => {
+    // Fresh trend ideas come first; an original format wins only when none clears the bar.
+    if (KIND_TIER[a.kind] !== KIND_TIER[b.kind]) return KIND_TIER[a.kind] - KIND_TIER[b.kind];
     if (Math.abs(a.rankingScore - b.rankingScore) > EPSILON) return b.rankingScore - a.rankingScore;
     const ia = byId.get(a.candidateId)!;
     const ib = byId.get(b.candidateId)!;
@@ -419,7 +452,7 @@ export function explainTies(scores: CandidateScore[], resultsById: Map<string, C
   for (let i = 0; i + 1 < ranked.length; i++) {
     const a = ranked[i];
     const b = ranked[i + 1];
-    if (Math.abs(a.rankingScore - b.rankingScore) > EPSILON) continue;
+    if (a.kind !== b.kind || Math.abs(a.rankingScore - b.rankingScore) > EPSILON) continue;
     const decider = TIE_BREAK_ORDER.find((c) => value(a.candidateId, c) !== value(b.candidateId, c));
     ties.push({
       ahead: a.candidateId,

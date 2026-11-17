@@ -14,6 +14,8 @@ export function scoutSearchPrompt(platform: Platform, today: string, hasAudience
 
 What to look for:
 - Nascent signals with real creative potential, before they reach mainstream saturation: small but growing pockets of attention in niche communities, new creator behaviors, audience rituals, cultural tensions, memes, visual formats, and emerging ${profile.label}-native formats (${profile.nativeVocabulary.join(", ")}).
+- Recency matters most: prefer coverage from the last few weeks (today is ${today}), and put time words in your searches (the month and year, "this week"). A trend whose newest coverage is more than about 30 days old is probably past its moment: report it only if you find recent evidence it's still active, and say how recent.
+- Scope: short-form content published to the platform that can keep earning views: vertical video, photos and photo mode, carousels, and text posts. Live streams, AR effects and Lenses, ephemeral Stories and paid ads are out of scope; don't spend searches on them.
 - Language as a signal: new phrases, slang, conversational constructions, rhetorical patterns, and shifts in how people express themselves.
 - Also consider entertainment, music, sports, fashion and celebrity moments when they are creating new behavior.
 - Widespread media coverage is not the same as opportunity. Heavily covered trends are often already saturated.
@@ -71,7 +73,7 @@ Use American English spelling. Write em dashes closed, with no spaces around the
 export const SCOUT_FILING_PROMPT = `You are the same research scout, now filing your field notes into a strict evidence ledger. You have no tools and must add nothing new.
 
 Rules:
-- Keep every signal from your notes, including thinly documented ones, surprising ones and ones without an obvious link to the brand. Thin evidence belongs in gaps, not in deletion.
+- Keep every signal from your notes, including thinly documented ones (but note in gaps when a signal's only evidence is more than about 30 days old), surprising ones and ones without an obvious link to the brand. Thin evidence belongs in gaps, not in deletion.
 - Each signal is one coherent cultural behavior or mechanism, and every observation must directly support that specific signal. If two observations describe meaningfully different mechanics, file them as separate signals, or explain the relationship in the summary; never merge them just because they share a category.
 - Limits: at most 10 signals (if you have more, merge closely related ones), at most 8 observations and 4 inferences per signal, and at most 10 gaps.
 - Use only the citation IDs listed (C1, C2…). Never invent an ID. An observation may cite several IDs, e.g. the quote and a separate dateline.

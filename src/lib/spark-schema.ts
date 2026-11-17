@@ -28,6 +28,11 @@ export const CandidateDraftSchema = z.object({
     .string()
     .describe("The underlying creative mechanic in one sentence, independent of this brand."),
   territory: z.string().describe("The creative territory in a few words, e.g. 'result-first reveal' or 'comment-reply ritual'."),
+  basis: z
+    .enum(["trend", "original"])
+    .describe(
+      "trend: built on a fresh trend from the research (name it in groundedIn). original: an original format not built on any trend, grounded in attention and behavioral principles and timely context.",
+    ),
   groundedIn: z
     .array(z.string())
     .describe("Ledger signal IDs whose observations directly evidence this idea's mechanism. Empty if there is no ledger."),
@@ -45,7 +50,7 @@ export const CandidateDraftSchema = z.object({
   walkthrough: z
     .string()
     .describe(
-      "A short production walkthrough of ONE execution, start to finish, written as prose like a director's treatment: the opening shot and hook, what happens, the turn or payoff, and how it ends. 80 to 150 words, in one or two short paragraphs. No URLs, handles, statistics or performance claims.",
+      "A short production walkthrough of ONE execution, start to finish, written as prose like a director's treatment: the opening shot and hook, what happens, the turn or payoff, and how it ends. For a photo, carousel or text post, walk through it image by image, slide by slide or line by line. 80 to 150 words, in one or two short paragraphs. No URLs, handles, statistics or performance claims.",
     ),
   whyItWillSpread: z.string().describe("Why this format has distribution and algorithmic potential."),
   audienceConnection: z
@@ -89,7 +94,9 @@ export const CandidateDraftSchema = z.object({
         description: z.string(),
       }),
     )
-    .describe("Exactly 3 distinct execution ideas for this brand."),
+    .describe(
+      "Exactly 3 distinct execution ideas for this brand. Vary the creative approach (angle, framing, hook, casting, structure, tone); changing the format is optional, not the default.",
+    ),
   risks: z.array(z.string()).describe("2 to 4 watch-outs."),
 });
 
@@ -103,7 +110,8 @@ const LonglistIdeaSchema = z.object({
   headline: z.string().describe("A short display headline, 12 words or fewer."),
   mechanic: z.string().describe("The underlying creative mechanic in one sentence."),
   territory: z.string().describe("The creative territory in a few words."),
-  groundedIn: z.array(z.string()).describe("Ledger signal IDs the idea builds on. Empty if none."),
+  basis: z.enum(["trend", "original"]).describe("trend: built on a fresh research trend. original: an original format, not built on any trend."),
+  groundedIn: z.array(z.string()).describe("Ledger signal IDs the idea builds on. Empty for an original format."),
   distributionDrivers: z
     .array(z.enum(DISTRIBUTION_DRIVERS))
     .describe("The 1 to 3 behaviors the distribution bet relies on most."),
@@ -147,13 +155,19 @@ const RelevanceSchema = z.object({
 
 /** The criteria the evaluator scores for each candidate (shared by evaluation and rescoring). */
 const AssessmentFields = {
-  remixability: ConceptScoreSchema,
-  comprehension: ConceptScoreSchema,
-  audioPortability: ConceptScoreSchema,
-  brandFit: ConceptScoreSchema.describe("Does the execution work for this brand or category? Judged separately from platform."),
+  stopPower: ConceptScoreSchema,
+  watchThrough: ConceptScoreSchema,
+  shareability: ConceptScoreSchema,
+  participation: ConceptScoreSchema,
+  brandFit: ConceptScoreSchema.describe(
+    "Does the execution work for this brand or category (and the intended audience, if given)? Judged separately from platform.",
+  ),
   platformFit: ConceptScoreSchema.describe("Does it feel native to the selected platform? Judged separately from brand."),
-  crossPlatform: ConceptScoreSchema,
   culturalRelevance: RelevanceSchema,
+  makeable: z
+    .boolean()
+    .describe("Could one or two people make it on a phone in a day, with no special locations, talent, sets, effects or paid production?"),
+  makeableNote: z.string().describe("One short sentence on what making it would take."),
   meaningfulAudioVariations: z
     .number()
     .describe(
@@ -239,13 +253,15 @@ const StrictRelevance = RelevanceSchema.extend({
   observationIds: z.array(z.string()).max(12),
 });
 const StrictAssessment = {
-  remixability: StrictScore,
-  comprehension: StrictScore,
-  audioPortability: StrictScore,
+  stopPower: StrictScore,
+  watchThrough: StrictScore,
+  shareability: StrictScore,
+  participation: StrictScore,
   brandFit: StrictScore,
   platformFit: StrictScore,
-  crossPlatform: StrictScore,
   culturalRelevance: StrictRelevance,
+  makeable: z.boolean(),
+  makeableNote: nonEmpty,
   meaningfulAudioVariations: z.number().int().min(0).max(20),
 };
 
@@ -281,13 +297,7 @@ export function validateEvaluation(value: unknown): Validated<EvaluationDraft> {
 
 /* ---------- Checkpoint 4: editor (critique + at most one revision) ---------- */
 
-const CONCEPT_CRITERION_IDS = [
-  "remixability",
-  "comprehension",
-  "audioPortability",
-  "brandPlatformFit",
-  "crossPlatform",
-] as const;
+const CONCEPT_CRITERION_IDS = ["stopPower", "watchThrough", "shareability", "participation", "brandPlatformFit"] as const;
 
 export const EditorSchema = z.object({
   weakness: z.string().describe("The single most significant creative weakness, in one or two sentences."),

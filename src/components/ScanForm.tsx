@@ -18,8 +18,10 @@ interface ScanFormProps {
 
 const PLATFORM_PARTS: Record<Platform, [string, string]> = {
   tiktok: ["TikTok", "For You"],
-  "instagram-reels": ["Reels", "Instagram"],
-  "youtube-shorts": ["Shorts", "YouTube"],
+  "instagram-reels": ["Instagram", "Reels & feed"],
+  "youtube-shorts": ["YouTube", "Shorts"],
+  facebook: ["Facebook", "Reels & feed"],
+  snapchat: ["Snapchat", "Spotlight"],
 };
 
 /** The control deck: brand/category input, platform switch, Run Scan. */
@@ -72,16 +74,17 @@ export function ScanForm({
         <legend className="readout mb-2 text-ink-soft">
           <span className="text-ember">02</span> / Platform
         </legend>
-        <div className="grid grid-cols-3 border-2 border-ink">
+        {/* Six-column grid: three platforms on the first row, two wider ones on the second. Gaps show the ink lines. */}
+        <div className="grid grid-cols-6 gap-[2px] border-2 border-ink bg-ink">
           {PLATFORMS.map((option, index) => {
             const selected = option.id === platform;
             const [main, sub] = PLATFORM_PARTS[option.id];
             return (
               <label
                 key={option.id}
-                className={`flex cursor-pointer flex-col items-start px-3 py-2.5 transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-4 has-[:focus-visible]:outline-ember ${
-                  index > 0 ? "border-l-2 border-ink" : ""
-                } ${selected ? "bg-ink text-surface" : "bg-surface hover:bg-canvas"}`}
+                className={`flex min-w-0 cursor-pointer flex-col items-start px-3 py-2.5 transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-4 has-[:focus-visible]:outline-ember ${
+                  index < 3 ? "col-span-2" : "col-span-3"
+                } ${selected ? "bg-ink text-surface outline-2 -outline-offset-2 outline-ember" : "bg-surface hover:bg-canvas"}`}
               >
                 <input
                   type="radio"
