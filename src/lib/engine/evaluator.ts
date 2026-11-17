@@ -1,7 +1,7 @@
 import "server-only";
 
 import { audienceLine } from "@/lib/prompts/audience";
-import { evidenceResult, revisedEvidence } from "@/lib/evaluation/evidence";
+import { relevanceResult } from "@/lib/evaluation/evidence";
 import { combineFit, CRITERIA, type CriterionResult, type RevisionChecks } from "@/lib/evaluation/scoring";
 import { evaluatorSystem, ledgerDigest } from "@/lib/prompts/creative";
 import type { EvidenceLedger } from "@/lib/research/ledger";
@@ -68,14 +68,13 @@ type Assessment = Omit<EvaluationDraft["evaluations"][number], "label">;
  * Turn the evaluator's answer into one result per criterion.
  * - Brand/category + platform fit takes the LOWER of the two separate scores,
  *   so excellent fit on one can't hide poor fit on the other (weights unchanged).
- * - The two evidence criteria are proposals; code decides whether they stand.
+ * - Cultural relevance is the reviewer's judgment; code adds only a "verified" label.
  */
 export function toResults(e: Assessment, ledger: EvidenceLedger | null, groundedIn: string[]): CriterionResult[] {
   return CRITERIA.map((c): CriterionResult => {
     switch (c.id) {
       case "culturalRelevance":
-      case "emergingMomentum":
-        return evidenceResult(c.id, e[c.id], ledger, groundedIn);
+        return relevanceResult(e.culturalRelevance, ledger, groundedIn);
       case "brandPlatformFit":
         return combineFit(e.brandFit, e.platformFit);
       default:
@@ -100,7 +99,7 @@ export async function evaluateCandidates(
   const user = `Brand or category: ${request.brand}
 Platform: ${platformLabel(request.platform)}${audienceLine(request.audience)}
 
-${ledger ? ledgerDigest(ledger) : "No evidence ledger for this scan: give proposedScore 0 for cultural relevance and emerging momentum."}
+${ledger ? ledgerDigest(ledger) : "No evidence ledger for this scan: judge cultural relevance from your general knowledge (judgedFrom: general-knowledge)."}
 
 ${order.map((c, i) => describeCandidate(LABELS[i], c.draft, c.groundedIn)).join("\n\n")}
 
@@ -140,7 +139,6 @@ export async function rescoreRevision(
     revised: CandidateDraft;
     weakness: string;
     groundedIn: string[];
-    originalResults: CriterionResult[];
     ledger: EvidenceLedger | null;
   },
   timeoutMs = 90_000,
@@ -150,11 +148,9 @@ export async function rescoreRevision(
   meaningfulAudioVariations: number;
   checks: RevisionChecks;
   checksRationale: string;
-  evidenceRationale: string;
   usage: ScanUsage;
 }> {
-  const { original, revised, weakness, groundedIn, originalResults, ledger } = input;
-  const cited = originalResults.flatMap((r) => r.observationIds ?? []);
+  const { original, revised, weakness, groundedIn, ledger } = input;
   const user = `Brand or category: ${request.brand}
 Platform: ${platformLabel(request.platform)}${audienceLine(request.audience)}
 
@@ -162,18 +158,15 @@ ${ledger ? ledgerDigest(ledger) : "No evidence ledger for this scan."}
 
 ${describeCandidate("A", revised, groundedIn)}
 
-Score candidate A on its own merits. For cultural relevance and emerging momentum, give proposedScore 0: the original's evidence is checked separately below.
+Score candidate A on its own merits, on every criterion including cultural relevance.
 
 Candidate A is a revision of an earlier idea:
 - Original core mechanic: ${original.mechanic}
 - Original concept: ${original.concept}
 - Weakness the revision was meant to fix: ${weakness}
-- Evidence the original's scores rested on: ${cited.length ? cited.join(", ") : "none"}
 preservesMechanic: does A keep the same core creative mechanic?
 addressesWeakness: does A genuinely address that weakness?
-introducesUnsupportedClaims: does A add cultural, momentum or performance claims the evidence doesn't support?
-evidenceStillSupports: for each evidence criterion, does that same evidence still support A's cultural claim? Use not-applicable if no evidence was cited for it.
-culturalClaimChanged: did the revision change the underlying cultural claim or signal?`;
+introducesUnsupportedClaims: does A add factual cultural or performance claims (statistics, sources, trend data) that nothing supports?`;
 
   const { value, usage } = await callStructured({
     step: "rescore",
@@ -186,9 +179,8 @@ culturalClaimChanged: did the revision change the underlying cultural claim or s
     signal,
   });
 
-  const concept = toResults(value, null, []).filter((r) => r.criterionId !== "culturalRelevance" && r.criterionId !== "emergingMomentum");
-  const evidence = revisedEvidence(originalResults, value.evidenceStillSupports, value.culturalClaimChanged);
-  const results = CRITERIA.map((c) => [...concept, ...evidence].find((r) => r.criterionId === c.id)!);
+  // The revision keeps the original's signals, so its relevance can be verified against them.
+  const results = toResults(value, ledger, groundedIn);
 
   return {
     results,
@@ -199,7 +191,6 @@ culturalClaimChanged: did the revision change the underlying cultural claim or s
       noUnsupportedClaims: !value.introducesUnsupportedClaims,
     },
     checksRationale: value.checksRationale,
-    evidenceRationale: value.evidenceRationale,
     usage,
   };
 }

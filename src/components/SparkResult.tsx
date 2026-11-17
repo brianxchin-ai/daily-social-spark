@@ -15,7 +15,7 @@ import { ConfidenceBlocks } from "./ConfidenceBlocks";
 import { DecisionTrace } from "./DecisionTrace";
 import { OriginBadge } from "./DemoBadge";
 import { EvidencePanel } from "./EvidencePanel";
-import { plural, StatusBadge } from "./EvidenceStatus";
+import { plural, RelevanceBadge } from "./EvidenceStatus";
 import { EvidenceList } from "./EvidenceList";
 import { FormatIdeasCompact } from "./FormatIdeas";
 import { LonglistPanel } from "./LonglistPanel";
@@ -242,7 +242,6 @@ function HypothesisSections({ spark, final }: { spark: HypothesisSpark; final: C
   const finalEvaluation = finalEvaluationOf(spark);
   const ledger = spark.research.status === "verified" ? spark.research.ledger : null;
   const platformLabel = PLATFORMS.find((p) => p.id === spark.platform)?.label ?? spark.platform;
-  const momentum = finalEvaluation.results.find((r) => r.criterionId === "emergingMomentum")!;
   const revisedFrom = finalEvaluation.candidateId !== leaderId ? leaderId : null;
   const sources = sourcesForIdea(final, ledger);
   return (
@@ -269,7 +268,7 @@ function HypothesisSections({ spark, final }: { spark: HypothesisSpark; final: C
             ...(spark.audience && final.audienceConnection ? [`Audience connection: ${final.audienceConnection}`] : []),
           ]}
           sources={sources}
-          status={finalEvaluation.score.status}
+          verified={finalEvaluation.score.relevanceVerified}
           researched={ledger !== null}
         />
       </Section>
@@ -285,18 +284,14 @@ function HypothesisSections({ spark, final }: { spark: HypothesisSpark; final: C
           <WhyNow text={final.whyNow} />
         </DrawerPart>
 
-        <DrawerPart title={momentum.status === "scored" ? "Timing · momentum evidence verified" : "Timing hypothesis · momentum unverified"}>
+        <DrawerPart title="Timing hypothesis">
           <div className="flex flex-col gap-4">
             <p className="text-[15px] leading-relaxed">{final.timing.hypothesis}</p>
             <div className="flex flex-col gap-1.5 border-l-4 border-hypo pl-4">
               <p className="readout font-bold text-hypo">What would confirm or refute it</p>
               <p className="text-[14px] leading-relaxed">{final.timing.whatWouldConfirm}</p>
             </div>
-            <p className="readout text-ink-soft">
-              {momentum.status === "scored"
-                ? `Momentum ${momentum.score}/5 from a cited, behavior-dated increase. ${momentum.rationale}`
-                : `Momentum unverified: ${momentum.rationale}`}
-            </p>
+            <p className="readout text-ink-soft">The AI’s hypothesis about timing. It isn’t scored.</p>
           </div>
         </DrawerPart>
 
@@ -375,7 +370,7 @@ function ThreeIdeas({
                   {c.territory}
                 </span>
                 <span className="text-[15px] leading-snug font-semibold">{c.headline}</span>
-                <StatusBadge status={e.score.status} />
+                <RelevanceBadge verified={e.score.relevanceVerified} />
               </span>
               <span className="flex shrink-0 items-center gap-2">
                 <span className="headline text-[22px]">{formatScore(e.score.rankingScore)}</span>

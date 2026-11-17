@@ -2,14 +2,13 @@ import {
   CRITERIA,
   explainTies,
   formatScore,
-  NEUTRAL_PLACEHOLDER,
   TIE_BREAK_ORDER,
   criterion as criterionOf,
   type CriterionResult,
   type TieExplanation,
 } from "@/lib/evaluation/scoring";
 import type { Candidate, CandidateEvaluation, EvaluationReport } from "@/lib/types";
-import { STATUS_LABEL, StatusBadge } from "./EvidenceStatus";
+import { RelevanceBadge } from "./EvidenceStatus";
 
 const AUDIO_LABEL: Record<Candidate["audioRole"], string> = {
   "audio-led": "Audio-led",
@@ -43,9 +42,9 @@ export function tieShort(tie: TieExplanation, name: (id: string) => string): str
 }
 
 /**
- * The evaluation, laid out for inspection: every candidate × all seven
- * criteria, which scores were verified, which were assumed for ranking, both
- * scores our code calculated, each status, and how any tie was broken.
+ * The evaluation, laid out for inspection: every candidate × all six
+ * criteria, whether cultural relevance was verified, the Spark Score our code
+ * calculated, and how any tie was broken.
  */
 export function Scoreboard({
   report,
@@ -61,20 +60,13 @@ export function Scoreboard({
   const columns = report.evaluations;
   const ties = computeTies(report);
   const tiedIds = new Set(ties.flatMap((t) => [t.ahead, t.behind]));
-  const anyProvisional = columns.some((e) => e.score.provisional);
   const name = (id: string) => byId.get(id)?.trendName ?? id;
 
   return (
     <div className="flex flex-col gap-5">
       <p className="text-[14px] leading-relaxed text-ink-soft">
-        <strong className="text-ink">Ranked by our code on all seven weighted criteria.</strong>
-        {anyProvisional && (
-          <>
-            {" "}
-            <strong className="text-ink">◇ {NEUTRAL_PLACEHOLDER}</strong> marks an unverified evidence criterion, assumed
-            for ranking only, so totals are Provisional Ranking Scores.
-          </>
-        )}
+        <strong className="text-ink">Ranked by our code on all six weighted criteria.</strong> A ✓ marks cultural
+        relevance the research verified; otherwise it is the reviewer’s judgment.
       </p>
       {revisedFrom && (
         <p className="border-l-4 border-ink pl-3 text-[13px] leading-relaxed">
@@ -117,7 +109,7 @@ export function Scoreboard({
                 <th scope="row" className="py-2 pr-2 align-top font-normal">
                   <span className="block text-[13px] leading-tight font-semibold">{criterion.name}</span>
                   <span className="readout text-ink-soft">
-                    {Math.round(criterion.weight * 100)}%{criterion.basis === "evidence" ? " · evidence" : ""}
+                    {Math.round(criterion.weight * 100)}%{criterion.basis === "evidence" ? " · AI judgment" : ""}
                   </span>
                 </th>
                 {columns.map((e) => (
@@ -132,9 +124,9 @@ export function Scoreboard({
             <tr className="border-t-2 border-ink">
               <th scope="row" className="py-3 pr-2 align-top">
                 <span className="block text-[13px] leading-tight font-bold">
-                  {anyProvisional ? "Provisional Ranking Score" : "Ranking Score"}
+                  Spark Score
                 </span>
-                <span className="readout text-ink-soft">All 7 · /100 · decides rank</span>
+                <span className="readout text-ink-soft">All 6 · /100 · decides rank</span>
               </th>
               {columns.map((e) => (
                 <td key={e.candidateId} className="px-1 py-3 text-center">
@@ -144,32 +136,7 @@ export function Scoreboard({
                   >
                     {formatScore(e.score.rankingScore)}
                   </span>
-                  {e.score.provisional && <span className="readout block text-hypo">Provisional</span>}
-                </td>
-              ))}
-            </tr>
-            <tr className="border-t border-line">
-              <th scope="row" className="py-2 pr-2 align-top">
-                <span className="block text-[13px] leading-tight font-bold">Concept Score</span>
-                <span className="readout text-ink-soft">5 creative · /100</span>
-              </th>
-              {columns.map((e) => (
-                <td key={e.candidateId} className="px-1 py-2 text-center">
-                  <span className="font-mono text-[18px] font-bold tabular-nums" title={`Exact: ${e.score.conceptScore.toFixed(2)}`}>
-                    {formatScore(e.score.conceptScore)}
-                  </span>
                   {e.score.rejected && <span className="readout block text-ink-soft">Rejected</span>}
-                </td>
-              ))}
-            </tr>
-            <tr className="border-t border-line">
-              <th scope="row" className="py-2 pr-2 align-top text-[13px] font-bold">
-                Evidence status
-              </th>
-              {columns.map((e) => (
-                <td key={e.candidateId} className="px-1 py-2 text-center text-[11px] leading-tight font-semibold">
-                  <span className="hidden sm:inline">{STATUS_LABEL[e.score.status]}</span>
-                  <span className="sm:hidden">{SHORT_STATUS[e.score.status]}</span>
                 </td>
               ))}
             </tr>
@@ -198,16 +165,12 @@ export function Scoreboard({
             code does all the arithmetic: a weighted average mapped to 0–100.
           </p>
           <p>
-            Cultural relevance and momentum count only when cited, behavior-dated evidence passed our checks (✓), capped
-            by the strength of that evidence. Otherwise they count as a neutral ◇ {NEUTRAL_PLACEHOLDER}, an assumption for
-            ranking, not a measured score, and the total is a Provisional Ranking Score.
+            Cultural relevance is the reviewer’s judgment, drawing on the research and its cultural knowledge. It is
+            marked ✓ verified when a cited, dated source from the idea’s own signal shows the behavior is live; the mark
+            never changes the score. Brand/category + platform fit takes the lower of its two parts (shown as B·P).
           </p>
           <p>
-            The Concept Score covers the five creative criteria. Brand/category + platform fit takes the lower of its two
-            parts (shown as B·P).
-          </p>
-          <p>
-            An idea is rejected if its Concept Score is below 50, its fit scores 1, or it is audio-led with fewer than 3
+            An idea is rejected if its Spark Score is below 50, its fit scores 1, or it is audio-led with fewer than 3
             meaningful alternatives. Ties break on{" "}
             {TIE_BREAK_ORDER.map((id) => criterionOf(id).name.toLowerCase()).join(", then ")}.
           </p>
@@ -217,26 +180,8 @@ export function Scoreboard({
   );
 }
 
-const SHORT_STATUS = {
-  "evidence-backed": "✓ Evidence",
-  "partially-evidenced": "◐ Partial",
-  "unverified-hypothesis": "◇ Unverified",
-} as const;
-
 function ScoreCell({ result }: { result: CriterionResult }) {
-  if (result.status === "unverified") {
-    return (
-      <span
-        className="readout inline-flex flex-col items-center rounded-sm border border-dashed border-hypo/70 px-1 py-0.5 text-[10px] text-hypo"
-        title={`Unverified: ${result.rationale}`}
-      >
-        <span className="font-mono text-[15px] font-bold">◇ {NEUTRAL_PLACEHOLDER}</span>
-        <span>assumed</span>
-        <span className="sr-only">Unverified; counted as {NEUTRAL_PLACEHOLDER} for ranking only. {result.rationale}</span>
-      </span>
-    );
-  }
-  const verified = result.criterionId === "culturalRelevance" || result.criterionId === "emergingMomentum";
+  const verified = result.criterionId === "culturalRelevance" && result.verified === true;
   return (
     <span className="inline-flex flex-col items-center gap-1" title={result.rationale}>
       <span className="font-mono text-[18px] font-bold tabular-nums">
@@ -277,12 +222,12 @@ function CandidateDetails({
             {score.rank ? `#${score.rank}${tied ? " · tied" : ""}` : "Rejected"} · {candidate.trendName}
           </span>
           <span className="text-[15px] leading-snug font-semibold">{candidate.headline}</span>
-          <StatusBadge status={score.status} />
+          <RelevanceBadge verified={score.relevanceVerified} />
         </span>
         <span className="flex shrink-0 items-center gap-2">
           <span className="flex flex-col items-end">
             <span className="headline text-[24px]">{formatScore(score.rankingScore)}</span>
-            <span className="readout text-[9px] text-ink-soft">{score.provisional ? "Provisional" : "Ranking"}</span>
+            <span className="readout text-[9px] text-ink-soft">Spark</span>
           </span>
           <span aria-hidden className="readout text-ink-soft transition-transform group-open:rotate-90">
             ▸
@@ -308,19 +253,17 @@ function CandidateDetails({
         <dl className="flex flex-col divide-y divide-line">
           {CRITERIA.map((criterion) => {
             const result = evaluation.results.find((r) => r.criterionId === criterion.id)!;
-            const unverified = result.status === "unverified";
             return (
               <div key={criterion.id} className="flex flex-col gap-0.5 py-2">
                 <dt className="readout flex justify-between gap-2">
                   <span className="font-bold">{criterion.name}</span>
-                  <span className={unverified ? "text-hypo" : ""}>
-                    {unverified
-                      ? `Unverified · ◇ ${NEUTRAL_PLACEHOLDER} assumed`
-                      : `${result.score}/5${criterion.basis === "evidence" ? " ✓ verified" : ""}`}
+                  <span>
+                    {result.score}/5
+                    {criterion.basis === "evidence" ? (result.verified ? " ✓ verified" : " ◇ AI judgment") : ""}
                   </span>
                 </dt>
                 <dd className="text-[13px] leading-relaxed text-ink-soft">
-                  {unverified ? `Why unverified: ${result.rationale}` : result.rationale}
+                  {result.rationale}
                   {result.observationIds?.length ? ` (Evidence: ${result.observationIds.join(", ")})` : ""}
                 </dd>
               </div>
@@ -328,8 +271,7 @@ function CandidateDetails({
           })}
         </dl>
         <p className="readout text-ink-soft">
-          Exact: ranking {score.rankingScore.toFixed(2)} · concept {score.conceptScore.toFixed(2)}
-          {score.placeholders.length > 0 && ` · ${score.placeholders.length} placeholder(s)`} · reviewer label{" "}
+          Exact: Spark {score.rankingScore.toFixed(2)} · reviewer label{" "}
           {evaluation.evaluatorLabel}
         </p>
       </div>

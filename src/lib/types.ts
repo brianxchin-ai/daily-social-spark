@@ -11,7 +11,6 @@ import type {
   CriterionResult,
   RevisionChecks,
   RevisionDecision,
-  ScoreMode,
 } from "./evaluation/scoring";
 import type { DiversityReport } from "@/lib/evaluation/diversity";
 import type { DistributionDriver } from "@/lib/spark-schema";
@@ -184,13 +183,10 @@ export interface CandidateEvaluation {
 }
 
 export interface EvaluationReport {
-  /** Day 2: ranked by Concept Score only; cultural relevance and momentum unverified. */
-  mode: ScoreMode;
   /** In rank order: ranked candidates first, then rejected ones. */
   evaluations: CandidateEvaluation[];
   /** Null when no candidate cleared the bar. */
   leaderId: string | null;
-  leaderEvidenceBacked: boolean;
 }
 
 /** The editor's one round of notes on the leader. */

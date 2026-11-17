@@ -8,7 +8,7 @@ const BADGE: Record<SparkOrigin, { label: string; title: string; className: stri
   },
   "ai-hypothesis": {
     label: "◇ AI-generated",
-    title: "Written by Claude. Whether it will work is a creative judgment; the research behind it is labeled separately (Evidence-backed, Partially evidenced or Unverified).",
+    title: "Written by Claude. Whether it will work is a creative judgment; its cultural relevance is marked verified only when the research confirms it.",
     className: "border-hypo text-hypo",
   },
 };

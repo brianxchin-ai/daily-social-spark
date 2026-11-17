@@ -57,16 +57,13 @@ export function buildTrace(spark: HypothesisSpark): Step[] {
   });
 
   // 3. Evaluation
-  const evidenceResults = spark.evaluation.evaluations.flatMap((e) =>
-    e.results.filter((r) => r.criterionId === "culturalRelevance" || r.criterionId === "emergingMomentum"),
-  );
-  const verified = evidenceResults.filter((r) => r.status === "scored").length;
+  const verified = spark.evaluation.evaluations.filter((e) => e.score.relevanceVerified).length;
   steps.push({
     title: "Independent evaluation",
     status: "done",
     lines: [
       "A separate reviewer call scored all three ideas, anonymized and shuffled.",
-      `${verified} of ${evidenceResults.length} evidence scores passed our checks; the rest are unverified and count as a neutral 3 for ranking only.`,
+      `All six criteria scored by AI judgment. Cultural relevance was verified by the research for ${verified} of ${spark.evaluation.evaluations.length} ideas; verification is a label and doesn't change scores.`,
     ],
   });
 
@@ -78,7 +75,7 @@ export function buildTrace(spark: HypothesisSpark): Step[] {
     status: ties.length ? "flag" : "done",
     lines: [
       ranked
-        .map((e) => `${e.score.rank ? `#${e.score.rank}` : "Rejected"} ${name(e.candidateId)}: ${formatScore(e.score.rankingScore)}${e.score.provisional ? " (provisional)" : ""}`)
+        .map((e) => `${e.score.rank ? `#${e.score.rank}` : "Rejected"} ${name(e.candidateId)}: ${formatScore(e.score.rankingScore)}`)
         .join(" · "),
       ...ties.map((t) => tieSentence(t, name)),
       ...ranked.filter((e) => e.score.rejected).flatMap((e) => e.score.rejectionReasons.map((r) => `${name(e.candidateId)} rejected: ${r.message}`)),
@@ -121,7 +118,7 @@ export function buildTrace(spark: HypothesisSpark): Step[] {
         lines: [
           ran.has("rescore") ? "A separate rescore call judged the revision and whether the original evidence still applies." : "",
           r.decision.outcome === "kept-revised"
-            ? `Kept the revision: every rule passed (Concept Score gain ${r.decision.gain?.toFixed(1)}).`
+            ? `Kept the revision: every rule passed (Spark Score gain ${r.decision.gain?.toFixed(1)}).`
             : `Kept the original. Failed: ${failed.join("; ")}.`,
         ].filter(Boolean),
       });

@@ -6,24 +6,32 @@
  *
  * Criteria, weights and questions are the user's framework, verbatim.
  * Do not add, remove or reweight criteria without the user's approval.
+ *
+ * Day 5 (approved by the user): Emerging Momentum was removed and its weight
+ * redistributed. Cultural Relevance is now always scored by AI judgment; the
+ * research can additionally verify it, which changes its label, not its score.
+ * Every criterion is always scored, so there are no placeholders and one score.
  */
 
 export type CriterionId =
   | "culturalRelevance"
-  | "emergingMomentum"
   | "remixability"
   | "comprehension"
   | "audioPortability"
   | "brandPlatformFit"
   | "crossPlatform";
 
-/** "concept": judgeable from the idea itself. "evidence": needs live research. */
+/**
+ * "concept": judged from the idea itself.
+ * "evidence": judged by the AI from the research and its cultural knowledge;
+ * the research can also verify it (a label, never a different score).
+ */
 export type CriterionBasis = "concept" | "evidence";
 
 export interface Criterion {
   id: CriterionId;
   name: string;
-  /** Share of the full framework, 0–1. All seven sum to 1. */
+  /** Share of the full framework, 0–1. All six sum to 1. */
   weight: number;
   question: string;
   basis: CriterionBasis;
@@ -35,7 +43,7 @@ export const CRITERIA: readonly Criterion[] = [
   {
     id: "culturalRelevance",
     name: "Cultural relevance",
-    weight: 0.25,
+    weight: 0.3,
     question:
       "How relevant is the opportunity to current culture, conversations, behaviors, and emerging creative expression?",
     basis: "evidence",
@@ -46,21 +54,9 @@ export const CRITERIA: readonly Criterion[] = [
     },
   },
   {
-    id: "emergingMomentum",
-    name: "Emerging momentum",
-    weight: 0.25,
-    question: "Is the opportunity showing signs of accelerating traction, ideally before mainstream saturation?",
-    basis: "evidence",
-    anchors: {
-      1: "Stale or already saturated.",
-      3: "Established and stable.",
-      5: "Accelerating and still pre-mainstream.",
-    },
-  },
-  {
     id: "remixability",
     name: "Remixability and repeatability",
-    weight: 0.15,
+    weight: 0.2,
     question: "Can the underlying creative mechanic support multiple compelling interpretations and executions?",
     basis: "concept",
     anchors: {
@@ -72,7 +68,7 @@ export const CRITERIA: readonly Criterion[] = [
   {
     id: "comprehension",
     name: "Immediate comprehension",
-    weight: 0.1,
+    weight: 0.15,
     question: "Can audiences quickly understand the concept or creative mechanic?",
     basis: "concept",
     anchors: {
@@ -100,7 +96,7 @@ export const CRITERIA: readonly Criterion[] = [
   {
     id: "brandPlatformFit",
     name: "Brand/category + platform fit",
-    weight: 0.1,
+    weight: 0.2,
     question:
       "Can the opportunity be credibly adapted to the user's selected brand or category, and does it feel native to their selected platform?",
     basis: "concept",
@@ -124,37 +120,35 @@ export const CRITERIA: readonly Criterion[] = [
   },
 ];
 
-/** Order used to break ties: concept criteria first, as agreed. */
+/** Order used to break ties: concept criteria first, as agreed, then cultural relevance. */
 export const TIE_BREAK_ORDER: readonly CriterionId[] = [
   "remixability",
   "comprehension",
   "audioPortability",
   "brandPlatformFit",
   "crossPlatform",
+  "culturalRelevance",
 ];
 
-export const PASS_THRESHOLD = 50; // Concept Score out of 100
+export const PASS_THRESHOLD = 50; // Spark Score out of 100
 export const MIN_AUDIO_VARIATIONS = 3;
-
-/**
- * Day 3: an unverified evidence criterion counts as this neutral midpoint for
- * RANKING ONLY. It is an assumption, never a measured score, and is always
- * labeled as such. Any aggregate that uses it is a Provisional Ranking Score.
- */
-export const NEUTRAL_PLACEHOLDER = 3;
 
 export type CriterionStatus = "scored" | "unverified";
 
 export interface CriterionResult {
   criterionId: CriterionId;
   status: CriterionStatus;
-  /** Integer 1–5 when scored; null when unverified. Never a placeholder number. */
+  /** Integer 1–5 when scored; null only if a criterion couldn't be scored at all. */
   score: number | null;
   rationale: string;
   /** Brand/category + platform fit only: the two parts, judged separately (the criterion takes the lower). */
   parts?: { brand: number; platform: number };
-  /** Evidence criteria only: the ledger observations the score rests on. */
+  /** Cultural relevance only: the ledger observations the reviewer cited. */
   observationIds?: string[];
+  /** Cultural relevance only: true when the research meets the evidence bar. A label; the score is the AI's. */
+  verified?: boolean;
+  /** Cultural relevance only: what the AI's judgment leaned on. */
+  judgedFrom?: "research" | "general-knowledge" | "both";
 }
 
 export type AudioRole = "audio-led" | "audio-optional" | "no-audio";
@@ -169,21 +163,6 @@ export interface CandidateInput {
   meaningfulAudioVariations: number;
 }
 
-/**
- * "concept": only concept criteria were scored (Day 2).
- * "partial": some evidence criteria scored, some unverified.
- * "full": all seven scored with evidence.
- */
-export type ScoreMode = "concept" | "partial" | "full";
-
-/** How the recommendation may be described, from its verified criteria. */
-export type EvidenceStatus = "evidence-backed" | "partially-evidenced" | "unverified-hypothesis";
-const STATUS_BY_MODE: Record<ScoreMode, EvidenceStatus> = {
-  full: "evidence-backed",
-  partial: "partially-evidenced",
-  concept: "unverified-hypothesis",
-};
-
 export interface RejectionReason {
   code: "below-threshold" | "fit-fails" | "audio-dependent";
   message: string;
@@ -192,28 +171,14 @@ export interface RejectionReason {
 export interface CandidateScore {
   candidateId: string;
   generationIndex: number;
-  mode: ScoreMode;
-  /** Normalized 0–100 over the scored criteria, unrounded. */
-  applicableScore: number;
-  /** Sum of the weights the score is based on (0.5 on Day 2). */
-  applicableWeight: number;
-  /** True only when every evidence criterion is scored. */
-  evidenceBacked: boolean;
-  /** The five concept criteria only, 0–100, unrounded. Used for the 50-point bar and revision gains. */
-  conceptScore: number;
   /**
-   * All seven criteria at their weights, 0–100, unrounded. Unverified evidence
-   * criteria count as NEUTRAL_PLACEHOLDER. This is what ranks candidates.
+   * The Spark Score: all six criteria at their weights, 0–100, unrounded.
+   * It ranks candidates, sets the pass bar and judges revisions.
    */
   rankingScore: number;
-  /** True when rankingScore uses any placeholder: call it a Provisional Ranking Score. */
-  provisional: boolean;
-  /** The criteria filled with the placeholder (assumed, not measured). */
-  placeholders: CriterionId[];
-  status: EvidenceStatus;
+  /** Cultural relevance is verified by the research (a label; it doesn't change the score). */
+  relevanceVerified: boolean;
   rejected: boolean;
-  /** "provisional-creative" on Day 2; "evidence-based" once evidence exists. */
-  rejectionKind: "provisional-creative" | "evidence-based" | null;
   rejectionReasons: RejectionReason[];
   /** 1-based among non-rejected candidates; null when rejected. */
   rank: number | null;
@@ -222,8 +187,6 @@ export interface CandidateScore {
 export interface Ranking {
   scores: CandidateScore[]; // in rank order: ranked first, then rejected
   leaderId: string | null; // null when every candidate was rejected
-  /** True when the leader can be presented as evidence-backed (Day 3+). */
-  leaderEvidenceBacked: boolean;
 }
 
 const BY_ID = new Map(CRITERIA.map((c) => [c.id, c]));
@@ -241,19 +204,12 @@ function assertWellFormed(input: CandidateInput): void {
     if (!BY_ID.has(r.criterionId)) throw new Error(`Unknown criterion: ${r.criterionId}`);
     if (seen.has(r.criterionId)) throw new Error(`Duplicate criterion: ${r.criterionId}`);
     seen.add(r.criterionId);
-    if (r.status === "scored") {
-      if (r.score === null || !Number.isInteger(r.score) || r.score < 1 || r.score > 5) {
-        throw new Error(`${r.criterionId}: scored criteria need an integer 1–5`);
-      }
-    } else if (r.score !== null) {
-      throw new Error(`${r.criterionId}: unverified criteria must not carry a number`);
+    if (r.status !== "scored" || r.score === null || !Number.isInteger(r.score) || r.score < 1 || r.score > 5) {
+      throw new Error(`${r.criterionId}: every criterion needs an integer score 1–5`);
     }
   }
   for (const c of CRITERIA) {
     if (!seen.has(c.id)) throw new Error(`Missing criterion: ${c.id}`);
-    if (c.basis === "concept" && input.results.find((r) => r.criterionId === c.id)?.status !== "scored") {
-      throw new Error(`${c.id}: concept criteria must always be scored`);
-    }
   }
 }
 
@@ -280,13 +236,6 @@ export function applicableScore(results: CriterionResult[]): { score: number; we
   return { score, weight: weightPct / 100 };
 }
 
-function scoreMode(results: CriterionResult[]): ScoreMode {
-  const evidence = results.filter((r) => criterion(r.criterionId).basis === "evidence");
-  const scored = evidence.filter((r) => r.status === "scored").length;
-  if (scored === 0) return "concept";
-  return scored === evidence.length ? "full" : "partial";
-}
-
 function scoreOf(input: CandidateInput, id: CriterionId): number {
   return input.results.find((r) => r.criterionId === id)?.score ?? 0;
 }
@@ -294,7 +243,7 @@ function scoreOf(input: CandidateInput, id: CriterionId): number {
 /**
  * Brand/category + platform fit from its two separately judged parts: the
  * criterion takes the LOWER, so excellent fit on one can't hide poor fit on
- * the other. The criterion's 10% weight is unchanged.
+ * the other.
  */
 export function combineFit(
   brand: { score: number; rationale: string },
@@ -309,40 +258,21 @@ export function combineFit(
   };
 }
 
-/** Concept criteria only. */
-export function conceptScoreOf(results: CriterionResult[]): number {
-  return applicableScore(results.filter((r) => criterion(r.criterionId).basis === "concept")).score;
-}
-
-/**
- * All seven criteria at their weights, with each unverified evidence
- * criterion counted as NEUTRAL_PLACEHOLDER. Exact integer arithmetic.
- */
-export function rankingScoreOf(results: CriterionResult[]): { score: number; placeholders: CriterionId[] } {
-  const placeholders: CriterionId[] = [];
-  const filled = results.map((r): CriterionResult => {
-    if (r.status === "scored") return r;
-    placeholders.push(r.criterionId);
-    return { ...r, status: "scored", score: NEUTRAL_PLACEHOLDER };
-  });
-  return { score: applicableScore(filled).score, placeholders };
+/** The Spark Score: all six criteria at their weights, 0–100. */
+export function sparkScoreOf(results: CriterionResult[]): number {
+  return applicableScore(results).score;
 }
 
 export function scoreCandidate(input: CandidateInput): CandidateScore {
   assertWellFormed(input);
-  const { score, weight } = applicableScore(input.results);
-  const mode = scoreMode(input.results);
-  const evidenceBacked = mode === "full";
-  const conceptScore = conceptScoreOf(input.results);
-  const ranking = rankingScoreOf(input.results);
+  const spark = sparkScoreOf(input.results);
   const reasons: RejectionReason[] = [];
 
-  // The bar is on the Concept Score, as agreed. Compare unrounded values; a
-  // 49.99 never sneaks through as "50".
-  if (conceptScore < PASS_THRESHOLD) {
+  // Compare unrounded values; a 49.99 never sneaks through as "50".
+  if (spark < PASS_THRESHOLD) {
     reasons.push({
       code: "below-threshold",
-      message: `Concept score ${conceptScore.toFixed(1)} is below ${PASS_THRESHOLD}.`,
+      message: `Spark Score ${spark.toFixed(1)} is below ${PASS_THRESHOLD}.`,
     });
   }
   if (scoreOf(input, "brandPlatformFit") === 1) {
@@ -355,21 +285,12 @@ export function scoreCandidate(input: CandidateInput): CandidateScore {
     });
   }
 
-  const rejected = reasons.length > 0;
   return {
     candidateId: input.candidateId,
     generationIndex: input.generationIndex,
-    mode,
-    applicableScore: score,
-    applicableWeight: weight,
-    evidenceBacked,
-    conceptScore,
-    rankingScore: ranking.score,
-    provisional: ranking.placeholders.length > 0,
-    placeholders: ranking.placeholders,
-    status: STATUS_BY_MODE[mode],
-    rejected,
-    rejectionKind: rejected ? (evidenceBacked ? "evidence-based" : "provisional-creative") : null,
+    rankingScore: spark,
+    relevanceVerified: input.results.find((r) => r.criterionId === "culturalRelevance")?.verified === true,
+    rejected: reasons.length > 0,
     rejectionReasons: reasons,
     rank: null,
   };
@@ -379,9 +300,8 @@ const EPSILON = 1e-9;
 
 /**
  * Score, reject and rank candidates. Deterministic: same input, same order.
- * Ranks by the seven-criterion ranking score (placeholders for unverified
- * evidence). With no evidence at all, that order equals the Concept Score order.
- * No extra rule favors better-evidenced candidates.
+ * Ranks by the Spark Score (all six criteria). Verification of cultural
+ * relevance is a label only: no extra rule favors better-evidenced candidates.
  */
 export function rankCandidates(inputs: CandidateInput[]): Ranking {
   const byId = new Map(inputs.map((i) => [i.candidateId, i]));
@@ -406,7 +326,6 @@ export function rankCandidates(inputs: CandidateInput[]): Ranking {
   return {
     scores: [...ranked, ...rejected],
     leaderId: leader?.candidateId ?? null,
-    leaderEvidenceBacked: leader?.evidenceBacked ?? false,
   };
 }
 
@@ -418,7 +337,7 @@ export function formatScore(score: number): string {
 /* ---------- Checkpoint 4: one bounded revision ---------- */
 
 /**
- * Minimum Concept Score gain a revision needs to replace the original.
+ * Minimum Spark Score gain a revision needs to replace the original.
  * An initial product-design threshold, adjustable after testing; not a
  * validated measure of creative improvement.
  */
@@ -449,8 +368,6 @@ export function decideRevision(
   original: CandidateScore,
   revised: CandidateScore | null,
   revisionChecks: RevisionChecks | null,
-  /** Day 3: evidence criteria verified for the original but not for the revision. */
-  evidence?: { lostVerified: CriterionId[] },
 ): RevisionDecision {
   if (!revised || !revisionChecks) {
     return {
@@ -460,26 +377,15 @@ export function decideRevision(
       checks: [{ rule: "A valid, scored revision exists", passed: false }],
     };
   }
-  // Gains are measured on the Concept Score, whatever evidence exists.
-  const gain = revised.conceptScore - original.conceptScore;
+
+  const gain = revised.rankingScore - original.rankingScore;
   const checks = [
     { rule: "Preserves the original core mechanic", passed: revisionChecks.preservesMechanic },
     { rule: "Addresses the weakness named in the critique", passed: revisionChecks.addressesWeakness },
     { rule: "Adds no unsupported cultural, momentum or performance claims", passed: revisionChecks.noUnsupportedClaims },
     { rule: "Passes the same rejection rules as the original", passed: !revised.rejected },
-    ...(evidence
-      ? [
-          {
-            rule:
-              evidence.lostVerified.length === 0
-                ? "Keeps every verified evidence criterion"
-                : `Keeps every verified evidence criterion (lost: ${evidence.lostVerified.map((id) => criterion(id).name).join(", ")})`,
-            passed: evidence.lostVerified.length === 0,
-          },
-        ]
-      : []),
     // Small tolerance so exact-arithmetic gains like 5.0 never fail on rounding.
-    { rule: `Improves the Concept Score by at least ${MIN_REVISION_GAIN} points`, passed: gain >= MIN_REVISION_GAIN - EPSILON },
+    { rule: `Improves the Spark Score by at least ${MIN_REVISION_GAIN} points`, passed: gain >= MIN_REVISION_GAIN - EPSILON },
   ];
   return {
     outcome: checks.every((c) => c.passed) ? "kept-revised" : "kept-original",

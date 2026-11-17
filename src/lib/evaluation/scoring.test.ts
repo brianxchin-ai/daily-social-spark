@@ -2,30 +2,37 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   applicableScore,
-  decideRevision,
   CRITERIA,
+  decideRevision,
   rankCandidates,
   scoreCandidate,
+  sparkScoreOf,
   type AudioRole,
   type CandidateInput,
-  type CriterionId,
   type CriterionResult,
 } from "./scoring.ts";
 
-type Scores = Partial<Record<CriterionId, number | null>>;
-
-/** Build a candidate. Evidence criteria default to unverified (Day 2). */
+/** All six criteria, in order: relevance, remix, comprehension, audio, fit, cross-platform. */
 function candidate(
   id: string,
-  scores: Scores,
-  opts: { index?: number; audioRole?: AudioRole; variations?: number } = {},
+  [cr, r, c, a, f, x]: number[],
+  opts: { index?: number; audioRole?: AudioRole; variations?: number; verified?: boolean } = {},
 ): CandidateInput {
-  const results: CriterionResult[] = CRITERIA.map((c) => {
-    const value = scores[c.id] ?? null;
-    return value === null
-      ? { criterionId: c.id, status: "unverified", score: null, rationale: "Unverified" }
-      : { criterionId: c.id, status: "scored", score: value, rationale: "r" };
-  });
+  const scores: Record<string, number> = {
+    culturalRelevance: cr,
+    remixability: r,
+    comprehension: c,
+    audioPortability: a,
+    brandPlatformFit: f,
+    crossPlatform: x,
+  };
+  const results: CriterionResult[] = CRITERIA.map((k) => ({
+    criterionId: k.id,
+    status: "scored",
+    score: scores[k.id],
+    rationale: "r",
+    ...(k.id === "culturalRelevance" ? { verified: opts.verified ?? false, judgedFrom: "both" as const } : {}),
+  }));
   return {
     candidateId: id,
     generationIndex: opts.index ?? 0,
@@ -34,221 +41,146 @@ function candidate(
     meaningfulAudioVariations: opts.variations ?? 0,
   };
 }
+const all = (n: number) => [n, n, n, n, n, n];
 
-const concept = (r: number, c: number, a: number, f: number, x: number): Scores => ({
-  remixability: r,
-  comprehension: c,
-  audioPortability: a,
-  brandPlatformFit: f,
-  crossPlatform: x,
+test("Day 5 framework: six criteria, momentum removed, weights as approved and summing to 100%", () => {
+  const weights = Object.fromEntries(CRITERIA.map((c) => [c.id, Math.round(c.weight * 100)]));
+  assert.deepEqual(weights, {
+    culturalRelevance: 30,
+    remixability: 20,
+    comprehension: 15,
+    audioPortability: 10,
+    brandPlatformFit: 20,
+    crossPlatform: 5,
+  });
+  assert.equal(Object.values(weights).reduce((s, w) => s + w, 0), 100);
+  assert.ok(!CRITERIA.some((c) => (c.id as string) === "emergingMomentum"));
 });
 
-test("weights sum to 100%, and concept criteria to 50%", () => {
-  const total = CRITERIA.reduce((s, c) => s + c.weight, 0);
-  const conceptTotal = CRITERIA.filter((c) => c.basis === "concept").reduce((s, c) => s + c.weight, 0);
-  assert.ok(Math.abs(total - 1) < 1e-9);
-  assert.ok(Math.abs(conceptTotal - 0.5) < 1e-9);
-});
-
-test("the user's worked example: 4,3,5,4,3,4,3 → 3.75/5 → 68.75/100", () => {
-  const all: Scores = {
-    culturalRelevance: 4,
-    emergingMomentum: 3,
-    remixability: 5,
-    comprehension: 4,
-    audioPortability: 3,
-    brandPlatformFit: 4,
-    crossPlatform: 3,
-  };
-  const { score, weight } = applicableScore(candidate("x", all).results);
-  assert.ok(Math.abs(weight - 1) < 1e-9);
-  assert.ok(Math.abs(score - 68.75) < 1e-9, `got ${score}`);
-  assert.equal(scoreCandidate(candidate("x", all)).mode, "full");
-});
-
-test("Day 2 Concept Score uses only the five concept criteria, renormalized to 100", () => {
-  // (5×.15 + 4×.10 + 3×.10 + 4×.10 + 3×.05) / .50 = 2.0 / .5 = 4.0 → 75
-  const s = scoreCandidate(candidate("x", concept(5, 4, 3, 4, 3)));
-  assert.ok(Math.abs(s.applicableScore - 75) < 1e-9, `got ${s.applicableScore}`);
-  assert.ok(Math.abs(s.applicableWeight - 0.5) < 1e-9);
-  assert.equal(s.mode, "concept");
-  assert.equal(s.evidenceBacked, false);
+test("worked example: 4,5,4,3,4,3 → 4.05/5 → 76.25/100", () => {
+  // .30×4 + .20×5 + .15×4 + .10×3 + .20×4 + .05×3 = 4.05 → (4.05 − 1) ÷ 4 × 100
+  const c = candidate("x", [4, 5, 4, 3, 4, 3]);
+  assert.ok(Math.abs(sparkScoreOf(c.results) - 76.25) < 1e-9);
+  assert.ok(Math.abs(applicableScore(c.results).weight - 1) < 1e-9);
+  assert.ok(Math.abs(scoreCandidate(c).rankingScore - 76.25) < 1e-9);
 });
 
 test("all 5s → 100; all 1s → 0", () => {
-  assert.equal(scoreCandidate(candidate("x", concept(5, 5, 5, 5, 5))).applicableScore, 100);
-  assert.equal(scoreCandidate(candidate("x", concept(1, 1, 1, 1, 1))).applicableScore, 0);
+  assert.equal(scoreCandidate(candidate("x", all(5))).rankingScore, 100);
+  assert.equal(scoreCandidate(candidate("x", all(1))).rankingScore, 0);
 });
 
-test("unverified criteria carry no number and add nothing to the score", () => {
-  const c = candidate("x", concept(4, 4, 4, 4, 4));
-  const cultural = c.results.find((r) => r.criterionId === "culturalRelevance")!;
-  assert.equal(cultural.status, "unverified");
-  assert.equal(cultural.score, null);
-  assert.equal(scoreCandidate(c).applicableScore, 75);
-});
-
-test("an unverified criterion carrying a number is refused", () => {
-  const c = candidate("x", concept(4, 4, 4, 4, 4));
-  c.results[0] = { criterionId: "culturalRelevance", status: "unverified", score: 3, rationale: "" };
-  assert.throws(() => scoreCandidate(c), /must not carry a number/);
-});
-
-test("out-of-range, fractional or missing concept scores are refused", () => {
-  assert.throws(() => scoreCandidate(candidate("x", concept(6, 4, 4, 4, 4))), /integer 1–5/);
-  assert.throws(() => scoreCandidate(candidate("x", concept(3.5, 4, 4, 4, 4))), /integer 1–5/);
-  const missing = candidate("x", concept(4, 4, 4, 4, 4));
+test("every criterion must be scored 1–5: unscored, out-of-range, fractional or missing results are refused", () => {
+  const unscored = candidate("x", all(4));
+  unscored.results[0] = { criterionId: "culturalRelevance", status: "unverified", score: null, rationale: "" };
+  assert.throws(() => scoreCandidate(unscored), /integer score 1–5/);
+  assert.throws(() => scoreCandidate(candidate("x", [4, 6, 4, 4, 4, 4])), /integer score 1–5/);
+  assert.throws(() => scoreCandidate(candidate("x", [4, 3.5, 4, 4, 4, 4])), /integer score 1–5/);
+  const missing = candidate("x", all(4));
   missing.results = missing.results.filter((r) => r.criterionId !== "comprehension");
   assert.throws(() => scoreCandidate(missing), /Missing criterion/);
 });
 
-test("rejects below 50, compared unrounded (49.99 does not pass)", () => {
-  // (2×.15+3×.10+3×.10+3×.10+3×.05)/.5 = 1.35/.5 = 2.7 → 42.5
-  const low = scoreCandidate(candidate("x", concept(2, 3, 3, 3, 3)));
+test("rejects a Spark Score below 50; exactly 50 passes", () => {
+  const low = scoreCandidate(candidate("x", [2, 3, 3, 3, 3, 3])); // 2.7 → 42.5
   assert.equal(low.rejected, true);
   assert.equal(low.rejectionReasons[0].code, "below-threshold");
-  assert.equal(low.rejectionKind, "provisional-creative");
-  // Exactly 50 passes: (3×.15+3×.10+3×.10+3×.10+3×.05)/.5 = 3 → 50
-  assert.equal(scoreCandidate(candidate("y", concept(3, 3, 3, 3, 3))).rejected, false);
+  assert.equal(scoreCandidate(candidate("y", all(3))).rejected, false);
 });
 
 test("fit of 1 rejects, even with a high score", () => {
-  const s = scoreCandidate(candidate("x", concept(5, 5, 5, 1, 5)));
-  assert.ok(s.applicableScore >= 50);
-  assert.equal(s.rejected, true);
-  assert.deepEqual(
-    s.rejectionReasons.map((r) => r.code),
-    ["fit-fails"],
-  );
+  const s = scoreCandidate(candidate("x", [5, 5, 5, 5, 1, 5]));
+  assert.ok(s.rankingScore >= 50);
+  assert.deepEqual(s.rejectionReasons.map((r) => r.code), ["fit-fails"]);
 });
 
 test("a 1 on another criterion does not reject on its own", () => {
-  const s = scoreCandidate(candidate("x", concept(5, 1, 5, 5, 5)));
-  assert.equal(s.rejected, false);
+  assert.equal(scoreCandidate(candidate("x", [5, 5, 1, 5, 5, 5])).rejected, false);
 });
 
 test("audio-led ideas need at least 3 meaningful alternatives", () => {
-  const two = scoreCandidate(candidate("x", concept(5, 5, 5, 5, 5), { audioRole: "audio-led", variations: 2 }));
-  assert.equal(two.rejected, true);
+  const two = scoreCandidate(candidate("x", all(5), { audioRole: "audio-led", variations: 2 }));
   assert.equal(two.rejectionReasons[0].code, "audio-dependent");
-  const three = scoreCandidate(candidate("y", concept(5, 5, 5, 5, 5), { audioRole: "audio-led", variations: 3 }));
-  assert.equal(three.rejected, false);
-  const optional = scoreCandidate(candidate("z", concept(5, 5, 5, 5, 5), { audioRole: "audio-optional" }));
-  assert.equal(optional.rejected, false);
+  assert.equal(scoreCandidate(candidate("y", all(5), { audioRole: "audio-led", variations: 3 })).rejected, false);
+  assert.equal(scoreCandidate(candidate("z", all(5), { audioRole: "audio-optional" })).rejected, false);
 });
 
-test("ranks by score, highest first", () => {
+test("ranks by Spark Score, highest first; verified relevance is reported but doesn't change rank", () => {
   const r = rankCandidates([
-    candidate("a", concept(3, 3, 3, 3, 3), { index: 0 }),
-    candidate("b", concept(5, 5, 5, 5, 5), { index: 1 }),
-    candidate("c", concept(4, 4, 4, 4, 4), { index: 2 }),
+    candidate("a", all(3), { index: 0, verified: true }),
+    candidate("b", all(5), { index: 1 }),
+    candidate("c", all(4), { index: 2 }),
   ]);
   assert.deepEqual(r.scores.map((s) => s.candidateId), ["b", "c", "a"]);
   assert.deepEqual(r.scores.map((s) => s.rank), [1, 2, 3]);
   assert.equal(r.leaderId, "b");
-  assert.equal(r.leaderEvidenceBacked, false);
+  assert.equal(r.scores.find((s) => s.candidateId === "a")!.relevanceVerified, true);
+  assert.equal(r.scores.find((s) => s.candidateId === "b")!.relevanceVerified, false);
 });
 
-test("ties break on remixability, then comprehension, then generation order", () => {
-  // Same total, different shape:
-  // a: r5 c3 a3 f3 x3 → .75+.30+.30+.30+.15 = 1.80
-  // b: r3 c5 a4 f3 x3 → .45+.50+.40+.30+.15 = 1.80  (tie; a has higher remixability)
+test("ties break on remixability first, then the rest of the agreed order, then generation order", () => {
+  // Remixability and fit both weigh 20%, so these totals are equal.
   const tie = rankCandidates([
-    candidate("b", concept(3, 5, 4, 3, 3), { index: 0 }),
-    candidate("a", concept(5, 3, 3, 3, 3), { index: 1 }),
+    candidate("b", [4, 4, 4, 4, 5, 4], { index: 0 }),
+    candidate("a", [4, 5, 4, 4, 4, 4], { index: 1 }),
   ]);
-  assert.equal(tie.scores[0].applicableScore, tie.scores[1].applicableScore);
+  assert.equal(tie.scores[0].rankingScore, tie.scores[1].rankingScore);
   assert.equal(tie.leaderId, "a", "higher remixability wins the tie");
-
   const identical = rankCandidates([
-    candidate("second", concept(4, 4, 4, 4, 4), { index: 1 }),
-    candidate("first", concept(4, 4, 4, 4, 4), { index: 0 }),
+    candidate("second", all(4), { index: 1 }),
+    candidate("first", all(4), { index: 0 }),
   ]);
-  assert.equal(identical.leaderId, "first", "fully identical scores fall back to generation order");
+  assert.equal(identical.leaderId, "first");
 });
 
-test("if every candidate is rejected, there is no leader", () => {
-  const r = rankCandidates([
-    candidate("a", concept(2, 2, 2, 2, 2), { index: 0 }),
-    candidate("b", concept(5, 5, 5, 1, 5), { index: 1 }),
-    candidate("c", concept(5, 5, 5, 5, 5), { index: 2, audioRole: "audio-led", variations: 1 }),
+test("if every candidate is rejected, there is no leader; rejected ones list after ranked ones", () => {
+  const none = rankCandidates([
+    candidate("a", all(2), { index: 0 }),
+    candidate("b", [5, 5, 5, 5, 1, 5], { index: 1 }),
+    candidate("c", all(5), { index: 2, audioRole: "audio-led", variations: 1 }),
   ]);
-  assert.equal(r.leaderId, null);
-  assert.ok(r.scores.every((s) => s.rejected && s.rank === null));
+  assert.equal(none.leaderId, null);
+  assert.ok(none.scores.every((s) => s.rejected && s.rank === null));
+  const mixed = rankCandidates([candidate("bad", all(1), { index: 0 }), candidate("ok", all(3), { index: 1 })]);
+  assert.deepEqual(mixed.scores.map((s) => s.candidateId), ["ok", "bad"]);
 });
 
-test("rejected candidates are listed after ranked ones", () => {
-  const r = rankCandidates([
-    candidate("bad", concept(1, 1, 1, 1, 1), { index: 0 }),
-    candidate("ok", concept(3, 3, 3, 3, 3), { index: 1 }),
-  ]);
-  assert.deepEqual(r.scores.map((s) => s.candidateId), ["ok", "bad"]);
-});
-
-test("Day 3 readiness: partial evidence is never presented as evidence-backed", () => {
-  const partial = scoreCandidate(candidate("x", { ...concept(4, 4, 4, 4, 4), culturalRelevance: 4 }));
-  assert.equal(partial.mode, "partial");
-  assert.equal(partial.evidenceBacked, false);
-  assert.equal(partial.rejectionKind, null);
-
-  const full = rankCandidates([
-    candidate("x", { ...concept(4, 4, 4, 4, 4), culturalRelevance: 4, emergingMomentum: 4 }),
-  ]);
-  assert.equal(full.leaderEvidenceBacked, true);
-
-  const fullReject = scoreCandidate(
-    candidate("y", { ...concept(2, 2, 2, 2, 2), culturalRelevance: 2, emergingMomentum: 2 }),
-  );
-  assert.equal(fullReject.rejectionKind, "evidence-based");
-});
-
-/* ---------- Checkpoint 4: revision decision ---------- */
+/* ---------- Revision decision, on the Spark Score ---------- */
 
 const allYes = { preservesMechanic: true, addressesWeakness: true, noUnsupportedClaims: true };
-const scoreOfConcept = (r: number, c: number, a: number, f: number, x: number, opts = {}) =>
-  scoreCandidate(candidate("x", concept(r, c, a, f, x), opts));
+const scored = (scores: number[]) => scoreCandidate(candidate("x", scores));
 
 test("revision with exactly +5 and all checks passing replaces the original", () => {
-  const original = scoreOfConcept(3, 3, 3, 3, 3); // 50
-  const revised = scoreOfConcept(3, 4, 3, 3, 3); // +.10/.5 = +.2 avg → +5
-  assert.ok(Math.abs(revised.applicableScore - original.applicableScore - 5) < 1e-9);
+  const original = scored(all(3)); // 50
+  const revised = scored([3, 4, 3, 3, 3, 3]); // remixability +1 × 20% → +5
+  assert.ok(Math.abs(revised.rankingScore - original.rankingScore - 5) < 1e-9);
   const d = decideRevision(original, revised, allYes);
   assert.equal(d.outcome, "kept-revised");
   assert.ok(d.checks.every((c) => c.passed));
 });
 
-test("a gain under 5 keeps the original (+2.5)", () => {
-  const original = scoreOfConcept(3, 3, 3, 3, 3); // 50
-  const revised = scoreOfConcept(3, 3, 3, 3, 4); // +2.5
-  const d = decideRevision(original, revised, allYes);
+test("a gain under 5 keeps the original (+3.75)", () => {
+  const d = decideRevision(scored(all(3)), scored([3, 3, 4, 3, 3, 3]), allYes); // comprehension +1 × 15%
   assert.equal(d.outcome, "kept-original");
-  assert.equal(d.checks.find((c) => c.rule.startsWith("Improves"))!.passed, false);
+  assert.equal(d.checks.find((c) => c.rule.startsWith("Improves the Spark Score"))!.passed, false);
 });
 
 test("a large gain still loses if the mechanic changed, the weakness wasn't addressed, or claims were added", () => {
-  const original = scoreOfConcept(3, 3, 3, 3, 3);
-  const revised = scoreOfConcept(5, 5, 5, 5, 5); // +50
   for (const broken of ["preservesMechanic", "addressesWeakness", "noUnsupportedClaims"] as const) {
-    const d = decideRevision(original, revised, { ...allYes, [broken]: false });
-    assert.equal(d.outcome, "kept-original", broken);
+    assert.equal(decideRevision(scored(all(3)), scored(all(5)), { ...allYes, [broken]: false }).outcome, "kept-original", broken);
   }
 });
 
 test("a rejected revision keeps the original, even with a big gain", () => {
-  const original = scoreOfConcept(3, 3, 3, 3, 3);
-  const revised = scoreOfConcept(5, 5, 5, 1, 5); // fit = 1 → rejected
+  const revised = scored([5, 5, 5, 5, 1, 5]);
   assert.equal(revised.rejected, true);
-  assert.equal(decideRevision(original, revised, allYes).outcome, "kept-original");
+  assert.equal(decideRevision(scored(all(3)), revised, allYes).outcome, "kept-original");
 });
 
-test("an equal or lower score keeps the original", () => {
-  const original = scoreOfConcept(4, 4, 4, 4, 4);
-  assert.equal(decideRevision(original, scoreOfConcept(4, 4, 4, 4, 4), allYes).outcome, "kept-original");
-  assert.equal(decideRevision(original, scoreOfConcept(3, 4, 4, 4, 4), allYes).outcome, "kept-original");
-});
-
-test("no revision (or no checks) keeps the original with gain = null", () => {
-  const original = scoreOfConcept(4, 4, 4, 4, 4);
+test("an equal or lower score keeps the original; no revision gives gain = null", () => {
+  const original = scored(all(4));
+  assert.equal(decideRevision(original, scored(all(4)), allYes).outcome, "kept-original");
+  assert.equal(decideRevision(original, scored([4, 3, 4, 4, 4, 4]), allYes).outcome, "kept-original");
   const d = decideRevision(original, null, null);
   assert.equal(d.outcome, "kept-original");
   assert.equal(d.gain, null);

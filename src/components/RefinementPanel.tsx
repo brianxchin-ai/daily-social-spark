@@ -44,7 +44,7 @@ export function RefinementPanel({
         <strong className="text-ink">One round of notes, at most one revision.</strong> A separate editor call names
         the leading idea&apos;s biggest creative weakness. If a revision is justified, the reviewer rescores it with the
         same criteria and checks whether the original evidence still applies. Our code keeps the revision only if it
-        passes every rule, including a Concept Score gain of at least 5 and no loss of verified evidence.
+        passes every rule, including a Spark Score gain of at least 5.
       </p>
 
       <CritiqueBlock critique={critique} />
@@ -139,9 +139,9 @@ function CritiqueBlock({ critique }: { critique: { weakness: string; affectedCri
 }
 
 function BeforeAfter({ original, revised }: { original: CandidateEvaluation; revised: CandidateEvaluation }) {
-  const concept = CRITERIA.filter((c) => c.basis === "concept");
+  const concept = CRITERIA;
   const scoreOf = (e: CandidateEvaluation, id: string) => e.results.find((r) => r.criterionId === id)?.score ?? null;
-  const gain = revised.score.conceptScore - original.score.conceptScore;
+  const gain = revised.score.rankingScore - original.score.rankingScore;
   return (
     <table className="w-full table-fixed border-collapse text-left">
       <thead>
@@ -183,19 +183,19 @@ function BeforeAfter({ original, revised }: { original: CandidateEvaluation; rev
       <tfoot>
         <tr className="border-t-2 border-ink">
           <th scope="row" className="py-3 pr-2 text-[13px] font-bold">
-            Concept Score <span className="readout font-normal text-ink-soft">decides the gain</span>
+            Spark Score <span className="readout font-normal text-ink-soft">decides the gain</span>
           </th>
           <td className="py-3 text-center">
-            <span className="headline text-[28px]" title={`Exact: ${original.score.conceptScore.toFixed(2)}`}>
-              {formatScore(original.score.conceptScore)}
+            <span className="headline text-[28px]" title={`Exact: ${original.score.rankingScore.toFixed(2)}`}>
+              {formatScore(original.score.rankingScore)}
             </span>
           </td>
           <td className="py-3 text-center">
             <span
               className={`headline text-[28px] ${revised.score.rejected ? "text-ink-soft line-through decoration-2" : ""}`}
-              title={`Exact: ${revised.score.conceptScore.toFixed(2)}`}
+              title={`Exact: ${revised.score.rankingScore.toFixed(2)}`}
             >
-              {formatScore(revised.score.conceptScore)}
+              {formatScore(revised.score.rankingScore)}
             </span>
             <span className={`readout block ${gain >= 0 ? "text-hypo" : "text-ember"}`}>
               {gain >= 0 ? "+" : ""}

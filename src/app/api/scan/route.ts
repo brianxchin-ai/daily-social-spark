@@ -245,10 +245,8 @@ async function runCreative(
     ...(scan.audience ? { audience: scan.audience } : {}),
     candidates,
     evaluation: {
-      mode: ranking.scores[0]?.mode ?? "concept",
       evaluations,
       leaderId: ranking.leaderId,
-      leaderEvidenceBacked: ranking.leaderEvidenceBacked,
     },
     refinement: refined.refinement,
     finalCandidate: refined.finalCandidate,
@@ -259,7 +257,7 @@ async function runCreative(
   };
 
   console.info(
-    `[scan] ranked ${evaluations.map((e) => `${e.evaluatorLabel}=${e.score.rankingScore.toFixed(2)}${e.score.provisional ? "p" : ""}/c${e.score.conceptScore.toFixed(1)}/${e.score.status}${e.score.rejected ? "(rejected)" : ""}`).join(" ")} leader=${ranking.leaderId ?? "none"} total=$${spark.generation.estimatedCostUsd.toFixed(4)}`,
+    `[scan] ranked ${evaluations.map((e) => `${e.evaluatorLabel}=${e.score.rankingScore.toFixed(2)}${e.score.relevanceVerified ? "/relevance-verified" : ""}${e.score.rejected ? "(rejected)" : ""}`).join(" ")} leader=${ranking.leaderId ?? "none"} total=$${spark.generation.estimatedCostUsd.toFixed(4)}`,
   );
   return spark;
 }

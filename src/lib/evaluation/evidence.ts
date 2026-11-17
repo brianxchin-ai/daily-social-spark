@@ -1,96 +1,59 @@
 import {
   ageInDays,
-  MOMENTUM_WINDOW_DAYS,
   numbersSupported,
   RELEVANCE_WINDOW_DAYS,
   type EvidenceLedger,
-  type LedgerObservation,
 } from "../research/ledger.ts";
-import type { CriterionId, CriterionResult } from "./scoring.ts";
+import type { CriterionResult } from "./scoring.ts";
 
 /**
- * Evidence-aware scoring for Cultural Relevance and Emerging Momentum.
+ * Cultural Relevance, Day 5: the reviewer's 1–5 score always stands. It is
+ * AI judgment, drawing on the research and the model's cultural knowledge.
  *
- * The evaluator PROPOSES a 1–5 score and names the ledger observations it
- * rests on. Code decides whether the score may stand:
- *  - only with a verified ledger, and only from signals the candidate is
- *    grounded in (the evidence must belong to this idea's cultural claim);
- *  - only if those signals clear the ledger's eligibility rules;
- *  - Cultural Relevance needs a cited observation with a behavior date in the
- *    relevance window; Emerging Momentum needs a cited, behavior-dated
- *    increase in the momentum window. Recency, publication dates, popularity
- *    totals and novelty never count as acceleration;
- *  - the score is capped at what the evidence allows.
- * Anything else is Unverified, with the reason.
+ * Code decides only whether the research also VERIFIES it, a label that never
+ * changes the score. Verified means: a verified ledger; the idea is grounded
+ * in a signal that cleared the ledger's relevance bar; and the reviewer cited
+ * an observation from that signal with a behavior date in the relevance window.
  */
 
-export interface EvidenceProposal {
-  /** 1–5, or 0 when the evaluator judged it can't be scored. */
-  proposedScore: number;
-  observationIds: string[];
+export interface RelevanceAssessment {
+  /** 1–5, the reviewer's judgment. */
+  score: number;
   rationale: string;
+  /** Ledger observation IDs the judgment draws on, if any. */
+  observationIds: string[];
+  judgedFrom: "research" | "general-knowledge" | "both";
 }
 
-type EvidenceCriterion = Extract<CriterionId, "culturalRelevance" | "emergingMomentum">;
-
-function unverified(criterionId: EvidenceCriterion, reason: string): CriterionResult {
-  return { criterionId, status: "unverified", score: null, rationale: reason };
-}
-
-export function evidenceResult(
-  criterionId: EvidenceCriterion,
-  proposal: EvidenceProposal,
+export function relevanceResult(
+  assessment: RelevanceAssessment,
   ledger: EvidenceLedger | null,
   groundedIn: string[],
 ): CriterionResult {
-  if (!ledger) return unverified(criterionId, "No verified research for this scan.");
-  const signals = ledger.signals.filter((s) => groundedIn.includes(s.id));
-  if (signals.length === 0) return unverified(criterionId, "This idea isn't grounded in a researched signal.");
-
-  const now = new Date(ledger.createdAt);
-  const cited = ledger.observations.filter(
-    (o) => proposal.observationIds.includes(o.id) && signals.some((s) => s.id === o.signalId),
-  );
-  const proposed = proposal.proposedScore;
-  if (!Number.isInteger(proposed) || proposed < 1 || proposed > 5) {
-    return unverified(criterionId, proposal.rationale || "The reviewer judged it can't be scored from the evidence.");
-  }
-  if (cited.length === 0) {
-    return unverified(criterionId, "No cited observation from this idea's own signals supports the score.");
-  }
-
-  const key = criterionId === "culturalRelevance" ? "culturalRelevance" : "momentum";
-  const eligible = signals.filter((s) => s[key].status === "eligible" && cited.some((o) => o.signalId === s.id));
-  if (eligible.length === 0) {
-    return unverified(criterionId, signals.map((s) => s[key].reason).find(Boolean) ?? "The evidence doesn't meet the bar.");
-  }
-
-  const qualifies = (o: LedgerObservation) => {
-    const age = ageInDays(o.behavior, now);
-    if (age === null) return false;
-    return criterionId === "culturalRelevance"
-      ? age <= RELEVANCE_WINDOW_DAYS
-      : o.kind === "growth" && age <= MOMENTUM_WINDOW_DAYS;
-  };
-  if (!cited.some(qualifies)) {
-    return unverified(
-      criterionId,
-      criterionId === "culturalRelevance"
-        ? `None of the cited observations has a behavior date in the last ${RELEVANCE_WINDOW_DAYS} days.`
-        : `None of the cited observations is a behavior-dated increase in the last ${MOMENTUM_WINDOW_DAYS} days.`,
-    );
-  }
-
-  const cap = Math.max(...eligible.map((s) => s[key].maxScore ?? 0));
-  const score = Math.min(proposed, cap);
-  const capped = score < proposed ? ` (capped at ${cap} by the strength of the evidence)` : "";
-  return {
-    criterionId,
+  const base: CriterionResult = {
+    criterionId: "culturalRelevance",
     status: "scored",
-    score,
-    rationale: `${proposal.rationale}${capped}`,
-    observationIds: cited.map((o) => o.id),
+    score: assessment.score,
+    rationale: assessment.rationale,
+    judgedFrom: assessment.judgedFrom,
+    observationIds: [],
+    verified: false,
   };
+  if (!ledger) return base;
+  const signals = ledger.signals.filter((s) => groundedIn.includes(s.id));
+  // Only real observations from this idea's own signals are kept as citations.
+  const cited = ledger.observations.filter(
+    (o) => assessment.observationIds.includes(o.id) && signals.some((s) => s.id === o.signalId),
+  );
+  const now = new Date(ledger.createdAt);
+  const eligible = signals.filter(
+    (s) => s.culturalRelevance.status === "eligible" && cited.some((o) => o.signalId === s.id),
+  );
+  const dated = cited.some((o) => {
+    const age = ageInDays(o.behavior, now);
+    return age !== null && age <= RELEVANCE_WINDOW_DAYS;
+  });
+  return { ...base, observationIds: cited.map((o) => o.id), verified: eligible.length > 0 && dated };
 }
 
 /** Signal IDs a candidate claims, kept only if they exist in the ledger. */
@@ -126,32 +89,3 @@ export function checkGrounding(
   }
   return { groundedIn, contextIn, warnings };
 }
-
-export type EvidenceSupport = "yes" | "partly" | "no" | "not-applicable";
-
-/**
- * Carry the original's evidence scores to the revision only where the
- * rescorer confirms the same evidence still supports the revised idea and the
- * cultural claim didn't change. Otherwise the revision's evidence criterion
- * is Unverified. Pure, so it can be tested.
- */
-export function revisedEvidence(
-  originalResults: CriterionResult[],
-  support: { culturalRelevance: EvidenceSupport; emergingMomentum: EvidenceSupport },
-  claimChanged: boolean,
-): CriterionResult[] {
-  return (["culturalRelevance", "emergingMomentum"] as const).map((id): CriterionResult => {
-    const original = originalResults.find((r) => r.criterionId === id)!;
-    if (original.status !== "scored") return original;
-    if (!claimChanged && support[id] === "yes") return original;
-    return {
-      criterionId: id,
-      status: "unverified",
-      score: null,
-      rationale: claimChanged
-        ? "The revision changed the cultural claim, so the original evidence no longer applies."
-        : `The reviewer judged the original evidence supports the revision only "${support[id]}".`,
-    };
-  });
-}
-

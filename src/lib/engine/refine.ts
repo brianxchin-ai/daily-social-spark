@@ -5,7 +5,6 @@ import {
   decideRevision,
   MIN_REVISION_GAIN,
   scoreCandidate,
-  type CriterionId,
   type RevisionDecision,
 } from "@/lib/evaluation/scoring";
 import type { EvidenceLedger } from "@/lib/research/ledger";
@@ -143,8 +142,7 @@ export async function refineLeader(
     };
   }
 
-  // Step 2: rescore the revision with the same evaluator instructions, and
-  // check whether the original evidence still supports it.
+  // Step 2: rescore the revision with the same evaluator instructions.
   let rescored;
   try {
     rescored = await rescoreRevision(
@@ -153,9 +151,8 @@ export async function refineLeader(
         original: toDraft(leader),
         revised: toDraft(revised),
         weakness: critique.weakness,
-        // The evidence under test is the original's: same signals, same observations.
+        // The revision keeps the original's signals, so relevance is verified against them.
         groundedIn: leader.groundedIn,
-        originalResults: leaderEvaluation.results,
         ledger,
       },
       Math.min(90_000, left - 5_000),
@@ -180,11 +177,10 @@ export async function refineLeader(
     audioRole: revised.audioRole,
     meaningfulAudioVariations: rescored.meaningfulAudioVariations,
   });
-  const lostVerified = lostEvidence(leaderEvaluation.results, rescored.results);
-  const decision = decideRevision(leaderEvaluation.score, revisedScore, rescored.checks, ledger ? { lostVerified } : undefined);
+  const decision = decideRevision(leaderEvaluation.score, revisedScore, rescored.checks);
 
   console.info(
-    `[refine] concept original=${leaderEvaluation.score.conceptScore.toFixed(2)} revised=${revisedScore.conceptScore.toFixed(2)} gain=${decision.gain?.toFixed(2)} lostEvidence=${lostVerified.length} outcome=${decision.outcome}`,
+    `[refine] spark original=${leaderEvaluation.score.rankingScore.toFixed(2)} revised=${revisedScore.rankingScore.toFixed(2)} gain=${decision.gain?.toFixed(2)} outcome=${decision.outcome}`,
   );
 
   return {
@@ -204,22 +200,10 @@ export async function refineLeader(
         },
         checks: rescored.checks,
         checksRationale: rescored.checksRationale,
-        evidenceRationale: rescored.evidenceRationale,
       },
       decision,
     },
     finalCandidate: decision.outcome === "kept-revised" ? revised : leader,
     usages,
   };
-}
-
-/** Evidence criteria verified for the original but not for the revision. */
-export function lostEvidence(
-  original: { criterionId: CriterionId; status: string }[],
-  revised: { criterionId: CriterionId; status: string }[],
-): CriterionId[] {
-  return original
-    .filter((r) => r.status === "scored" && (r.criterionId === "culturalRelevance" || r.criterionId === "emergingMomentum"))
-    .filter((r) => revised.find((x) => x.criterionId === r.criterionId)?.status !== "scored")
-    .map((r) => r.criterionId);
 }

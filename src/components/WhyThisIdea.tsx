@@ -1,12 +1,5 @@
-import type { EvidenceStatus } from "@/lib/evaluation/scoring";
 import type { IdeaSource } from "@/lib/research/idea-sources";
 import { plural } from "./EvidenceStatus";
-
-const TREND_NOTE: Record<EvidenceStatus, string> = {
-  "evidence-backed": "the trend is confirmed by dated sources",
-  "partially-evidenced": "the trend is only partly confirmed",
-  "unverified-hypothesis": "none confirm the trend is growing yet",
-};
 
 /** The search API's page age is free text ("0 days ago", "1 days ago"); tidy the awkward cases. */
 export function tidyAge(age: string): string {
@@ -23,12 +16,13 @@ export function tidyAge(age: string): string {
 export function WhyThisIdea({
   paragraphs,
   sources,
-  status,
+  verified,
   researched,
 }: {
   paragraphs: string[];
   sources: IdeaSource[];
-  status: EvidenceStatus;
+  /** The research verified the idea's cultural relevance. */
+  verified: boolean;
   /** Did verified research run for this scan? */
   researched: boolean;
 }) {
@@ -46,7 +40,7 @@ export function WhyThisIdea({
           ? "No live research was used · treat this as a creative hypothesis"
           : sources.length === 0
             ? "No sources support this idea directly · treat it as a creative hypothesis"
-            : `${plural(sources.length, "source")} · ${TREND_NOTE[status]}`}
+            : `${plural(sources.length, "source")} · ${verified ? "cultural relevance verified" : "cultural relevance is AI judgment"}`}
       </p>
 
       {sources.length > 0 && (

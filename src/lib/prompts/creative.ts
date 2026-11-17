@@ -124,6 +124,7 @@ export function ledgerDigest(ledger: EvidenceLedger): string {
 /* ---------- Evaluator ---------- */
 
 const CONCEPT = CRITERIA.filter((c) => c.basis === "concept" && c.id !== "brandPlatformFit");
+const RELEVANCE = CRITERIA.find((c) => c.id === "culturalRelevance")!;
 
 export function evaluatorSystem(platform: Platform): string {
   const label = PLATFORM_PROFILES[platform].label;
@@ -146,14 +147,15 @@ General scale: 5 Exceptional, 4 Strong, 3 Adequate, 2 Weak, 1 Poor. Use the full
 
 Audio rule: audio portability measures dependence on one specific existing song, sound or track. Original narration, voiceover and dialogue are NOT dependencies. For each candidate built around a specific track, count how many listed audio variations genuinely preserve the mechanic without copying it.
 
-Cultural relevance and emerging momentum (evidence criteria):
-- Score them only from the evidence ledger's observations for the signals the candidate is grounded in, and cite those observation IDs. The evidence must support this candidate's specific cultural claim, not merely mention a related topic.
-- If there is no ledger, the candidate isn't grounded, or the evidence doesn't support the claim, give proposedScore 0 and say what evidence would be needed.
-- Emerging momentum requires a cited observation that itself describes an increase over time. Never infer acceleration from recency, publication dates, popularity totals or novelty.
-- Novelty labels don't decide scores. A derivative signal can still be culturally relevant; an emerging one can still have unverified momentum.
-- Only the candidate's groundedIn signals can support these scores. Signals listed as context (contextIn) never establish that the idea's mechanism is culturally live.
+Cultural relevance (your judgment):
+- "${RELEVANCE.name}". ${RELEVANCE.question}
+  1 = ${RELEVANCE.anchors[1]} 3 = ${RELEVANCE.anchors[3]} 5 = ${RELEVANCE.anchors[5]}
+- Score it 1 to 5 from your own judgment, drawing on this scan's research (the evidence ledger) and your broader understanding of culture, and of the intended audience if one is given. A 5 is available whenever you genuinely believe the idea expresses a specific, live cultural behavior or tension, even if no source proves it.
+- Your own knowledge of culture has a cutoff date; this scan's research is the only current information you have. Prefer the research where it speaks to the idea, and when you rely on general knowledge, allow for trends that may have faded since.
+- Don't be generous by default: a broad, familiar theme is a 3.
+- Judge this idea's own cultural connection; research on a merely related topic isn't enough. Signals listed as context (contextIn) are background. Novelty labels don't decide the score.
+- judgedFrom: "research", "general-knowledge" or "both". observationIds: the ledger observations you drew on, if any.
 - Judge each execution on its merits: don't reward unconventionality, or penalize a conventional approach, by itself.
-- Your proposed scores are checked against the ledger's evidence rules and may be capped or set aside.
 
 Rules:
 - Each rationale is one concise sentence of 25 words or fewer.

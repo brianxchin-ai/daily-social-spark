@@ -45,18 +45,26 @@ test("generator: evidence, inference and hypothesis are kept apart; novelty does
   assert.ok(noEvidence.includes("groundedIn and contextIn: empty lists"));
 });
 
-test("evaluator: execution judged for the brand, surprise rewarded, evidence rules stated", () => {
+test("evaluator: execution judged for the brand, surprise rewarded, relevance judged honestly", () => {
   const e = evaluatorSystem("tiktok");
   for (const phrase of [
     "Judge the execution, not whether the original cultural signal was an obvious match",
     "Reward an unexpected but strategically compelling connection",
     "Don't give an obvious but unimaginative connection a strong score just for being obvious",
     "judged as two separate scores",
-    "The evidence must support this candidate's specific cultural claim",
-    "Never infer acceleration from recency, publication dates, popularity totals or novelty",
-    "Novelty labels don't decide scores",
     "Original narration, voiceover and dialogue are NOT dependencies",
+    // Day 5: cultural relevance is AI judgment, a 5 is possible without proof, and the cutoff is acknowledged.
+    "Score it 1 to 5 from your own judgment",
+    "A 5 is available whenever you genuinely believe the idea expresses a specific, live cultural behavior or tension, even if no source proves it",
+    "Your own knowledge of culture has a cutoff date; this scan's research is the only current information you have",
+    "Don't be generous by default: a broad, familiar theme is a 3.",
+    "research on a merely related topic isn't enough",
+    "Novelty labels don't decide the score",
+    'judgedFrom: "research", "general-knowledge" or "both"',
   ]) assert.ok(e.includes(phrase), phrase);
+  // Momentum is no longer scored.
+  assert.ok(!e.includes("emerging momentum"));
+  assert.ok(!e.includes("proposedScore"));
 });
 
 test("acceptance: the Generator is told to explore genuinely distinct mechanisms, not reworded duplicates", () => {
@@ -74,7 +82,7 @@ test("acceptance: the Generator is told to explore genuinely distinct mechanisms
   ]) assert.ok(g.includes(phrase), phrase);
   const e = evaluatorSystem("tiktok");
   assert.ok(e.includes("don't reward unconventionality, or penalize a conventional approach, by itself"));
-  assert.ok(e.includes("Signals listed as context (contextIn) never establish"));
+  assert.ok(e.includes("Signals listed as context (contextIn) are background"));
 });
 
 test("generator: asks for one prose walkthrough, separate from the three format ideas", () => {

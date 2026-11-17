@@ -14,7 +14,7 @@ import { callStructured, platformLabel, type ScanUsage } from "./claude";
 const EDITOR_SYSTEM = `You are a creative director giving one round of notes on a short-form social idea for a brand. You did not write it.
 
 Your job, in order:
-1. Name the single most significant CREATIVE weakness: something about the idea itself (clarity, repeatability, dependence on a specific track, brand or platform fit, portability). Do not critique cultural relevance, trend momentum or performance; those cannot be judged without live data.
+1. Name the single most significant CREATIVE weakness: something about the idea itself (clarity, repeatability, dependence on a specific track, brand or platform fit, portability). Do not critique cultural relevance, trend momentum or performance; those are judged elsewhere.
 2. Decide whether one revision could meaningfully improve the idea. If the idea is already strong or the weakness is inherent to it, say no; a revision is not required.
 3. Only if justified, write exactly one revised version that:
    - keeps the same core creative mechanic (it must still be recognizably the same idea),

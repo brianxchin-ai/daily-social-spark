@@ -1,39 +1,22 @@
-import type { EvidenceStatus } from "@/lib/evaluation/scoring";
 import type { HypothesisSpark } from "@/lib/types";
 
-export const STATUS_LABEL: Record<EvidenceStatus, string> = {
-  "evidence-backed": "Evidence-backed",
-  "partially-evidenced": "Partially evidenced",
-  "unverified-hypothesis": "Unverified creative hypothesis",
+const RELEVANCE_HELP = {
+  verified: "The research verified it: a cited, dated source from this idea's own signal shows the behavior is live.",
+  judged: "Scored by AI judgment from the research and the model's cultural knowledge. No dated source verified it.",
 };
 
-const STATUS_HELP: Record<EvidenceStatus, string> = {
-  "evidence-backed": "Cultural relevance and emerging momentum were both verified from cited, dated sources.",
-  "partially-evidenced": "One of the two evidence checks passed; the other couldn't be confirmed from dated sources.",
-  "unverified-hypothesis":
-    "The research couldn't confirm, from dated sources, that this is a current or growing trend. The idea may still be strong: treat it as a creative hypothesis and check it before you act.",
-};
-
-/** How much of a recommendation rests on verified evidence. */
-export function StatusBadge({ status, size = "sm" }: { status: EvidenceStatus; size?: "sm" | "md" }) {
-  const tone =
-    status === "evidence-backed"
-      ? "border-hypo bg-hypo text-surface"
-      : status === "partially-evidenced"
-        ? "border-hypo text-hypo"
-        : "border-dashed border-ink-soft text-ink-soft";
+/** Whether the idea's cultural relevance was verified by the research or is AI judgment. A label only. */
+export function RelevanceBadge({ verified }: { verified: boolean }) {
   return (
     <span
-      className={`readout inline-flex w-fit items-center gap-1 self-start rounded-sm border px-1.5 py-px font-bold ${tone} ${size === "md" ? "text-[11px]" : "text-[10px]"}`}
-      title={STATUS_HELP[status]}
+      className={`readout inline-flex w-fit items-center gap-1 self-start rounded-sm border px-1.5 py-px text-[10px] font-bold ${
+        verified ? "border-hypo bg-hypo text-surface" : "border-dashed border-ink-soft text-ink-soft"
+      }`}
+      title={verified ? RELEVANCE_HELP.verified : RELEVANCE_HELP.judged}
     >
-      {status === "evidence-backed" ? "✓" : status === "partially-evidenced" ? "◐" : "◇"} {STATUS_LABEL[status]}
+      {verified ? "✓ Relevance verified" : "◇ AI judgment"}
     </span>
   );
-}
-
-export function statusHelp(status: EvidenceStatus): string {
-  return STATUS_HELP[status];
 }
 
 export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;

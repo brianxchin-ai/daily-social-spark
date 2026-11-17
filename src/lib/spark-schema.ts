@@ -136,12 +136,13 @@ const ConceptScoreSchema = z.object({
   rationale: z.string().describe("One concise sentence (25 words or fewer) explaining the score."),
 });
 
-const EvidenceProposalSchema = z.object({
-  proposedScore: z
-    .number()
-    .describe("Integer 1 to 5 from the ledger's cited observations, or 0 if it can't be scored from the evidence."),
-  observationIds: z.array(z.string()).describe("The ledger observation IDs (O1, O2…) the score rests on."),
-  rationale: z.string().describe("One sentence. If 0, say what evidence would be needed."),
+const RelevanceSchema = z.object({
+  score: z.number().describe("Integer from 1 to 5: your judgment of cultural relevance, using the anchors given."),
+  rationale: z.string().describe("One concise sentence (25 words or fewer) explaining the score."),
+  observationIds: z.array(z.string()).describe("Ledger observation IDs (O1, O2…) your judgment draws on. Empty if none."),
+  judgedFrom: z
+    .enum(["research", "general-knowledge", "both"])
+    .describe("What the judgment leans on: this scan's research, your general cultural knowledge, or both."),
 });
 
 /** The criteria the evaluator scores for each candidate (shared by evaluation and rescoring). */
@@ -152,8 +153,7 @@ const AssessmentFields = {
   brandFit: ConceptScoreSchema.describe("Does the execution work for this brand or category? Judged separately from platform."),
   platformFit: ConceptScoreSchema.describe("Does it feel native to the selected platform? Judged separately from brand."),
   crossPlatform: ConceptScoreSchema,
-  culturalRelevance: EvidenceProposalSchema,
-  emergingMomentum: EvidenceProposalSchema,
+  culturalRelevance: RelevanceSchema,
   meaningfulAudioVariations: z
     .number()
     .describe(
@@ -233,10 +233,10 @@ const StrictCandidateSetSchema = z
   });
 
 const StrictScore = z.object({ score: z.number().int().min(1).max(5), rationale: nonEmpty });
-const StrictProposal = z.object({
-  proposedScore: z.number().int().min(0).max(5),
-  observationIds: z.array(z.string()).max(12),
+const StrictRelevance = RelevanceSchema.extend({
+  score: z.number().int().min(1).max(5),
   rationale: nonEmpty,
+  observationIds: z.array(z.string()).max(12),
 });
 const StrictAssessment = {
   remixability: StrictScore,
@@ -245,8 +245,7 @@ const StrictAssessment = {
   brandFit: StrictScore,
   platformFit: StrictScore,
   crossPlatform: StrictScore,
-  culturalRelevance: StrictProposal,
-  emergingMomentum: StrictProposal,
+  culturalRelevance: StrictRelevance,
   meaningfulAudioVariations: z.number().int().min(0).max(20),
 };
 
@@ -342,20 +341,8 @@ export function validateRevisedCandidate(value: unknown): Validated<CandidateDra
 
 /* ---------- Checkpoint 4: rescoring the revision ---------- */
 
-const SUPPORT = ["yes", "partly", "no", "not-applicable"] as const;
-
 export const RescoreSchema = z.object({
   ...AssessmentFields,
-  evidenceStillSupports: z
-    .object({
-      culturalRelevance: z.enum(SUPPORT),
-      emergingMomentum: z.enum(SUPPORT),
-    })
-    .describe(
-      "Does the original's cited evidence still support the REVISED idea's cultural claim? not-applicable if the original had no verified score for it.",
-    ),
-  culturalClaimChanged: z.boolean().describe("Did the revision change the underlying cultural claim or signal?"),
-  evidenceRationale: z.string().describe("One sentence explaining the evidence answers."),
   preservesMechanic: z.boolean().describe("Does the revision keep the original core creative mechanic?"),
   addressesWeakness: z.boolean().describe("Does the revision address the named weakness?"),
   introducesUnsupportedClaims: z
@@ -369,7 +356,6 @@ export type RescoreDraft = z.infer<typeof RescoreSchema>;
 const StrictRescoreSchema = RescoreSchema.extend({
   ...StrictAssessment,
   checksRationale: nonEmpty,
-  evidenceRationale: nonEmpty,
 }).refine(noUrls, { message: "Rationales must not contain URLs." });
 
 export function validateRescore(value: unknown): Validated<RescoreDraft> {

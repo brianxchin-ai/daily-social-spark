@@ -41,8 +41,8 @@ export function EvidencePanel({ spark }: { spark: HypothesisSpark }) {
         <p className="readout font-bold">⚠ No verified research behind this result</p>
         <p className="text-[14px] leading-relaxed">{summary.text}</p>
         <p className="text-[14px] leading-relaxed text-ink-soft">
-          Every idea here is an unverified creative hypothesis. Cultural relevance and momentum stay unverified, and
-          nothing is presented as evidence.
+          Every idea here is a creative hypothesis. Cultural relevance is scored by AI judgment from general
+          knowledge, and nothing is presented as evidence.
         </p>
       </div>
     );
@@ -62,8 +62,7 @@ export function EvidencePanel({ spark }: { spark: HypothesisSpark }) {
       <p className="text-[14px] leading-relaxed text-ink-soft">
         <strong className="text-ink">{summary.text}</strong> Sources come only from what the search actually returned,
         and quotes are verbatim. A <em>publication date</em> says when something was reported; only a{" "}
-        <em>behavior date</em> written in a source counts toward recency, and only a dated, quoted increase counts as
-        momentum.
+        <em>behavior date</em> written in a source can verify cultural relevance.
       </p>
 
       {used.length > 0 && (
@@ -158,16 +157,12 @@ function SignalCard({
             </dd>
           </div>
           <div>
-            <dt className="readout font-bold">Evidence bar</dt>
+            <dt className="readout font-bold">Verification bar</dt>
             <dd>
               Cultural relevance:{" "}
               {signal.culturalRelevance.status === "eligible"
-                ? `met (score capped at ${signal.culturalRelevance.maxScore})`
+                ? "met: can verify an idea built on it"
                 : `not met: ${signal.culturalRelevance.reason}`}
-            </dd>
-            <dd>
-              Momentum:{" "}
-              {signal.momentum.status === "eligible" ? `met (score capped at ${signal.momentum.maxScore})` : `not met: ${signal.momentum.reason}`}
             </dd>
           </div>
         </dl>
