@@ -14,6 +14,7 @@ import type {
 } from "./evaluation/scoring";
 import type { DiversityReport } from "@/lib/evaluation/diversity";
 import type { DistributionDriver } from "@/lib/spark-schema";
+import type { RecentIdea } from "@/lib/prompts/recent-ideas";
 import type { EvidenceLedger } from "@/lib/research/ledger";
 
 export type Platform = "tiktok" | "instagram-reels" | "youtube-shorts" | "facebook" | "snapchat";
@@ -32,6 +33,8 @@ export interface ScanRequest {
   platform: Platform;
   /** Optional: who the person wants to reach, in their own words. */
   audience?: string;
+  /** Ideas this visitor was shown recently (from their browser), so new ones don't repeat them. */
+  recentIdeas?: RecentIdea[];
 }
 
 /** How strongly a piece of evidence supports the opportunity. */

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { audienceLine } from "@/lib/prompts/audience";
+import { recentIdeasBlock } from "@/lib/prompts/recent-ideas";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { ZodType } from "zod";
@@ -262,13 +263,19 @@ export async function generateCandidates(
 ): Promise<{ candidates: CandidateSet["candidates"]; longlist: CandidateSet["longlist"]; selection: CandidateSet["selection"]; usage: ScanUsage }> {
   const { value, usage } = await callStructured({
     step: "generator",
-    system: generatorSystem(request.platform, ledger !== null, Boolean(request.audience), new Date().toISOString().slice(0, 10)),
+    system: generatorSystem(
+      request.platform,
+      ledger !== null,
+      Boolean(request.audience),
+      new Date().toISOString().slice(0, 10),
+      Boolean(request.recentIdeas?.length),
+    ),
     user: `Brand or category: ${request.brand}
 Platform: ${platformLabel(request.platform)}${audienceLine(request.audience)}
 
 ${ledger ? ledgerDigest(ledger) : "No evidence ledger for this scan."}
 
-Write a longlist of 10 short-form ideas for this brand on this platform, pick the 3 you believe would earn the most organic distribution while staying distinct, and develop those 3 in full.`,
+${recentIdeasBlock(request.recentIdeas ?? []).trimStart()}${request.recentIdeas?.length ? "\n\n" : ""}Write a longlist of 10 short-form ideas for this brand on this platform, pick the 3 you believe would earn the most organic distribution while staying distinct, and develop those 3 in full.`,
     schema: CandidateSetSchema,
     maxTokens: 14_000, // worst case ≈ $0.14 of output
     timeoutMs,

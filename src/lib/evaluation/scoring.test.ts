@@ -244,3 +244,10 @@ test("an idea that can't be made on a phone in a day is rejected, however well i
   assert.equal(s.rejected, true);
   assert.ok(s.rejectionReasons.some((r) => r.code === "not-makeable"));
 });
+
+test("an idea that repeats one this person was already shown is rejected", () => {
+  const s = scoreCandidate({ ...candidate("x", all(5)), repeatOf: { headline: "Finish this: I got so mad I waited for the brew", at: "2026-11-17T15:00:00Z" } });
+  assert.equal(s.rejected, true);
+  assert.ok(s.rejectionReasons.some((r) => r.code === "repeat" && r.message.includes("2026-11-17")));
+  assert.equal(scoreCandidate(candidate("y", all(5))).rejected, false);
+});

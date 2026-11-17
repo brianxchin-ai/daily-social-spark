@@ -200,7 +200,14 @@ export async function runScan(
   // Request 2: the creative workflow. No retry.
   const result = await postJson(
     "/api/scan",
-    { ...scan, researchToken: research.token, researchError: research.reason, attemptId: research.attemptId },
+    {
+      ...scan,
+      researchToken: research.token,
+      researchError: research.reason,
+      attemptId: research.attemptId,
+      // Only the creative request needs them: the Generator avoids repeating what this visitor has seen.
+      ...(request.recentIdeas?.length ? { recentIdeas: request.recentIdeas } : {}),
+    },
     SCAN_TIMEOUT_MS,
     cancel,
   );

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { checkGrounding, ideaKind } from "@/lib/evaluation/evidence";
+import { repeatOf } from "@/lib/prompts/recent-ideas";
 import {
   decideRevision,
   MIN_REVISION_GAIN,
@@ -178,6 +179,7 @@ export async function refineLeader(
     meaningfulAudioVariations: rescored.meaningfulAudioVariations,
     kind: ideaKind(revised, ledger),
     makeable: rescored.makeable,
+    repeatOf: repeatOf(revised, scan.recentIdeas ?? []),
   });
   const decision = decideRevision(leaderEvaluation.score, revisedScore, rescored.checks);
 

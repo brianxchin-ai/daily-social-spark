@@ -24,7 +24,13 @@ ${p.creativeConventions.map((c) => `- ${c}`).join("\n")}`;
 
 /* ---------- Generator ---------- */
 
-export function generatorSystem(platform: Platform, hasEvidence: boolean, hasAudience = false, today = ""): string {
+export function generatorSystem(
+  platform: Platform,
+  hasEvidence: boolean,
+  hasAudience = false,
+  today = "",
+  hasRecentIdeas = false,
+): string {
   const label = PLATFORM_PROFILES[platform].label;
   const evidence = hasEvidence
     ? `You are given an evidence ledger from a research scout: cultural signals (G1, G2…) with cited observations (O1, O2…), dates, novelty assessments and gaps. Use it as your raw material.
@@ -70,7 +76,9 @@ Two kinds of idea (set basis on every longlist idea and every candidate):
 - trend: built on a FRESH signal from the ledger (its Freshness line says FRESH), named in groundedIn. Never build a trend idea on a STALE or UNDATED signal, or on a trend you remember from your own knowledge: those are often past their moment, and our code rejects them.
 - original: an original format, story angle or mechanic that is not built on any trend. Ground it in durable principles of attention and behavior (curiosity gaps, pattern interrupts, open loops, identity and social currency, participation, nostalgia, surprise) and in timely context that doesn't depend on a trend: the season, calendar moments${today ? ` (today is ${today})` : ""}, or what the audience is going through right now. It must not reference or imitate a specific meme or trend. groundedIn stays empty; signals may appear in contextIn as background.
 
-Work in three stages: a longlist of 10, a shortlist of 3, then the 3 developed in full.
+${hasRecentIdeas ? `This person has already been shown some ideas recently (listed in the request). Don't repeat any of them, or anything that closely resembles them, in the longlist or the picks: no same headline, hook, mechanic or execution. A listed trend may come back only with a genuinely different idea and mechanic.
+
+` : ""}Work in three stages: a longlist of 10, a shortlist of 3, then the 3 developed in full.
 
 1. longlist. Explore before you choose: write exactly 10 short ideas (L1 to L10). Range widely across the research signals and across creative mechanisms, including unexpected ones. Include at least three original formats, so there's a strong option even if the trend ideas fall short. For each, give a trendName, a short headline, the mechanic, its territory, its basis, the ledger signal IDs it builds on (groundedIn, empty for an original format), and your distribution bet:
    - distributionBet: one sentence hypothesizing how the idea would earn organic distribution on ${label}. Reason from the behaviors that drive distribution: stopping the scroll in the first second, average watch time and completion, rewatches, shares and sends, saves, comments, and participation (stitches, duets, remixes). The stronger these would plausibly be, the better the distribution.

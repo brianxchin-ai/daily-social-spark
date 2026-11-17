@@ -1,5 +1,6 @@
 import { canceledError, EngineError, generateCandidates, MODEL, type ScanUsage } from "@/lib/engine/claude";
 import { parseAudience } from "@/lib/prompts/audience";
+import { parseRecentIdeas, repeatOf } from "@/lib/prompts/recent-ideas";
 import { generateDemoSpark } from "@/lib/engine/demo";
 import { evaluateCandidates } from "@/lib/engine/evaluator";
 import { refineLeader, toDraft } from "@/lib/engine/refine";
@@ -103,9 +104,10 @@ export async function POST(request: Request) {
     return Response.json({ engine, error: "Request body must be JSON." }, { status: 400 });
   }
 
-  const { brand, platform, audience, researchToken, researchError, attemptId } = (body ?? {}) as {
+  const { brand, platform, audience, recentIdeas, researchToken, researchError, attemptId } = (body ?? {}) as {
     brand?: unknown;
     audience?: unknown;
+    recentIdeas?: unknown;
     platform?: unknown;
     researchToken?: unknown;
     researchError?: unknown;
@@ -119,7 +121,12 @@ export async function POST(request: Request) {
   }
   const parsedAudience = parseAudience(audience);
   if (!parsedAudience.ok) return Response.json({ engine, error: parsedAudience.error }, { status: 400 });
-  const scan = { brand: brand.trim(), platform: platform as Platform, audience: parsedAudience.audience };
+  const scan = {
+    brand: brand.trim(),
+    platform: platform as Platform,
+    audience: parsedAudience.audience,
+    recentIdeas: parseRecentIdeas(recentIdeas),
+  };
 
   if (engine === "demo") {
     const spark: Spark = await generateDemoSpark(scan);
@@ -218,6 +225,7 @@ async function runCreative(
         meaningfulAudioVariations: a.meaningfulAudioVariations,
         kind: ideaKind(candidate, ledger),
         makeable: a.makeable,
+        repeatOf: repeatOf(candidate, scan.recentIdeas ?? []),
       };
     }),
   );

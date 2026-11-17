@@ -185,10 +185,12 @@ export interface CandidateInput {
   kind: IdeaKind;
   /** The reviewer judged it makeable on a phone by one or two people in a day. */
   makeable: boolean;
+  /** Set when it repeats an idea this visitor was already shown (Day 5). */
+  repeatOf?: { headline: string; at: string } | null;
 }
 
 export interface RejectionReason {
-  code: "below-threshold" | "fit-fails" | "audio-dependent" | "stale-trend" | "not-makeable";
+  code: "below-threshold" | "fit-fails" | "audio-dependent" | "stale-trend" | "not-makeable" | "repeat";
   message: string;
 }
 
@@ -307,6 +309,12 @@ export function scoreCandidate(input: CandidateInput): CandidateScore {
     reasons.push({
       code: "audio-dependent",
       message: `Audio-led idea with ${input.meaningfulAudioVariations} meaningful alternative execution(s); at least ${MIN_AUDIO_VARIATIONS} are required.`,
+    });
+  }
+  if (input.repeatOf) {
+    reasons.push({
+      code: "repeat",
+      message: `Too close to an idea this person was already shown (${input.repeatOf.at.slice(0, 10)}): "${input.repeatOf.headline}".`,
     });
   }
   if (!input.makeable) {

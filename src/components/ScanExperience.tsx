@@ -1,5 +1,6 @@
 "use client";
 
+import { loadRecentIdeas, rememberSpark } from "@/lib/idea-history";
 import { useEffect, useRef, useState } from "react";
 import { localDate, localTime, runScan, ScanCanceled, ScanError, ScanLimited, type BetaLimits, type ScanPhase } from "@/lib/scan";
 import type { Platform, Spark } from "@/lib/types";
@@ -76,13 +77,16 @@ export function ScanExperience() {
     try {
       setPhase("research");
       const spark = await runScan(
-        { brand, platform, audience },
+        { brand, platform, audience, recentIdeas: loadRecentIdeas() },
         (p) => {
           if (runId === latestRun.current) setPhase(p);
         },
         controller.signal,
       );
-      if (runId === latestRun.current) setState({ status: "done", spark });
+      if (runId === latestRun.current) {
+        rememberSpark(spark);
+        setState({ status: "done", spark });
+      }
     } catch (error) {
       if (error instanceof ScanCanceled || runId !== latestRun.current) return;
       const message =

@@ -70,9 +70,40 @@ export function ScanForm({
         )}
       </div>
 
+      <div className="flex flex-col gap-2">
+        <label htmlFor="audience" className="readout text-ink-soft">
+          <span className="text-ember">02</span> / Audience <span className="normal-case">(optional)</span>
+        </label>
+        <textarea
+          id="audience"
+          name="audience"
+          rows={2}
+          maxLength={AUDIENCE_MAX}
+          autoComplete="off"
+          placeholder="College students who treat academic achievements like video games"
+          value={audience}
+          disabled={isScanning}
+          onChange={(event) => onAudienceChange(event.target.value)}
+          onKeyDown={(event) => {
+            // One line of description: Enter runs the scan, as in the brand field.
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }
+          }}
+          aria-describedby="audience-help"
+          className="w-full min-w-0 resize-none border-2 border-ink bg-surface px-4 py-2.5 text-[16px] leading-snug placeholder:text-ink-soft/50 focus:border-ember focus:outline-none disabled:opacity-60"
+        />
+        <p id="audience-help" className="readout flex justify-between gap-3 text-ink-soft">
+          {/* A non-breaking space keeps "read" from sitting alone on the last line. */}
+          <span className="text-pretty">Who you want to reach. Leave blank for a broad{"\u00A0"}read.</span>
+          <span className="tabular-nums">{audience.length}/{AUDIENCE_MAX}</span>
+        </p>
+      </div>
+
       <fieldset className="flex flex-col gap-2" disabled={isScanning}>
         <legend className="readout mb-2 text-ink-soft">
-          <span className="text-ember">02</span> / Platform
+          <span className="text-ember">03</span> / Platform
         </legend>
         {/* Six-column grid: three platforms on the first row, two wider ones on the second. Gaps show the ink lines. */}
         <div className="grid grid-cols-6 gap-[2px] border-2 border-ink bg-ink">
@@ -105,36 +136,6 @@ export function ScanForm({
           })}
         </div>
       </fieldset>
-
-      <div className="flex flex-col gap-2">
-        <label htmlFor="audience" className="readout text-ink-soft">
-          <span className="text-ember">03</span> / Audience <span className="normal-case">(optional)</span>
-        </label>
-        <textarea
-          id="audience"
-          name="audience"
-          rows={2}
-          maxLength={AUDIENCE_MAX}
-          autoComplete="off"
-          placeholder="College students who treat academic achievements like video games"
-          value={audience}
-          disabled={isScanning}
-          onChange={(event) => onAudienceChange(event.target.value)}
-          onKeyDown={(event) => {
-            // One line of description: Enter runs the scan, as in the brand field.
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              event.currentTarget.form?.requestSubmit();
-            }
-          }}
-          aria-describedby="audience-help"
-          className="w-full min-w-0 resize-none border-2 border-ink bg-surface px-4 py-2.5 text-[16px] leading-snug placeholder:text-ink-soft/50 focus:border-ember focus:outline-none disabled:opacity-60"
-        />
-        <p id="audience-help" className="readout flex justify-between gap-3 text-ink-soft">
-          <span>Who you want to reach. Leave blank for a broad read.</span>
-          <span className="tabular-nums">{audience.length}/{AUDIENCE_MAX}</span>
-        </p>
-      </div>
 
       {isScanning ? (
         // While a scan runs, the same slot becomes Cancel: same shape, quieter color.
