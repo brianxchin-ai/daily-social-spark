@@ -2,12 +2,19 @@
 
 import { useEngineStatus } from "@/lib/use-engine-status";
 
-/** A notice shown only when results need a caveat: the demo engine, or live research switched off. */
+/** The top banner: what produces results (live research, research off, or the placeholder demo). */
 export function DemoBanner() {
   const status = useEngineStatus();
 
-  // Live research: no banner. Each result labels itself (AI-generated, fresh trend or original format, verified or AI judgment).
-  if (!status || (status.engine === "claude" && status.research === "live")) return null;
+  if (!status) return null;
+  if (status.engine === "claude" && status.research === "live") {
+    return (
+      <div role="note" className="readout w-full bg-hypo px-4 py-2 text-center text-[11px] text-surface">
+        <span className="font-bold sm:hidden">◇ Creative intelligence · AI + live research</span>
+        <span className="hidden font-bold sm:inline">◇ A creative intelligence engine fueled by AI + live research</span>
+      </div>
+    );
+  }
   if (status?.engine === "claude") {
     return (
       <div role="note" className="readout w-full bg-hypo px-4 py-2 text-center text-[11px] text-surface">
