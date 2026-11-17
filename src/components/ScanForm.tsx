@@ -95,8 +95,7 @@ export function ScanForm({
           className="w-full min-w-0 resize-none border-2 border-ink bg-surface px-4 py-2.5 text-[16px] leading-snug placeholder:text-ink-soft/50 focus:border-ember focus:outline-none disabled:opacity-60"
         />
         <p id="audience-help" className="readout flex justify-between gap-3 text-ink-soft">
-          {/* A non-breaking space keeps "read" from sitting alone on the last line. */}
-          <span className="text-pretty">Who you want to reach. Leave blank for a broad{"\u00A0"}read.</span>
+          <span>Who you want to reach. Leave blank for a broad read.</span>
           <span className="tabular-nums">{audience.length}/{AUDIENCE_MAX}</span>
         </p>
       </div>
