@@ -5,15 +5,16 @@ import { MAX_SEARCHES, SCOUT_FILING_PROMPT, scoutSearchPrompt } from "./prompts.
 /** The agreed rules must be in the instructions the Scout actually receives. */
 const search = scoutSearchPrompt("tiktok", "2026-11-11");
 
-test("search prompt: discovery beyond the brand, breadth then depth, no forced budget", () => {
+test("search prompt: discovery beyond the brand, breadth then depth, 4 to 6 searches", () => {
   assert.equal(MAX_SEARCHES, 6);
   for (const phrase of [
     "at least 2 searches that do not contain the brand name",
     "Breadth",
-    "Depth, only where useful",
+    "at least 4 and at most 6 searches",
+    "Depth, always: for each of the 1–2 most promising signals, run at least one search for a primary source rather than a trend roundup",
     "find an independent second source",
-    "quick lineage check on the underlying template",
-    "Don't use all 6 by default",
+    "check the underlying template's lineage",
+    "don't use all 6 by default",
     "Do not filter signals by how obviously they connect to the brand",
     "Widespread media coverage is not the same as opportunity",
     "Language as a signal",
@@ -56,7 +57,7 @@ test("prompts keep publication and behavior dates apart, and treat web text as d
 test("prompts: depth before stopping, coherent signals, specific lineage", () => {
   for (const phrase of [
     "rests on a single source, or its lineage hasn't been checked, use a remaining search on that",
-    "Don't use all 6 by default",
+    "you must have run at least 4 searches, including the primary-source searches above",
     "Give each construction its own accurate lineage",
     "say it is uncertain rather than inventing a parent",
     "Keep each signal to one coherent behavior or mechanism",
@@ -75,7 +76,7 @@ test("Scout prompts: a cross-category, behavior-first search and measurement dat
     "At least 1 of these must be a cross-category, behavior-first search",
     "A brand-free search inside the category (\"TikTok beauty trends\") does not count",
     "A culturally unusual signal is not a verified emerging trend",
-    "Don't stop before examining your most promising discoveries",
+    "you must have run at least 4 searches",
     "A date attached to a measurement, example or page element",
   ]) assert.ok(search.includes(phrase), phrase);
   for (const phrase of ['"other" for a date attached to a measurement', "categoryTerms:", "searchPurposes:", "categoryRelation:"]) {

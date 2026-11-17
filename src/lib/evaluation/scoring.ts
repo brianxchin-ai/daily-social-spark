@@ -161,11 +161,18 @@ export type AudioRole = "audio-led" | "audio-optional" | "no-audio";
  * - fresh-trend: built on a research trend whose newest evidence is recent.
  * - original: an original format, deliberately not built on any trend.
  * - stale-trend: claims a trend, but no fresh research backs it. Always rejected.
- * Fresh trend ideas rank ahead of original formats; an original wins only when
- * no fresh trend idea clears the bar.
+ * Fresh trend ideas get a FRESH_TREND_HEAD_START for ranking only, so an
+ * original format wins when it's clearly stronger, not on a near-tie.
  */
 export type IdeaKind = "fresh-trend" | "original" | "stale-trend";
-const KIND_TIER: Record<IdeaKind, number> = { "fresh-trend": 0, original: 1, "stale-trend": 2 };
+
+/** Ranking-only bonus for fresh trend ideas, in Spark Score points. The displayed score never includes it. */
+export const FRESH_TREND_HEAD_START = 5;
+
+/** The value candidates are ranked by: the Spark Score, plus the head start for a fresh trend idea. */
+export function rankValue(score: Pick<CandidateScore, "rankingScore" | "kind">): number {
+  return score.rankingScore + (score.kind === "fresh-trend" ? FRESH_TREND_HEAD_START : 0);
+}
 
 export interface CandidateInput {
   candidateId: string;
@@ -331,17 +338,17 @@ const EPSILON = 1e-9;
 
 /**
  * Score, reject and rank candidates. Deterministic: same input, same order.
- * Ranks fresh trend ideas ahead of original formats, then by the Spark Score
- * (all six criteria). Verification of cultural relevance is a label only.
+ * Ranks by the Spark Score (all six criteria), with a 5-point head start for
+ * fresh trend ideas. Verification of cultural relevance is a label only.
  */
 export function rankCandidates(inputs: CandidateInput[]): Ranking {
   const byId = new Map(inputs.map((i) => [i.candidateId, i]));
   const scored = inputs.map(scoreCandidate);
 
   const compare = (a: CandidateScore, b: CandidateScore): number => {
-    // Fresh trend ideas come first; an original format wins only when none clears the bar.
-    if (KIND_TIER[a.kind] !== KIND_TIER[b.kind]) return KIND_TIER[a.kind] - KIND_TIER[b.kind];
-    if (Math.abs(a.rankingScore - b.rankingScore) > EPSILON) return b.rankingScore - a.rankingScore;
+    // Fresh trend ideas carry a 5-point head start; an original wins only when clearly stronger.
+    const diff = rankValue(b) - rankValue(a);
+    if (Math.abs(diff) > EPSILON) return diff;
     const ia = byId.get(a.candidateId)!;
     const ib = byId.get(b.candidateId)!;
     for (const id of TIE_BREAK_ORDER) {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isSocialDomain, safeHttpUrl, sourcesForIdea } from "./idea-sources.ts";
+import { headlineKey, isSocialDomain, safeHttpUrl, sourcesForIdea } from "./idea-sources.ts";
 import type { EvidenceLedger } from "./ledger.ts";
 
 /** Just enough of a ledger for the link lookup: signals → observations → sources. */
@@ -55,4 +55,27 @@ test("idea sources: social domains and safe URLs", () => {
   assert.equal(safeHttpUrl("javascript:alert(1)"), null);
   assert.equal(safeHttpUrl("not a url"), null);
   assert.equal(safeHttpUrl("https://example.com/x"), "https://example.com/x");
+});
+
+test("idea sources: the same story syndicated under different addresses appears once", () => {
+  const t = "What's The 'I Got So Mad' Meme? The Viral Trend About Absurd Ways To Express Anger Explained";
+  const source = (id: string, url: string, title: string) => ({
+    id, url, domain: new URL(url).hostname, title, pageUpdated: null, query: "q", setAside: false,
+  });
+  const ledger = {
+    sources: [
+      source("S1", "https://knowyourmeme.com/memes/i-got-so-mad", "I Got So Mad Trend / Meme"),
+      source("S2", "https://sg.news.yahoo.com/a", `${t} - Yahoo News Singapore`),
+      source("S3", "https://www.yahoo.com/b", t),
+      source("S4", "https://trending.knowyourmeme.com/c", "What's The 'I Got So Mad' Meme? The Viral Trend About Absurd Ways To Express Ang..."),
+      source("S5", "https://meme.example.com/d", "I Got So Mad Trend: The 2026 TikTok Anger Format"),
+    ],
+    observations: [{ id: "O1", signalId: "G1", sourceIds: ["S1", "S2", "S3", "S4", "S5"] }],
+    signals: [{ id: "G1", observationIds: ["O1"] }],
+  } as unknown as EvidenceLedger;
+  const out = sourcesForIdea({ groundedIn: ["G1"], contextIn: [] }, ledger);
+  assert.deepEqual(out.map((s) => s.id), ["S1", "S2", "S5"]);
+  assert.equal(headlineKey(`${t} - Yahoo News Singapore`), headlineKey(t));
+  // Different stories with a shared opening aren't merged when the shared part is short.
+  assert.notEqual(headlineKey("I Got So Mad Trend / Meme"), headlineKey("I Got So Mad Trend: The 2026 TikTok Anger Format"));
 });

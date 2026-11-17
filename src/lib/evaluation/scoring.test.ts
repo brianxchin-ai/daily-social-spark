@@ -199,13 +199,26 @@ test("a stale trend idea is always rejected, however well it scores", () => {
   assert.ok(s.rejectionReasons.some((r) => r.code === "stale-trend"));
 });
 
-test("fresh trend ideas outrank original formats, even with a lower Spark Score", () => {
-  const r = rankCandidates([
-    candidate("original", all(5), { index: 0, kind: "original" }),
-    candidate("fresh", all(4), { index: 1, kind: "fresh-trend" }),
+test("fresh trend ideas get a 5-point head start: they win near-ties, but a clearly stronger original wins", () => {
+  // At an equal Spark Score, the fresh trend wins.
+  const near = rankCandidates([
+    candidate("original", [4, 4, 4, 4, 4, 4], { index: 0, kind: "original" }), // 75
+    candidate("fresh", [3, 5, 4, 4, 4, 4], { index: 1, kind: "fresh-trend" }), // 75, ranks as 80
   ]);
-  assert.equal(r.leaderId, "fresh");
-  assert.deepEqual(r.scores.map((s) => s.candidateId), ["fresh", "original"]);
+  assert.equal(near.leaderId, "fresh");
+  // The last Facebook test: an original at 58.75 beats a barely passing trend at 50 (55 with the head start).
+  const clear = rankCandidates([
+    candidate("trend", all(3), { index: 0, kind: "fresh-trend" }), // 50 → 55
+    candidate("original", [3, 4, 4, 3, 3, 3], { index: 1, kind: "original" }), // 60
+  ]);
+  assert.equal(clear.leaderId, "original");
+  const close = rankCandidates([
+    candidate("trend", all(4), { index: 0, kind: "fresh-trend" }), // 75 → 80
+    candidate("original", [4, 5, 4, 4, 4, 4], { index: 1, kind: "original" }), // 80
+  ]);
+  assert.equal(close.leaderId, "original", "an equal ranking value falls to the tie-break order (here, stop power)");
+  // The displayed Spark Score never includes the head start.
+  assert.equal(close.scores.find((s) => s.candidateId === "trend")!.rankingScore, 75);
 });
 
 test("an original format wins when no fresh trend idea clears the bar", () => {

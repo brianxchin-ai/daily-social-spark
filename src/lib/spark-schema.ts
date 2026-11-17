@@ -95,7 +95,7 @@ export const CandidateDraftSchema = z.object({
       }),
     )
     .describe(
-      "Exactly 3 distinct execution ideas for this brand. Vary the creative approach (angle, framing, hook, casting, structure, tone); changing the format is optional, not the default.",
+      "Exactly 3 distinct execution ideas for this brand. Vary the creative approach (angle, framing, hook, casting, structure, tone). At least two must use the same format as the walkthrough; at most one may switch format.",
     ),
   risks: z.array(z.string()).describe("2 to 4 watch-outs."),
 });

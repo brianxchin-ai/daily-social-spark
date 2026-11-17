@@ -1,4 +1,4 @@
-import { criterion, formatScore } from "@/lib/evaluation/scoring";
+import { criterion, formatScore, FRESH_TREND_HEAD_START } from "@/lib/evaluation/scoring";
 import { freshestSignal } from "@/lib/evaluation/evidence";
 import { sourcesForIdea } from "@/lib/research/idea-sources";
 import type { EvidenceLedger } from "@/lib/research/ledger";
@@ -227,11 +227,15 @@ function selectionSentence(spark: HypothesisSpark, evaluation: CandidateEvaluati
   const tie = computeTies(spark.evaluation).find((t) => t.ahead === spark.evaluation.leaderId);
   const count = NUMBER_WORDS[spark.candidates.length] ?? spark.candidates.length;
   const pool = spark.longlist ? spark.longlist.ideas.length : 0;
+  const rivals = spark.evaluation.evaluations.filter((e) => e.candidateId !== spark.evaluation.leaderId);
   const fallback =
-    evaluation.score.kind === "original" &&
-    spark.evaluation.evaluations.some((e) => e.score.kind !== "original")
-      ? " No fresh trend idea cleared the bar, so the best original format was recommended."
-      : "";
+    evaluation.score.kind !== "original"
+      ? ""
+      : rivals.some((e) => e.score.kind === "fresh-trend" && !e.score.rejected)
+        ? ` It beat the fresh trend ideas by more than their ${FRESH_TREND_HEAD_START}-point head start.`
+        : rivals.some((e) => e.score.kind !== "original")
+          ? " No fresh trend idea cleared the bar, so the best original format was recommended."
+          : "";
   const parts = [
     pool > 0
       ? `The Generator picked it as one of ${count} ideas, from a longlist of ${NUMBER_WORDS[pool] ?? pool}, for its distribution potential. The independent reviewer then ranked it first${

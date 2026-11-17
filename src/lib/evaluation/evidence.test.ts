@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildRegister, checkLedger, pageAgeDate, signalFreshness, type LedgerDraft, type LedgerObservation, type SourceRecord } from "../research/ledger.ts";
+import { buildRegister, checkLedger, freshnessPhrase, pageAgeDate, signalFreshness, type LedgerDraft, type LedgerObservation, type SourceRecord } from "../research/ledger.ts";
 import { checkGrounding, freshestSignal, ideaKind, relevanceResult } from "./evidence.ts";
 import {
   combineFit,
@@ -305,4 +305,32 @@ test("grounding: an original format's signals become context, never direct evide
   const g = checkGrounding({ basis: "original", groundedIn: ["G1"], contextIn: ["G2"], evidenceBasis: "Context only." }, ledger);
   assert.deepEqual(g.groundedIn, []);
   assert.deepEqual(g.contextIn.sort(), ["G1", "G2"]);
+});
+
+test("freshness: a page update alone counts only within 14 days; behavior and publication dates get 30", () => {
+  const page20 = signalFreshness([obs({})], [src("20 days ago")], NOW);
+  assert.equal(page20.status, "stale");
+  assert.equal(signalFreshness([obs({})], [src("10 days ago")], NOW).status, "fresh");
+  const published20 = signalFreshness(
+    [obs({ published: { date: "2026-10-22", precision: "day", dateText: "October 22, 2026", sourceId: "S1", shared: false } })],
+    [src(null)],
+    NOW,
+  );
+  assert.equal(published20.status, "fresh");
+  assert.equal(published20.basis, "published");
+});
+
+test("freshness: the label prefers the strongest kind of date and says which it was", () => {
+  const both = signalFreshness(
+    [
+      obs({ id: "O1", behavior: { status: "known", date: "2026-11-01", precision: "day", dateText: "November 1, 2026" } }),
+      obs({ id: "O2", sourceIds: ["S1"] }),
+    ],
+    [src("1 day ago")],
+    NOW,
+  );
+  assert.equal(both.basis, "behavior"); // a 10-day-old behavior date beats a 1-day-old page update
+  assert.equal(freshnessPhrase(both), "behavior dated 10 days ago");
+  assert.equal(freshnessPhrase({ basis: "page-updated", ageDays: 1 }), "page updated 1 day ago");
+  assert.equal(freshnessPhrase({ basis: "published", ageDays: 0 }), "reported today");
 });

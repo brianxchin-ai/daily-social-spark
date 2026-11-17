@@ -1,5 +1,5 @@
 import { CRITERIA } from "../evaluation/scoring.ts";
-import type { EvidenceLedger } from "../research/ledger.ts";
+import { freshnessPhrase, type EvidenceLedger } from "../research/ledger.ts";
 import { PLATFORM_PROFILES } from "../research/platforms.ts";
 import type { Platform } from "../types.ts";
 
@@ -64,7 +64,7 @@ ${platformBlock(platform)}
 
 Show how one execution would actually play out:
 - walkthrough: a short production walkthrough of ONE execution, written as prose like a director's treatment (not a shot list). Cover the opening shot and hook, what happens, the turn or payoff, and how it ends. For a photo, carousel or text post, walk through it image by image, slide by slide or line by line instead. 80 to 150 words in one or two short paragraphs. Make it concrete enough to brief a creator. No statistics, handles or performance claims.
-- formatIdeas: three further ways to run the idea, each different from the walkthrough and from each other. Vary the creative approach first: the angle, framing, hook, casting, structure or tone. All three can stay in the same format as the walkthrough (for example, three different ways to frame the same Reel or TikTok). Changing the format is allowed for one or two when a different format genuinely serves the idea better, but don't make format the default variable.
+- formatIdeas: three further ways to run the idea, each different from the walkthrough and from each other. Vary the creative approach: the angle, framing, hook, casting, structure or tone. At least two of the three must use the same format as the walkthrough (for example, two different ways to frame the same Reel or TikTok). At most one may switch to a different format, and only when that genuinely serves the idea better.
 
 Two kinds of idea (set basis on every longlist idea and every candidate):
 - trend: built on a FRESH signal from the ledger (its Freshness line says FRESH), named in groundedIn. Never build a trend idea on a STALE or UNDATED signal, or on a trend you remember from your own knowledge: those are often past their moment, and our code rejects them.
@@ -105,8 +105,8 @@ ${STYLE}`;
 function freshnessLine(s: EvidenceLedger["signals"][number]): string {
   const f = s.freshness;
   if (!f) return "UNDATED: no reliable date. Don't build a trend idea on it.";
-  if (f.status === "fresh") return `FRESH: newest evidence is ${f.ageDays} ${f.ageDays === 1 ? "day" : "days"} old.`;
-  if (f.status === "stale") return `STALE: newest evidence is ${f.ageDays} days old. Don't build a trend idea on it.`;
+  if (f.status === "fresh") return `FRESH: ${freshnessPhrase(f)}.`;
+  if (f.status === "stale") return `STALE: newest evidence ${freshnessPhrase(f)}. Don't build a trend idea on it.`;
   return "UNDATED: no reliable date. Don't build a trend idea on it.";
 }
 

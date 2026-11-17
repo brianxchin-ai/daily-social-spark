@@ -136,11 +136,10 @@ test("format scope: published, lasting short-form only; no live streams, Lenses,
   assert.ok(generatorSystem("tiktok", true).includes("For a photo, carousel or text post, walk through it image by image, slide by slide or line by line"));
 });
 
-test("three more ways: vary the creative approach first; changing format is optional, not the default", () => {
+test("three more ways: at least two keep the walkthrough's format; at most one switches", () => {
   const g = generatorSystem("facebook", true);
-  assert.ok(g.includes("Vary the creative approach first: the angle, framing, hook, casting, structure or tone"));
-  assert.ok(g.includes("All three can stay in the same format as the walkthrough"));
-  assert.ok(g.includes("don't make format the default variable"));
+  assert.ok(g.includes("At least two of the three must use the same format as the walkthrough"));
+  assert.ok(g.includes("At most one may switch to a different format, and only when that genuinely serves the idea better"));
 });
 
 test("freshness and original formats: stale trends are off-limits, originals are the fallback", () => {

@@ -1,4 +1,4 @@
-import type { LedgerSignal } from "@/lib/research/ledger";
+import { freshnessPhrase, type LedgerSignal } from "@/lib/research/ledger";
 import type { DistributionDriver } from "@/lib/spark-schema";
 import type { Candidate, Longlist } from "@/lib/types";
 
@@ -33,7 +33,7 @@ export function LonglistPanel({
     if (own.length === 0) return null;
     const best = own.find((s) => s.freshness.status === "fresh") ?? own[0];
     const f = best.freshness;
-    return f.status === "fresh" ? `Fresh · ${f.ageDays}d` : f.status === "stale" ? `Stale · ${f.ageDays}d` : "Undated";
+    return f.status === "fresh" ? `Fresh · ${freshnessPhrase(f)}` : f.status === "stale" ? `Stale · ${freshnessPhrase(f)}` : "Undated";
   };
   const picks = longlist.ideas
     .filter((i) => i.pick)

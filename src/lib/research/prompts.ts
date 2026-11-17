@@ -7,6 +7,8 @@ import { PLATFORM_PROFILES } from "./platforms.ts";
  */
 
 export const MAX_SEARCHES = 6;
+/** Day 5: at least this many, so the shortlisted signals get a primary-source search, not just roundups. */
+export const MIN_SEARCHES = 4;
 
 export function scoutSearchPrompt(platform: Platform, today: string, hasAudience = false): string {
   const profile = PLATFORM_PROFILES[platform];
@@ -45,12 +47,12 @@ Novelty and lineage (assess every signal):
 - Novelty is not momentum, and neither is creative potential. A new signal can have unverified momentum; a derivative one can still spark a strong idea.
 - Prefer signals with a meaningfully new mechanism or development over familiar vocabulary with new modifiers, but keep surprising or derivative signals that could be creatively useful, labeled honestly.
 
-How to search: breadth, then depth (at most ${MAX_SEARCHES} searches; use only as many as improve discovery):
+How to search: breadth, then depth (at least ${MIN_SEARCHES} and at most ${MAX_SEARCHES} searches):
 1. Breadth: start with at least 2 searches that do not contain the brand name, across broader culture, creator behaviors, niche communities, memes, language and new formats. You may use one search on the brand or category for context.
    - At least 1 of these must be a cross-category, behavior-first search: it names neither the brand nor its category or industry (for a beauty brand, no "beauty", "makeup" or "skincare"). Look for emerging behaviors, humor, linguistic constructions, audience rituals, creator mechanics or niche-community patterns anywhere in culture. A brand-free search inside the category ("TikTok beauty trends") does not count.
    - A culturally unusual signal is not a verified emerging trend. Report it with the same evidence standards.
-2. Depth, only where useful: for the 1–2 most promising signals, use remaining searches to find an independent second source (when a signal rests on one source) and/or run a quick lineage check on the underlying template for older examples that could undermine a claim of novelty.
-3. Before you stop: if a signal you'd shortlist rests on a single source, or its lineage hasn't been checked, use a remaining search on that, as long as searches remain and it would be useful. Don't stop before examining your most promising discoveries. Otherwise stop when another search wouldn't improve discovery. Don't use all ${MAX_SEARCHES} by default.
+2. Depth, always: for each of the 1–2 most promising signals, run at least one search for a primary source rather than a trend roundup: an original creator post, the platform's own announcement, or dated news coverage of the behavior itself. Use any remaining searches to find an independent second source or to check the underlying template's lineage for older examples that could undermine a claim of novelty.
+3. Before you stop: you must have run at least ${MIN_SEARCHES} searches, including the primary-source searches above. If a signal you'd shortlist still rests on a single source, or its lineage hasn't been checked, use a remaining search on that. Stop when another search wouldn't improve discovery; don't use all ${MAX_SEARCHES} by default.
 - Prefer recent primary or near-primary evidence (${profile.usefulSourceHints.join("; ")}) over listicles and trend roundups. Avoid stale reports.
 
 Dating (important):

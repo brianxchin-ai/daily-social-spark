@@ -49,6 +49,28 @@ export function safeHttpUrl(url: string): string | null {
   }
 }
 
+/**
+ * A headline reduced for comparison: no site-name suffix (" - Yahoo News"),
+ * no trailing ellipsis, letters and digits only.
+ */
+export function headlineKey(title: string): string {
+  return title
+    .replace(/\s+[-|–—]\s+[^-|–—]{2,40}$/, "")
+    .replace(/(\.\.\.|…)\s*$/, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+/** The same story syndicated or reposted under different addresses: equal headlines, or one cut short of the other. */
+function sameStory(a: string, b: string): boolean {
+  const [x, y] = [headlineKey(a), headlineKey(b)];
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const [short, long] = x.length <= y.length ? [x, y] : [y, x];
+  return short.length >= 40 && long.startsWith(short);
+}
+
 export function sourcesForIdea(
   idea: { groundedIn: string[]; contextIn: string[] },
   ledger: EvidenceLedger | null,
@@ -72,6 +94,8 @@ export function sourcesForIdea(
           const url = safeHttpUrl(source.url);
           if (!url) continue;
           seen.add(source.id);
+          // One link per story: syndicated copies of the same article are dropped.
+          if (out.some((o) => sameStory(o.title, source.title || ""))) continue;
           out.push({
             id: source.id,
             url,

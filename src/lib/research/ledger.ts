@@ -1,3 +1,4 @@
+import { MIN_SEARCHES } from "./prompts.ts";
 import { z } from "zod";
 import type { Platform } from "@/lib/types";
 import { PLATFORM_PROFILES } from "./platforms.ts";
@@ -569,6 +570,9 @@ export function checkLedger(input: {
   if (register.queries.length > 0 && crossCategorySearches === 0) {
     adjustments.push("Discovery stayed within the brand's category: no recorded search looked beyond it.");
   }
+  if (register.queries.length > 0 && register.queries.length < MIN_SEARCHES) {
+    adjustments.push(`Research was shallow: only ${register.queries.length} searches ran (at least ${MIN_SEARCHES} expected).`);
+  }
   if (register.queries.length > 0 && brandFreeSearches < MIN_BRAND_FREE_SEARCHES) {
     adjustments.push(
       `Discovery was brand-centric: only ${brandFreeSearches} of ${register.queries.length} searches looked beyond the brand (at least ${MIN_BRAND_FREE_SEARCHES} expected).`,
@@ -689,6 +693,8 @@ export function momentumEligibility(obs: LedgerObservation[], now: Date): Criter
 
 /** A trend counts as fresh when its newest evidence is at most this old. */
 export const FRESH_WINDOW_DAYS = 30;
+/** A page's "last updated" date is the weakest signal, so on its own it only counts within this window. */
+export const PAGE_UPDATE_FRESH_DAYS = 14;
 
 const AGO = /^(\d+)\s+(minute|hour|day|week|month|year)s?\s+ago$/i;
 const UNIT_DAYS: Record<string, number> = { minute: 0, hour: 0, day: 1, week: 7, month: 30, year: 365 };
@@ -711,8 +717,9 @@ export function pageAgeDate(pageUpdated: string | null, now: Date): string | nul
  * How recent a signal's newest evidence is. For each observation, the best
  * available date is used: when the behavior happened, else when it was
  * published, else the source page's "last updated" date. The newest across
- * the signal decides. Month-precision dates count from the 1st, so they can
- * only make a signal look older, never fresher.
+ * the signal decides. Behavior and publication dates count within 30 days; a
+ * page update alone counts only within 14. Month-precision dates count from
+ * the 1st, so they can only make a signal look older, never fresher.
  */
 export function signalFreshness(obs: LedgerObservation[], sources: SourceRecord[], now: Date): Freshness {
   type Dated = { date: string; basis: NonNullable<Freshness["basis"]> };
@@ -735,19 +742,37 @@ export function signalFreshness(obs: LedgerObservation[], sources: SourceRecord[
   if (usable.length === 0) {
     return { status: "undated", newest: null, ageDays: null, basis: null, reason: "No reliable date for any of its evidence." };
   }
+  const age = (c: Dated) => Math.max(0, Math.floor((now.getTime() - startOf(c.date)) / DAY_MS));
+  const windowFor = (c: Dated) => (c.basis === "page-updated" ? PAGE_UPDATE_FRESH_DAYS : FRESH_WINDOW_DAYS);
+  const what = (c: Dated) => (c.basis === "behavior" ? "behavior date" : c.basis === "published" ? "publication date" : "page update");
+  const days = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
+  const STRENGTH = { behavior: 0, published: 1, "page-updated": 2 } as const;
+
+  // Fresh if any date is inside its window. The strongest kind of date wins the label, then the newest.
+  const fresh = usable
+    .filter((c) => age(c) <= windowFor(c))
+    .sort((a, b) => STRENGTH[a.basis] - STRENGTH[b.basis] || age(a) - age(b))[0];
+  if (fresh) {
+    const n = age(fresh);
+    return { status: "fresh", newest: fresh.date, ageDays: n, basis: fresh.basis, reason: `Newest evidence (${what(fresh)}) is ${days(n)} old.` };
+  }
   const newest = usable.reduce((a, b) => (startOf(b.date) > startOf(a.date) ? b : a));
-  const ageDays = Math.max(0, Math.floor((now.getTime() - startOf(newest.date)) / DAY_MS));
-  const what = newest.basis === "behavior" ? "behavior date" : newest.basis === "published" ? "publication date" : "page update";
-  const days = `${ageDays} ${ageDays === 1 ? "day" : "days"}`;
-  return ageDays <= FRESH_WINDOW_DAYS
-    ? { status: "fresh", newest: newest.date, ageDays, basis: newest.basis, reason: `Newest evidence (${what}) is ${days} old.` }
-    : {
-        status: "stale",
-        newest: newest.date,
-        ageDays,
-        basis: newest.basis,
-        reason: `Newest evidence (${what}) is ${days} old, older than ${FRESH_WINDOW_DAYS} days.`,
-      };
+  const n = age(newest);
+  return {
+    status: "stale",
+    newest: newest.date,
+    ageDays: n,
+    basis: newest.basis,
+    reason: `Newest evidence (${what(newest)}) is ${days(n)} old, older than ${days(windowFor(newest))}.`,
+  };
+}
+
+/** "reported 5 days ago", "page updated today", "behavior dated 1 day ago": says which kind of date it was. */
+export function freshnessPhrase(f: Pick<Freshness, "basis" | "ageDays">): string {
+  if (f.ageDays === null || !f.basis) return "no reliable date";
+  const ago = f.ageDays === 0 ? "today" : `${f.ageDays} ${f.ageDays === 1 ? "day" : "days"} ago`;
+  const verb = f.basis === "behavior" ? "behavior dated" : f.basis === "published" ? "reported" : "page updated";
+  return `${verb} ${ago}`;
 }
 
 /* ---------- Dates: publication vs. behavior ---------- */
