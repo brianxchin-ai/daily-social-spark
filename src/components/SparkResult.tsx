@@ -171,7 +171,7 @@ function DemoSections({ spark }: { spark: DemoSpark }) {
         <Walkthrough text={spark.walkthrough} />
       </Section>
 
-      <Section index={3} title="Three more ways to run it" origin={origin}>
+      <Section index={3} title="Three more ways in" origin={origin}>
         <FormatIdeasCompact ideas={spark.formatIdeas} />
       </Section>
 
@@ -274,7 +274,7 @@ function HypothesisSections({ spark, final }: { spark: HypothesisSpark; final: C
         <Walkthrough text={final.walkthrough} />
       </Section>
 
-      <Section index={3} title="Three more ways to run it" origin={origin}>
+      <Section index={3} title="Three more ways in" origin={origin}>
         <FormatIdeasCompact ideas={final.formatIdeas} />
       </Section>
 
