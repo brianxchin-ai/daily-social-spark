@@ -8,7 +8,7 @@ import { PLATFORM_PROFILES } from "./platforms.ts";
 
 export const MAX_SEARCHES = 6;
 
-export function scoutSearchPrompt(platform: Platform, today: string): string {
+export function scoutSearchPrompt(platform: Platform, today: string, hasAudience = false): string {
   const profile = PLATFORM_PROFILES[platform];
   return `You are a cultural research scout for short-form social. Today is ${today}. Your job is to discover emerging cultural opportunities on ${profile.label}: behaviors, formats, language and moments that a brand could creatively build on. You are not reporting on what the named brand is already doing.
 
@@ -19,6 +19,12 @@ What to look for:
 - Widespread media coverage is not the same as opportunity. Heavily covered trends are often already saturated.
 - Do not discard a promising signal because evidence is thin. Report it, say plainly what is and isn't documented, and list the gap.
 - Do not filter signals by how obviously they connect to the brand or category. Connecting a signal to the brand happens later. Unusual or surprising signals are welcome.
+- Who it reaches: when sources say who a signal is popular with or spreading among (an age group, community or interest), note it. Never assume an audience from stereotypes.${hasAudience ? `
+
+Intended audience (named in the request):
+- The user wants to reach a particular audience. Keep discovery broad: don't limit it to that audience, and keep strong signals with broad or demographic-neutral appeal.
+- You may use at most one search on that audience's own culture, interests or communities.
+- For each signal, say what the sources show about whether it reaches this audience. If they don't say, say so.` : ""}
 
 Novelty and lineage (assess every signal):
 - First identify the underlying mechanism and its lineage: which established memes, linguistic constructions or templates (e.g. "[blank]maxxing", "X is my Roman Empire"), rhetorical patterns, creative formats or social behaviors does it draw on? Name them, or say none was identified.
@@ -79,6 +85,7 @@ Rules:
 - lookback: what your lineage or history check found, including on the parent template, or "Not checked". No older results is not proof of novelty.
 - lineageQuery: the exact search (copied from "Searches you ran") that checked this signal's lineage or history, or an empty string. Don't name a search that didn't check it.
 - creativeOpportunity: why it could still be creatively useful, as a hypothesis, or an empty string.
+- audienceNote: who the cited sources say the signal is popular with or spreading among, in a short phrase using their wording. If they don't say, write "Not documented". You may add your own read after "Inference:" (e.g. "Not documented. Inference: broad appeal."). Never infer from stereotypes.
 - attributedTo: who the source credits for the information (e.g. "TikTok newsroom", a company press release), or an empty string.
 - Include numbers only if they appear in the cited quotes.
 - categoryRelation: "in-category" (inside the brand's own category), "adjacent" (next to it) or "off-category" (from a different part of culture).

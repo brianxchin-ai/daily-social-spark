@@ -19,7 +19,7 @@ ${p.creativeConventions.map((c) => `- ${c}`).join("\n")}`;
 
 /* ---------- Generator ---------- */
 
-export function generatorSystem(platform: Platform, hasEvidence: boolean): string {
+export function generatorSystem(platform: Platform, hasEvidence: boolean, hasAudience = false): string {
   const label = PLATFORM_PROFILES[platform].label;
   const evidence = hasEvidence
     ? `You are given an evidence ledger from a research scout: cultural signals (G1, G2…) with cited observations (O1, O2…), dates, novelty assessments and gaps. Use it as your raw material.
@@ -45,7 +45,15 @@ The brand or category must shape the idea:
 - Brand fit is not category adjacency. Explore unconventional associations, analogies, audience tensions and creative mechanics before dismissing a signal as irrelevant. A surprising but strategically compelling connection beats an obvious, unimaginative one.
 - If you are given a category rather than a specific brand, don't invent facts about any particular brand.
 
-The platform must shape the idea: hook, pacing, participation and conventions.
+${hasAudience ? `The user named an intended audience (in the request). Let it shape the work where it fits naturally, never forced:
+- Favor signals and ideas this audience would genuinely watch, share and join in, using the ledger's "Who it reaches" notes where they exist. A signal with broad or demographic-neutral appeal is fine: connect it to the audience through the execution (casting, setting, references, tone, humor) rather than bending the idea.
+- When judging distribution in the longlist and picks, consider how this audience in particular would watch, share, save, comment and participate.
+- Don't name the audience in the headline or in every line, and never rely on stereotypes. Describe people by interests and behaviors.
+- audienceConnection: one sentence on how the idea connects with this audience. If its appeal is broad, say so and why this audience would still enjoy it.
+
+` : `No intended audience was given: write the ideas for the platform's broad audience, and leave audienceConnection as an empty string.
+
+`}The platform must shape the idea: hook, pacing, participation and conventions.
 - platformExecution: how ${label} specifically shapes this idea's hook, pacing, audience participation and format.
 ${platformBlock(platform)}
 
@@ -53,18 +61,29 @@ Show how one execution would actually play out:
 - walkthrough: a short production walkthrough of ONE execution, written as prose like a director's treatment (not a shot list). Cover the opening shot and hook, what happens, the turn or payoff, and how it ends. 80 to 150 words in one or two short paragraphs. Make it concrete enough to brief a creator. No statistics, handles or performance claims.
 - formatIdeas: three further ways to run the idea, each different from the walkthrough and from each other.
 
-Explore before you choose. Consider several signals and creative approaches, then write exactly three candidates that occupy genuinely distinct creative territories:
+Work in three stages: a longlist of 10, a shortlist of 3, then the 3 developed in full.
+
+1. longlist. Explore before you choose: write exactly 10 short ideas (L1 to L10). Range widely across the research signals and across creative mechanisms, including unexpected ones. For each, give a trendName, a short headline, the mechanic, its territory, the ledger signal IDs it builds on (groundedIn, or an empty list), and your distribution bet:
+   - distributionBet: one sentence hypothesizing how the idea would earn organic distribution on ${label}. Reason from the behaviors that drive distribution: average watch time and completion, rewatches, shares and sends, saves, comments, and participation (stitches, duets, remixes). The stronger these would plausibly be, the better the distribution.
+   - distributionDrivers: the 1 to 3 of those behaviors the bet relies on most.
+   - This is your creative judgment, not a forecast. Never predict numbers (views, impressions, watch time, rates or percentages) and never imply access to analytics.
+
+2. selection. Pick the 3 ideas you believe would earn the highest organic distribution, while occupying genuinely distinct creative territories:
 - Different wording, framing or treatment of essentially the same concept is NOT distinct. Two transformations, two reveals or two lists built on the same signal count as one territory.
 - Each candidate should rest on a different cultural signal or a different underlying creative mechanism, and name its territory in a few words.
+- If your strongest ideas overlap, keep the strongest of them and pick the next-best distinct idea instead.
 - When the research includes an off-category or adjacent signal with a plausible creative leap, at least one candidate should build on it. Don't force irrelevant novelty: a surprising connection must still work strategically for the brand and creatively for the platform.
 - Don't settle for several near-duplicates just because one category-adjacent signal is easiest to adapt.
+- picks: the 3 longlist IDs, each with one sentence on why it made the cut. setAside: one or two sentences on why the other seven didn't.
+
+3. candidates. Develop the 3 picks fully, in the same order as your picks, keeping each pick's core idea.
 
 Rules:
 - Never invent URLs, outlets, creator handles, view counts, growth figures or statistics. Never imply access to platform analytics.
 - Never classify momentum (no "rising", "accelerating", "near peak" or similar) and never predict hours or dates. Timing is a hedged hypothesis with what would confirm or refute it.
 - Audio: "audio-led" means built around a particular existing song, sound or track. Original narration, voiceover or dialogue is not a dependency. If an idea is audio-led, give at least three alternative executions that keep the mechanic recognizable without copying the track.
 - The headline is a short display line of 12 words or fewer; the full idea goes in concept.
-- Do not rate, score or rank your own ideas. A separate reviewer evaluates them.
+- Select by your own judgment, but don't give any idea a numeric score or rating. A separate reviewer scores the three you develop.
 
 ${STYLE}`;
 }
@@ -78,6 +97,7 @@ export function ledgerDigest(ledger: EvidenceLedger): string {
     lines.push(
       `\n${s.id} · ${s.name} [${s.category}; ${s.categoryRelation}]`,
       `  Summary: ${s.summary}`,
+      `  Who it reaches: ${s.audienceNote || "Not documented"}`,
       `  Novelty (scout's assessment): ${s.novelty}${s.lineage ? ` · lineage: ${s.lineage}` : ""}${s.whatIsNew ? ` · new: ${s.whatIsNew}` : ""}`,
       `  Cultural relevance evidence: ${s.culturalRelevance.status} (${s.culturalRelevance.reason})`,
       `  Momentum evidence: ${s.momentum.status} (${s.momentum.reason})`,
@@ -116,7 +136,7 @@ Score these criteria for every candidate, as an integer from 1 to 5:
 ${rubric}
 
 Brand/category + platform fit, judged as two separate scores so that excellent fit on one can't hide poor fit on the other:
-- brandFit: does the execution work for this brand or category? Judge the execution, not whether the original cultural signal was an obvious match. Reward an unexpected but strategically compelling connection. Don't give an obvious but unimaginative connection a strong score just for being obvious. If only a category is given, don't assume facts about a particular brand.
+- brandFit: does the execution work for this brand or category? Judge the execution, not whether the original cultural signal was an obvious match. Reward an unexpected but strategically compelling connection. Don't give an obvious but unimaginative connection a strong score just for being obvious. If only a category is given, don't assume facts about a particular brand. If the request names an intended audience, also judge whether the execution would land with that audience: a natural connection can raise brandFit, a forced or stereotyped one lowers it, and broad appeal that this audience would also enjoy is fine.
   1 = Forced or off-brand. 3 = Plausible with effort. 5 = A natural, distinctive fit for this brand.
 - platformFit: does it feel native to ${label}: its hook, pacing, participation and conventions? A generic video with the platform name attached is weak.
   1 = Non-native. 3 = Workable. 5 = Built for ${label}.

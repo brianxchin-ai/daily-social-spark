@@ -86,3 +86,20 @@ test("generator: asks for one prose walkthrough, separate from the three format 
     assert.ok(g.includes("formatIdeas: three further ways to run the idea, each different from the walkthrough"));
   }
 });
+
+test("generator: a longlist of 10, 3 picked for organic distribution and diversity, judged but never scored", () => {
+  for (const hasEvidence of [true, false]) {
+    const g = generatorSystem("instagram-reels", hasEvidence);
+    for (const phrase of [
+      "write exactly 10 short ideas (L1 to L10)",
+      "how the idea would earn organic distribution on Instagram Reels",
+      "average watch time and completion, rewatches, shares and sends, saves, comments, and participation",
+      "This is your creative judgment, not a forecast. Never predict numbers",
+      "Pick the 3 ideas you believe would earn the highest organic distribution, while occupying genuinely distinct creative territories",
+      "If your strongest ideas overlap, keep the strongest of them and pick the next-best distinct idea instead.",
+      "Develop the 3 picks fully, in the same order as your picks",
+      "don't give any idea a numeric score or rating",
+    ]) assert.ok(g.includes(phrase), phrase);
+    assert.ok(!g.includes("Do not rate, score or rank your own ideas"));
+  }
+});

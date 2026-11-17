@@ -56,6 +56,7 @@ const signal = (observations: Obs[], over: Partial<Sig> = {}): Sig => ({
   lookback: "Not checked",
   lineageQuery: "",
   creativeOpportunity: "",
+  audienceNote: "Not documented",
   observations,
   inferences: [],
   ...over,

@@ -49,6 +49,7 @@ function makeLedger() {
     lookback: "Not checked",
     lineageQuery: "",
     creativeOpportunity: "",
+    audienceNote: "Not documented",
     observations,
     inferences: [],
   });

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { audienceLine } from "@/lib/prompts/audience";
 import type Anthropic from "@anthropic-ai/sdk";
 import {
   buildRegister,
@@ -76,8 +77,8 @@ export async function runScout(
   // Step 1: search and write cited notes.
   const searched = await callWithSearch({
     step: "scout-search",
-    system: scoutSearchPrompt(request.platform, today),
-    user: `Brand or category: ${request.brand}\nPlatform: ${PLATFORM_PROFILES[request.platform].label}\n\nResearch what is happening now that could inform this brand's short-form content.`,
+    system: scoutSearchPrompt(request.platform, today, Boolean(request.audience)),
+    user: `Brand or category: ${request.brand}\nPlatform: ${PLATFORM_PROFILES[request.platform].label}${audienceLine(request.audience)}\n\nResearch what is happening now that could inform this brand's short-form content.`,
     maxTokens: 8_000, // worst case ≈ $0.08 of output
     maxSearches: MAX_SEARCHES,
     timeoutMs: 150_000,
@@ -125,7 +126,7 @@ export async function runScout(
       step: "scout-filing",
       system: SCOUT_FILING_PROMPT,
       user: `Brand or category: ${request.brand}
-Platform: ${PLATFORM_PROFILES[request.platform].label}
+Platform: ${PLATFORM_PROFILES[request.platform].label}${audienceLine(request.audience)}
 
 Searches you ran (copy one exactly into lineageQuery if it checked a signal's lineage or history):
 ${register.queries.map((q) => `- ${q}`).join("\n") || "- (none)"}

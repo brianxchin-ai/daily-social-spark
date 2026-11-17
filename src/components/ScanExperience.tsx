@@ -41,6 +41,7 @@ function allowanceLine(limits: BetaLimits): string {
 /** Owns the scan flow: control deck on the left, the story card stage on the right. */
 export function ScanExperience() {
   const [brand, setBrand] = useState("");
+  const [audience, setAudience] = useState("");
   const [platform, setPlatform] = useState<Platform>("tiktok");
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const [state, setState] = useState<ScanState>({ status: "idle" });
@@ -75,7 +76,7 @@ export function ScanExperience() {
     try {
       setPhase("research");
       const spark = await runScan(
-        { brand, platform },
+        { brand, platform, audience },
         (p) => {
           if (runId === latestRun.current) setPhase(p);
         },
@@ -128,8 +129,8 @@ export function ScanExperience() {
             today<span className="text-ember">.</span>
           </h1>
           <p className={`max-w-sm text-[15px] leading-relaxed text-ink-soft ${hasRun ? "hidden" : ""}`}>
-            A creative head start on social. Discover the top short-form opportunity informed by cultural and
-            platform signals.
+            A creative head start on social. Find a short-form idea worth making, informed by live cultural
+            signals.
           </p>
         </div>
         <ScanForm
@@ -143,6 +144,8 @@ export function ScanExperience() {
             if (validationMessage && value.trim()) setValidationMessage(null);
           }}
           onPlatformChange={setPlatform}
+          audience={audience}
+          onAudienceChange={setAudience}
           onSubmit={handleSubmit}
         />
         {/* After a scan, keep the visitor's remaining beta allowance in view. */}

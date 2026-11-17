@@ -199,6 +199,9 @@ function SignalCard({
             </ul>
           </div>
         )}
+        {signal.audienceNote && (
+          <p className="text-[13px] leading-relaxed text-ink-soft">Who it reaches: {signal.audienceNote}</p>
+        )}
         {signal.creativeOpportunity && (
           <p className="text-[13px] leading-relaxed text-ink-soft">Scout’s creative hypothesis: {signal.creativeOpportunity}</p>
         )}

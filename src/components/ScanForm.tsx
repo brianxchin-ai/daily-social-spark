@@ -1,5 +1,6 @@
 "use client";
 
+import { AUDIENCE_MAX } from "@/lib/prompts/audience";
 import { PLATFORMS, type Platform } from "@/lib/types";
 
 interface ScanFormProps {
@@ -9,6 +10,8 @@ interface ScanFormProps {
   validationMessage: string | null;
   onBrandChange: (value: string) => void;
   onPlatformChange: (value: Platform) => void;
+  audience: string;
+  onAudienceChange: (value: string) => void;
   onSubmit: () => void;
   onCancel: () => void;
 }
@@ -27,6 +30,8 @@ export function ScanForm({
   validationMessage,
   onBrandChange,
   onPlatformChange,
+  audience,
+  onAudienceChange,
   onSubmit,
   onCancel,
 }: ScanFormProps) {
@@ -97,6 +102,36 @@ export function ScanForm({
           })}
         </div>
       </fieldset>
+
+      <div className="flex flex-col gap-2">
+        <label htmlFor="audience" className="readout text-ink-soft">
+          <span className="text-ember">03</span> / Audience <span className="normal-case">(optional)</span>
+        </label>
+        <textarea
+          id="audience"
+          name="audience"
+          rows={2}
+          maxLength={AUDIENCE_MAX}
+          autoComplete="off"
+          placeholder="College students who treat academic achievements like video games"
+          value={audience}
+          disabled={isScanning}
+          onChange={(event) => onAudienceChange(event.target.value)}
+          onKeyDown={(event) => {
+            // One line of description: Enter runs the scan, as in the brand field.
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }
+          }}
+          aria-describedby="audience-help"
+          className="w-full min-w-0 resize-none border-2 border-ink bg-surface px-4 py-2.5 text-[16px] leading-snug placeholder:text-ink-soft/50 focus:border-ember focus:outline-none disabled:opacity-60"
+        />
+        <p id="audience-help" className="readout flex justify-between gap-3 text-ink-soft">
+          <span>Who you want to reach. Leave blank for a broad read.</span>
+          <span className="tabular-nums">{audience.length}/{AUDIENCE_MAX}</span>
+        </p>
+      </div>
 
       {isScanning ? (
         // While a scan runs, the same slot becomes Cancel: same shape, quieter color.

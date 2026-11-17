@@ -15,6 +15,7 @@ export async function generateDemoSpark(request: ScanRequest): Promise<DemoSpark
     generatedAt: new Date().toISOString(),
     brand: request.brand,
     platform: request.platform,
+    ...(request.audience ? { audience: request.audience } : {}),
     ...DEMO_TEMPLATES[request.platform](request.brand),
   };
 }

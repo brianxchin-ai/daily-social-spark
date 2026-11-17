@@ -1,4 +1,5 @@
 import { EngineError, MODEL, type ScanUsage } from "@/lib/engine/claude";
+import { parseAudience } from "@/lib/prompts/audience";
 import { runScout } from "@/lib/engine/scout";
 import { MIN_SECRET_LENGTH, signLedger } from "@/lib/research/signing";
 import { PLATFORMS, type Platform } from "@/lib/types";
@@ -52,14 +53,16 @@ export async function POST(request: Request) {
   } catch {
     return Response.json({ error: "Request body must be JSON." }, { status: 400 });
   }
-  const { brand, platform } = (body ?? {}) as { brand?: unknown; platform?: unknown };
+  const { brand, platform, audience } = (body ?? {}) as { brand?: unknown; platform?: unknown; audience?: unknown };
   if (typeof brand !== "string" || !brand.trim() || brand.length > 120) {
     return Response.json({ error: "Enter a brand or category (up to 120 characters)." }, { status: 400 });
   }
   if (!PLATFORMS.some((p) => p.id === platform)) {
     return Response.json({ error: "Unknown platform." }, { status: 400 });
   }
-  const scan = { brand: brand.trim(), platform: platform as Platform };
+  const parsedAudience = parseAudience(audience);
+  if (!parsedAudience.ok) return Response.json({ error: parsedAudience.error }, { status: 400 });
+  const scan = { brand: brand.trim(), platform: platform as Platform, audience: parsedAudience.audience };
 
   // Usage limits come before any paid call.
   const gate = usageGate();

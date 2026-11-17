@@ -67,7 +67,10 @@ export function WhyThisIdea({
                   {s.kind === "social" ? "Social post" : "Article"}
                 </span>
                 <span className="min-w-0 text-[14px] leading-snug font-semibold break-words group-hover:underline">
-                  {s.title}
+                  {/* Social posts often use their whole caption as the title; keep it to three lines. */}
+                  <span className="line-clamp-3" title={s.title}>
+                    {s.title}
+                  </span>
                   <span className="block text-[12.5px] font-normal text-ink-soft">
                     {s.domain}
                     {s.pageUpdated ? ` · page updated ${tidyAge(s.pageUpdated)}` : ""}

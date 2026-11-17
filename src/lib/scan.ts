@@ -189,7 +189,8 @@ export async function runScan(
   if (!brand) {
     throw new ScanError("Enter a brand or category to scan.");
   }
-  const scan = { brand, platform: request.platform };
+  const audience = request.audience?.replace(/\s+/g, " ").trim();
+  const scan = { brand, platform: request.platform, ...(audience ? { audience } : {}) };
 
   onPhase?.("research");
   const research = await runResearch(scan, cancel);

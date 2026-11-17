@@ -94,6 +94,11 @@ export const LedgerDraftSchema = z.object({
         creativeOpportunity: z
           .string()
           .describe("Why it could still be creatively useful, as a hypothesis (derivative signals can be). Empty string if none."),
+        audienceNote: z
+          .string()
+          .describe(
+            "Who the cited sources say this is popular with or spreading among, in a short phrase. 'Not documented' if they don't say; any read of your own goes after 'Inference:'.",
+          ),
         observations: z
           .array(
             z.object({
@@ -231,6 +236,8 @@ export interface LedgerSignal {
   lineageQuery: string | null;
   /** The Scout's creative hypothesis, kept separate from novelty and evidence. */
   creativeOpportunity: string;
+  /** Who the sources say it reaches, or "Not documented"; the Scout's own read is marked "Inference:". */
+  audienceNote: string;
   observationIds: string[];
   culturalRelevance: CriterionEligibility;
   momentum: CriterionEligibility;
@@ -527,6 +534,7 @@ export function checkLedger(input: {
       categoryRelation: rawSignal.categoryRelation,
       summary: rawSignal.summary,
       ...checkNovelty(rawSignal, signalObs.length, signalId, adjustments, register.queries),
+      audienceNote: (rawSignal.audienceNote ?? "").trim() || "Not documented",
       observationIds: signalObs.map((o) => o.id),
       culturalRelevance: { status: "unverified", maxScore: null, independentOrigins: 0, reason: "" },
       momentum: { status: "unverified", maxScore: null, independentOrigins: 0, reason: "" },

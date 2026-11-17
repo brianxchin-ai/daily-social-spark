@@ -18,6 +18,7 @@ import { EvidencePanel } from "./EvidencePanel";
 import { plural, StatusBadge } from "./EvidenceStatus";
 import { EvidenceList } from "./EvidenceList";
 import { FormatIdeasCompact } from "./FormatIdeas";
+import { LonglistPanel } from "./LonglistPanel";
 import { MetricsRow } from "./MetricsRow";
 import { RiskNotes } from "./RiskNotes";
 import { RefinementPanel } from "./RefinementPanel";
@@ -62,12 +63,12 @@ export function SparkResult({ spark }: { spark: Spark }) {
       >
         {spark.origin === "demo" ? (
           <>
-            <Header origin="demo" brand={spark.brand} content={spark} />
+            <Header origin="demo" brand={spark.brand} audience={spark.audience} content={spark} />
             <DemoSections spark={spark} />
           </>
         ) : finalCandidate ? (
           <>
-            <Header origin="ai-hypothesis" brand={spark.brand} content={finalCandidate} />
+            <Header origin="ai-hypothesis" brand={spark.brand} audience={spark.audience} content={finalCandidate} />
             <HypothesisSections spark={spark} final={finalCandidate} />
           </>
         ) : (
@@ -81,10 +82,12 @@ export function SparkResult({ spark }: { spark: Spark }) {
 function Header({
   origin,
   brand,
+  audience,
   content,
 }: {
   origin: SparkOrigin;
   brand: string;
+  audience?: string;
   content: { trendName: string; headline: string; concept?: string };
 }) {
   return (
@@ -102,14 +105,17 @@ function Header({
         {content.headline}
       </h2>
       {content.concept && <p className="max-w-[62ch] text-[18px] leading-relaxed font-medium">{content.concept}</p>}
-      <p className="readout text-ink-soft">For: {brand}</p>
+      <p className="readout text-ink-soft">
+        For: {brand}
+        {audience && <span className="normal-case"> · Audience: {audience}</span>}
+      </p>
     </header>
   );
 }
 
 /** Everything behind the recommendation, closed by default. */
 function Drawer({
-  subtitle = "Timing, risks, the other ideas, evidence detail and the full decision trace",
+  subtitle = "The longlist, timing, risks, the other ideas, evidence detail and the full decision trace",
   children,
 }: {
   subtitle?: string;
@@ -196,7 +202,7 @@ function finalEvaluationOf(spark: HypothesisSpark): CandidateEvaluation {
  * Why this idea was picked, from what our code knows: its rank, its two
  * strongest measured criteria, and whether it won on a tie.
  */
-const NUMBER_WORDS: Record<number, string> = { 2: "two", 3: "three", 4: "four", 5: "five" };
+const NUMBER_WORDS: Record<number, string> = { 2: "two", 3: "three", 4: "four", 5: "five", 10: "ten" };
 
 function selectionSentence(spark: HypothesisSpark, evaluation: CandidateEvaluation): string {
   const strongest = evaluation.results
@@ -207,10 +213,16 @@ function selectionSentence(spark: HypothesisSpark, evaluation: CandidateEvaluati
   const others = spark.candidates.length - 1;
   const name = (id: string) => spark.candidates.find((c) => c.id === id)?.trendName ?? id;
   const tie = computeTies(spark.evaluation).find((t) => t.ahead === spark.evaluation.leaderId);
+  const count = NUMBER_WORDS[spark.candidates.length] ?? spark.candidates.length;
+  const pool = spark.longlist ? spark.longlist.ideas.length : 0;
   const parts = [
-    `It ranked first of the ${NUMBER_WORDS[spark.candidates.length] ?? spark.candidates.length} ideas this scan generated${
-      strongest.length ? `, with its strongest marks for ${strongest.join(" and ")}` : ""
-    }.`,
+    pool > 0
+      ? `The Generator picked it as one of ${count} ideas, from a longlist of ${NUMBER_WORDS[pool] ?? pool}, for its distribution potential. The independent reviewer then ranked it first${
+          strongest.length ? `, with its strongest marks for ${strongest.join(" and ")}` : ""
+        }.`
+      : `It ranked first of the ${count} ideas this scan generated${
+          strongest.length ? `, with its strongest marks for ${strongest.join(" and ")}` : ""
+        }.`,
   ];
   if (others > 0 && tie) parts.push(tieShort(tie, name));
   if (evaluation.candidateId !== spark.evaluation.leaderId) parts.push("The editor then revised it once.");
@@ -252,7 +264,10 @@ function HypothesisSections({ spark, final }: { spark: HypothesisSpark; final: C
 
       <Section index={4} title="Why this idea" origin={origin}>
         <WhyThisIdea
-          paragraphs={[`${final.whyItWillSpread} ${selectionSentence(spark, finalEvaluation)}`]}
+          paragraphs={[
+            `${final.whyItWillSpread} ${selectionSentence(spark, finalEvaluation)}`,
+            ...(spark.audience && final.audienceConnection ? [`Audience connection: ${final.audienceConnection}`] : []),
+          ]}
           sources={sources}
           status={finalEvaluation.score.status}
           researched={ledger !== null}
@@ -260,6 +275,12 @@ function HypothesisSections({ spark, final }: { spark: HypothesisSpark; final: C
       </Section>
 
       <Drawer>
+        {spark.longlist && (
+          <DrawerPart title={`The longlist · ${spark.longlist.ideas.length} ideas considered`}>
+            <LonglistPanel longlist={spark.longlist} candidates={spark.candidates} />
+          </DrawerPart>
+        )}
+
         <DrawerPart title="Why now">
           <WhyNow text={final.whyNow} />
         </DrawerPart>

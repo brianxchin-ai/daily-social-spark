@@ -48,6 +48,11 @@ export const CandidateDraftSchema = z.object({
       "A short production walkthrough of ONE execution, start to finish, written as prose like a director's treatment: the opening shot and hook, what happens, the turn or payoff, and how it ends. 80 to 150 words, in one or two short paragraphs. No URLs, handles, statistics or performance claims.",
     ),
   whyItWillSpread: z.string().describe("Why this format has distribution and algorithmic potential."),
+  audienceConnection: z
+    .string()
+    .describe(
+      "If an intended audience was given: one sentence on how the idea connects with that audience, or why its broad appeal still lands with them. Empty string if no audience was given.",
+    ),
   whyNow: z.string().describe("The cultural or platform reasoning for acting now, framed as a hypothesis."),
   timing: z.object({
     hypothesis: z
@@ -88,11 +93,39 @@ export const CandidateDraftSchema = z.object({
   risks: z.array(z.string()).describe("2 to 4 watch-outs."),
 });
 
+/** Behaviors that drive organic distribution. The Generator names the ones its bet relies on. */
+export const DISTRIBUTION_DRIVERS = ["watch-time", "completion", "rewatch", "shares", "saves", "comments", "participation"] as const;
+export type DistributionDriver = (typeof DISTRIBUTION_DRIVERS)[number];
+
+const LonglistIdeaSchema = z.object({
+  id: z.string().describe("L1 to L10, in order."),
+  trendName: z.string(),
+  headline: z.string().describe("A short display headline, 12 words or fewer."),
+  mechanic: z.string().describe("The underlying creative mechanic in one sentence."),
+  territory: z.string().describe("The creative territory in a few words."),
+  groundedIn: z.array(z.string()).describe("Ledger signal IDs the idea builds on. Empty if none."),
+  distributionDrivers: z
+    .array(z.enum(DISTRIBUTION_DRIVERS))
+    .describe("The 1 to 3 behaviors the distribution bet relies on most."),
+  distributionBet: z
+    .string()
+    .describe("One sentence hypothesizing how the idea would earn organic distribution. No numbers or predicted metrics."),
+});
+
 export const CandidateSetSchema = z.object({
+  longlist: z.array(LonglistIdeaSchema).describe("Exactly 10 short ideas, written before choosing."),
+  selection: z.object({
+    picks: z
+      .array(z.object({ id: z.string().describe("A longlist ID."), reason: z.string().describe("One sentence on why it made the cut.") }))
+      .describe("Exactly 3 picks, in the same order as candidates."),
+    setAside: z.string().describe("One or two sentences on why the other seven didn't make the cut."),
+  }),
   candidates: z
     .array(CandidateDraftSchema)
-    .describe("Exactly 3 candidates, each built on a genuinely different creative mechanic."),
+    .describe("Exactly 3 candidates: the 3 picks developed in full, in pick order, each built on a genuinely different creative mechanic."),
 });
+
+export type CandidateSet = z.infer<typeof CandidateSetSchema>;
 
 export type CandidateDraft = z.infer<typeof CandidateDraftSchema>;
 
@@ -164,10 +197,34 @@ const StrictCandidateSchema = CandidateDraftSchema.extend({
 
 const normalize = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
+const StrictLonglistIdea = LonglistIdeaSchema.extend({
+  id: nonEmpty,
+  trendName: nonEmpty,
+  headline: nonEmpty,
+  mechanic: nonEmpty,
+  territory: nonEmpty,
+  groundedIn: z.array(nonEmpty).max(3),
+  distributionDrivers: LonglistIdeaSchema.shape.distributionDrivers.min(1).max(3),
+  distributionBet: nonEmpty,
+});
+
 const StrictCandidateSetSchema = z
-  .object({ candidates: z.array(StrictCandidateSchema).length(3) })
+  .object({
+    longlist: z.array(StrictLonglistIdea).length(10),
+    selection: z.object({
+      picks: z.array(z.object({ id: nonEmpty, reason: nonEmpty })).length(3),
+      setAside: nonEmpty,
+    }),
+    candidates: z.array(StrictCandidateSchema).length(3),
+  })
   .superRefine((set, ctx) => {
     if (!noUrls(set)) ctx.addIssue({ code: "custom", message: "Hypotheses must not contain URLs." });
+    const ids = set.longlist.map((l) => l.id.trim());
+    if (new Set(ids).size < ids.length) ctx.addIssue({ code: "custom", message: "Longlist IDs must be unique." });
+    const picks = set.selection.picks.map((p) => p.id.trim());
+    if (new Set(picks).size < picks.length || picks.some((id) => !ids.includes(id))) {
+      ctx.addIssue({ code: "custom", message: "Picks must be 3 different longlist IDs." });
+    }
     const names = set.candidates.map((c) => normalize(c.trendName));
     const mechanics = set.candidates.map((c) => normalize(c.mechanic));
     if (new Set(names).size < names.length || new Set(mechanics).size < mechanics.length) {
@@ -212,7 +269,7 @@ function describeIssues(error: z.ZodError): string[] {
 }
 
 /** Our own check on the generator's answer, after the API's. */
-export function validateCandidateSet(value: unknown): Validated<{ candidates: CandidateDraft[] }> {
+export function validateCandidateSet(value: unknown): Validated<CandidateSet> {
   const result = StrictCandidateSetSchema.safeParse(value);
   return result.success ? { ok: true, value: result.data } : { ok: false, problems: describeIssues(result.error) };
 }

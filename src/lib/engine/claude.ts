@@ -1,9 +1,10 @@
 import "server-only";
 
+import { audienceLine } from "@/lib/prompts/audience";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { ZodType } from "zod";
-import { CandidateSetSchema, validateCandidateSet, type CandidateDraft } from "@/lib/spark-schema";
+import { CandidateSetSchema, validateCandidateSet, type CandidateSet } from "@/lib/spark-schema";
 import { generatorSystem, ledgerDigest } from "@/lib/prompts/creative";
 import type { EvidenceLedger } from "@/lib/research/ledger";
 import { PLATFORMS, type ScanRequest } from "@/lib/types";
@@ -258,23 +259,23 @@ export async function generateCandidates(
   ledger: EvidenceLedger | null,
   timeoutMs = 120_000,
   signal?: AbortSignal,
-): Promise<{ candidates: CandidateDraft[]; usage: ScanUsage }> {
+): Promise<{ candidates: CandidateSet["candidates"]; longlist: CandidateSet["longlist"]; selection: CandidateSet["selection"]; usage: ScanUsage }> {
   const { value, usage } = await callStructured({
     step: "generator",
-    system: generatorSystem(request.platform, ledger !== null),
+    system: generatorSystem(request.platform, ledger !== null, Boolean(request.audience)),
     user: `Brand or category: ${request.brand}
-Platform: ${platformLabel(request.platform)}
+Platform: ${platformLabel(request.platform)}${audienceLine(request.audience)}
 
 ${ledger ? ledgerDigest(ledger) : "No evidence ledger for this scan."}
 
-Propose three distinct short-form opportunities for this brand on this platform.`,
+Write a longlist of 10 short-form ideas for this brand on this platform, pick the 3 you believe would earn the most organic distribution while staying distinct, and develop those 3 in full.`,
     schema: CandidateSetSchema,
     maxTokens: 14_000, // worst case ≈ $0.14 of output
     timeoutMs,
     validate: validateCandidateSet,
     signal,
   });
-  return { candidates: value.candidates, usage };
+  return { candidates: value.candidates, longlist: value.longlist, selection: value.selection, usage };
 }
 
 /**

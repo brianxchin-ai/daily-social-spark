@@ -1,4 +1,5 @@
 import { canceledError, EngineError, generateCandidates, MODEL, type ScanUsage } from "@/lib/engine/claude";
+import { parseAudience } from "@/lib/prompts/audience";
 import { generateDemoSpark } from "@/lib/engine/demo";
 import { evaluateCandidates } from "@/lib/engine/evaluator";
 import { refineLeader, toDraft } from "@/lib/engine/refine";
@@ -13,6 +14,7 @@ import {
   type EngineMode,
   type GenerationInfo,
   type HypothesisSpark,
+  type Longlist,
   type Platform,
   type ResearchOutcome,
   type ScanRequest,
@@ -58,7 +60,7 @@ function resolveResearch(
  * /api/scan: the server-side doorway between the page and the engine.
  *
  * The engine is chosen explicitly with SPARK_ENGINE ("demo" by default).
- * In "claude" mode a scan is: generator call (3 candidates) → separate
+ * In "claude" mode a scan is: generator call (a longlist of 10, 3 picked and developed) → separate
  * evaluator call (anonymized, shuffled) → deterministic scoring and ranking
  * in our code → one bounded refinement (editor call, and a rescore call only
  * if a revision was written). Generator or evaluator failures are reported as
@@ -101,8 +103,9 @@ export async function POST(request: Request) {
     return Response.json({ engine, error: "Request body must be JSON." }, { status: 400 });
   }
 
-  const { brand, platform, researchToken, researchError, attemptId } = (body ?? {}) as {
+  const { brand, platform, audience, researchToken, researchError, attemptId } = (body ?? {}) as {
     brand?: unknown;
+    audience?: unknown;
     platform?: unknown;
     researchToken?: unknown;
     researchError?: unknown;
@@ -114,7 +117,9 @@ export async function POST(request: Request) {
   if (!PLATFORMS.some((p) => p.id === platform)) {
     return Response.json({ engine, error: "Unknown platform." }, { status: 400 });
   }
-  const scan = { brand: brand.trim(), platform: platform as Platform };
+  const parsedAudience = parseAudience(audience);
+  if (!parsedAudience.ok) return Response.json({ engine, error: parsedAudience.error }, { status: 400 });
+  const scan = { brand: brand.trim(), platform: platform as Platform, audience: parsedAudience.audience };
 
   if (engine === "demo") {
     const spark: Spark = await generateDemoSpark(scan);
@@ -161,7 +166,7 @@ async function runCreative(
   const ledger = research.status === "verified" ? research.ledger : null;
   console.info(`[scan] research=${research.status}`);
 
-  // 1. Generator: three distinct candidates (one call), grounded in the ledger when there is one.
+  // 1. Generator (one call): a longlist of 10, 3 picked for distribution potential and diversity, developed in full.
   // request.signal fires if the person cancels: the call in progress stops and no later call starts.
   const signal = request.signal;
   const generated = await generateCandidates(scan, ledger, timeLeft(120_000), signal);
@@ -175,6 +180,20 @@ async function runCreative(
       groundingWarnings: grounding.warnings,
     };
   });
+
+  // The longlist the Generator chose from, with its picks tied to the developed candidates.
+  const knownSignals = new Set(ledger?.signals.map((g) => g.id) ?? []);
+  const longlist: Longlist = {
+    setAside: generated.selection.setAside,
+    ideas: generated.longlist.map((idea) => {
+      const index = generated.selection.picks.findIndex((p) => p.id.trim() === idea.id.trim());
+      return {
+        ...idea,
+        groundedIn: idea.groundedIn.filter((id) => knownSignals.has(id)),
+        pick: index >= 0 && candidates[index] ? { reason: generated.selection.picks[index].reason, candidateId: candidates[index].id } : null,
+      };
+    }),
+  };
 
   // Range check: labels near-duplicates and unused off-category signals. No extra call, no retry.
   const diversity = checkDiversity(candidates, ledger);
@@ -223,6 +242,7 @@ async function runCreative(
     generatedAt: new Date().toISOString(),
     brand: scan.brand,
     platform: scan.platform,
+    ...(scan.audience ? { audience: scan.audience } : {}),
     candidates,
     evaluation: {
       mode: ranking.scores[0]?.mode ?? "concept",
@@ -235,6 +255,7 @@ async function runCreative(
     generation: summarize([generated.usage, evaluated.usage, ...refined.usages]),
     research,
     diversity,
+    longlist,
   };
 
   console.info(

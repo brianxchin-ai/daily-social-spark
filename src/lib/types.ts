@@ -14,6 +14,7 @@ import type {
   ScoreMode,
 } from "./evaluation/scoring";
 import type { DiversityReport } from "@/lib/evaluation/diversity";
+import type { DistributionDriver } from "@/lib/spark-schema";
 import type { EvidenceLedger } from "@/lib/research/ledger";
 
 export type Platform = "tiktok" | "instagram-reels" | "youtube-shorts";
@@ -28,6 +29,8 @@ export const PLATFORMS: { id: Platform; label: string }[] = [
 export interface ScanRequest {
   brand: string;
   platform: Platform;
+  /** Optional: who the person wants to reach, in their own words. */
+  audience?: string;
 }
 
 /** How strongly a piece of evidence supports the opportunity. */
@@ -115,6 +118,7 @@ export interface DemoSpark {
   generatedAt: string;
   brand: string;
   platform: Platform;
+  audience?: string;
   trendName: string;
   headline: string;
   whyItWillSpread: string;
@@ -158,6 +162,8 @@ export interface Candidate {
   /** Problems our code found in the grounding (unknown IDs, unquoted figures). */
   groundingWarnings?: string[];
   whyItWillSpread: string;
+  /** How the idea connects with the intended audience. Empty when none was given. */
+  audienceConnection: string;
   whyNow: string;
   timing: TimingHypothesis;
   audioRole: AudioRole;
@@ -220,6 +226,28 @@ export type RefinementReport =
       decision: RevisionDecision;
     };
 
+/** One of the Generator's 10 longlist ideas, and whether it made the shortlist. */
+export interface LonglistIdea {
+  id: string;
+  trendName: string;
+  headline: string;
+  mechanic: string;
+  territory: string;
+  /** Ledger signal IDs, kept only if they exist in the ledger. */
+  groundedIn: string[];
+  distributionDrivers: DistributionDriver[];
+  /** The Generator's hypothesis about organic distribution. Judgment, not a forecast. */
+  distributionBet: string;
+  /** Set when this idea was one of the 3 picks. */
+  pick: { reason: string; candidateId: string } | null;
+}
+
+/** The Generator's longlist and why it picked the 3 it developed. */
+export interface Longlist {
+  ideas: LonglistIdea[];
+  setAside: string;
+}
+
 /** An AI scan: three candidate hypotheses, evaluated, ranked and refined once. */
 export interface HypothesisSpark {
   origin: "ai-hypothesis";
@@ -227,6 +255,8 @@ export interface HypothesisSpark {
   generatedAt: string;
   brand: string;
   platform: Platform;
+  /** The audience the person named, if any. */
+  audience?: string;
   candidates: Candidate[];
   evaluation: EvaluationReport;
   refinement: RefinementReport;
@@ -237,6 +267,8 @@ export interface HypothesisSpark {
   research: ResearchOutcome;
   /** Day 3: code's labels on the range of the three ideas (near-duplicates, unused off-category signals). */
   diversity: DiversityReport;
+  /** Day 5: the 10 ideas the Generator considered before picking 3. Absent on older results. */
+  longlist?: Longlist;
 }
 
 /**

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { audienceLine } from "@/lib/prompts/audience";
 import { criterion, type CriterionId, type CriterionResult } from "@/lib/evaluation/scoring";
 import {
   EditorSchema,
@@ -20,7 +21,8 @@ Your job, in order:
    - changes only what is needed to address that weakness,
    - adds no cultural, momentum, performance or statistical claims, and no URLs, outlets or handles,
    - keeps the same groundedIn signals and the same underlying cultural claim, so the evidence behind the original still applies (don't add or change evidence),
-   - keeps every field complete, with a headline of 12 words or fewer, and rewrites the walkthrough so it matches the revised idea.
+   - keeps every field complete, with a headline of 12 words or fewer, and rewrites the walkthrough so it matches the revised idea,
+   - if an intended audience is given, keeps the connection with it natural, never forced or stereotyped, and updates audienceConnection to match.
 
 Do not score, rank or predict scores. A separate reviewer rescores any revision.
 
@@ -65,7 +67,7 @@ export async function critiqueAndRevise(
     step: "editor",
     system: EDITOR_SYSTEM,
     user: `Brand or category: ${request.brand}
-Platform: ${platformLabel(request.platform)}
+Platform: ${platformLabel(request.platform)}${audienceLine(request.audience)}
 
 The leading idea:
 ${describeLeader(leader, leaderResults)}`,

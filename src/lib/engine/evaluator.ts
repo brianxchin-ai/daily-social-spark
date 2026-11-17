@@ -1,5 +1,6 @@
 import "server-only";
 
+import { audienceLine } from "@/lib/prompts/audience";
 import { evidenceResult, revisedEvidence } from "@/lib/evaluation/evidence";
 import { combineFit, CRITERIA, type CriterionResult, type RevisionChecks } from "@/lib/evaluation/scoring";
 import { evaluatorSystem, ledgerDigest } from "@/lib/prompts/creative";
@@ -35,6 +36,7 @@ Execution hypothesis: ${c.executionHypothesis}
 Platform execution: ${c.platformExecution}
 Walkthrough of one execution: ${c.walkthrough}
 Why it could spread: ${c.whyItWillSpread}
+Audience connection (writer's claim): ${c.audienceConnection || "none given"}
 Audio role: ${c.audioRole}
 Audio variations:
 ${audio}
@@ -96,7 +98,7 @@ export async function evaluateCandidates(
   const byLabel = new Map<Label, (typeof candidates)[number]>(order.map((c, i) => [LABELS[i], c]));
 
   const user = `Brand or category: ${request.brand}
-Platform: ${platformLabel(request.platform)}
+Platform: ${platformLabel(request.platform)}${audienceLine(request.audience)}
 
 ${ledger ? ledgerDigest(ledger) : "No evidence ledger for this scan: give proposedScore 0 for cultural relevance and emerging momentum."}
 
@@ -154,7 +156,7 @@ export async function rescoreRevision(
   const { original, revised, weakness, groundedIn, originalResults, ledger } = input;
   const cited = originalResults.flatMap((r) => r.observationIds ?? []);
   const user = `Brand or category: ${request.brand}
-Platform: ${platformLabel(request.platform)}
+Platform: ${platformLabel(request.platform)}${audienceLine(request.audience)}
 
 ${ledger ? ledgerDigest(ledger) : "No evidence ledger for this scan."}
 
