@@ -47,10 +47,12 @@ export function buildTrace(spark: HypothesisSpark): Step[] {
   const flags = spark.diversity.notes;
   const warnings = spark.candidates.flatMap((c) => (c.groundingWarnings ?? []).map((w) => `${c.trendName}: ${w}`));
   steps.push({
-    title: "Three ideas generated",
+    title: spark.longlist ? "Longlist and three picks" : "Three ideas generated",
     status: flags.length || warnings.length ? "flag" : "done",
     lines: [
-      spark.candidates.map((c) => `“${c.trendName}” (${c.territory})`).join("; ") + ".",
+      (spark.longlist
+        ? `The Generator wrote ${spark.longlist.ideas.length} ideas and picked ${spark.candidates.length}: `
+        : "") + spark.candidates.map((c) => `“${c.trendName}” (${c.territory})`).join("; ") + ".",
       ...flags.map((n) => `Range check: ${n}`),
       ...warnings,
     ],
@@ -116,7 +118,7 @@ export function buildTrace(spark: HypothesisSpark): Step[] {
         title: "Rescore and revision decision",
         status: "done",
         lines: [
-          ran.has("rescore") ? "A separate rescore call judged the revision and whether the original evidence still applies." : "",
+          ran.has("rescore") ? "A separate rescore call judged the revision on its own merits." : "",
           r.decision.outcome === "kept-revised"
             ? `Kept the revision: every rule passed (Spark Score gain ${r.decision.gain?.toFixed(1)}).`
             : `Kept the original. Failed: ${failed.join("; ")}.`,

@@ -128,9 +128,10 @@ export function ScanExperience() {
             <br />
             today<span className="text-ember">.</span>
           </h1>
-          <p className={`max-w-sm text-[15px] leading-relaxed text-ink-soft ${hasRun ? "hidden" : ""}`}>
-            A creative head start on social. Find a short-form idea worth making, informed by live cultural
-            signals.
+          {/* text-pretty plus a non-breaking space keeps "attention" from ending up alone on the last line. */}
+          <p className={`max-w-sm text-[15px] leading-relaxed text-pretty text-ink-soft ${hasRun ? "hidden" : ""}`}>
+            Find a short-form idea built to earn views, informed by live cultural signals and the psychology
+            of{"\u00A0"}attention.
           </p>
         </div>
         <ScanForm
@@ -156,7 +157,7 @@ export function ScanExperience() {
 
       <div ref={stageRef} className="w-full max-w-[620px] scroll-mt-6 justify-self-center lg:justify-self-start">
         {state.status === "idle" && (
-          <StoryCard dashed slateLeft="◌ Awaiting scan" slateRight="Ch. 01">
+          <StoryCard dashed slateLeft="◌ Awaiting scan">
             {notice && (
               <p role="status" className="readout font-bold text-ink">
                 ✕ {notice}
@@ -171,12 +172,6 @@ export function ScanExperience() {
             <p className="readout text-ink-soft">
               Name a brand → pick a platform → run scan
             </p>
-            {engineStatus?.engine === "claude" && (
-              <p className="readout text-hypo">
-                ◇ Claude engine · each scan makes live, paid calls to {engineStatus.model}
-                {engineStatus.research === "live" ? ", starting with live web research" : ""}
-              </p>
-            )}
             {engineStatus?.engine === "claude" && engineStatus.limits?.enforced && (
               <p className="readout font-bold text-ink">{allowanceLine(engineStatus.limits)}</p>
             )}

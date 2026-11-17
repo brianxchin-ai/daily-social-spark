@@ -20,7 +20,8 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "Daily Social Spark",
-  description: "One substantiated short-form social opportunity likely to spread in the next 24–48 hours.",
+  description:
+    "Find a short-form idea built to earn views, informed by live cultural signals and the psychology of attention.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -170,7 +170,7 @@ export function ScanProgress({
 }
 
 const RESEARCH_DETAIL = "Searching public sources, then filing a checked evidence ledger";
-const CREATIVE_DETAIL = "Three ideas, a separate review, ranking by our code, a critique and, if justified, one revision";
+const CREATIVE_DETAIL = "Ten ideas, three picked for reach, an independent review, ranking by our code and, if justified, one revision";
 
 function ProgressRow({
   label,
