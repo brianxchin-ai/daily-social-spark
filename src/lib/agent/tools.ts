@@ -25,41 +25,42 @@ const why = z.string().describe("One short sentence: why you're taking this acti
 
 export const TOOL_INPUTS = {
   web_search: z.object({
+    why,
     query: z.string().describe("The search query. Specific beats broad."),
     purpose: z
       .enum(["brand", "category", "cross-category", "depth"])
       .describe("brand: about the brand itself. category: its category. cross-category: culture beyond the category. depth: checking or deepening a lead."),
-    why,
   }),
   read_source: z.object({
+    why,
     sourceId: z.string().describe("A source ID (S3) from an earlier search. Only pages a search returned can be read."),
     question: z.string().describe("What you want to learn from the page."),
-    why,
   }),
   record_signal: z.object({
+    why,
     signal: LedgerDraftSchema.shape.signals.element,
     categoryTerms: z.array(z.string()).describe("Words naming the brand's own category, e.g. 'coffee'. May be empty.").optional(),
-    why,
   }),
   review_evidence: z.object({ why }),
   add_ideas: z.object({
-    ideas: z.array(LonglistIdeaSchema.omit({ id: true })).describe("1 to 10 short ideas for the longlist. Code assigns IDs (L1, L2…)."),
     why,
+    ideas: z.array(LonglistIdeaSchema.omit({ id: true })).describe("1 to 10 short ideas for the longlist. Code assigns IDs (L1, L2…)."),
   }),
   shortlist: z.object({
+    why,
     picks: z
       .array(z.object({ ideaId: z.string().describe("A longlist ID."), reason: z.string().describe("One sentence on why it made the cut.") }))
       .describe("Exactly 3 genuinely different longlist ideas."),
     setAside: z.string().describe("One or two sentences on why the others didn't make the cut."),
-    why,
   }),
   develop: z.object({
+    why,
     ideaId: z.string().describe("A shortlisted longlist ID."),
     treatment: CandidateDraftSchema,
-    why,
   }),
   evaluate: z.object({ why }),
   revise: z.object({
+    why,
     candidateId: z.string().describe("The evaluated candidate to improve."),
     weakness: z.string().describe("The specific weakness the revision fixes, in one or two sentences."),
     affectedCriterion: z
@@ -67,9 +68,9 @@ export const TOOL_INPUTS = {
       .describe("The rubric criterion that weakness most affects."),
     whatChanged: z.string().describe("What you changed, in one or two sentences."),
     revised: CandidateDraftSchema,
-    why,
   }),
   finish: z.object({
+    why,
     tieBreak: z
       .object({
         candidateId: z.string(),
@@ -80,7 +81,6 @@ export const TOOL_INPUTS = {
     revisionDecision: z
       .string()
       .describe("One or two sentences: why you did or didn't revise the leading idea, naming the criterion or evidence that decided it."),
-    why,
   }),
   abstain: z.object({
     reason: z.string().describe("Why no idea should be recommended. Shown to the user."),
@@ -167,11 +167,23 @@ function unpackText(value: unknown, depth = 0): unknown {
 export function parseInput<T extends ToolName>(
   name: T,
   input: unknown,
-): { ok: true; value: z.infer<(typeof TOOL_INPUTS)[T]>; unpacked?: boolean } | { ok: false; problem: string } {
-  const result = TOOL_INPUTS[name].safeParse(input);
+): { ok: true; value: z.infer<(typeof TOOL_INPUTS)[T]>; unpacked?: boolean; missingWhy?: boolean } | { ok: false; problem: string } {
+  const schema = TOOL_INPUTS[name];
+  const result = schema.safeParse(input);
   if (result.success) return { ok: true, value: result.data as z.infer<(typeof TOOL_INPUTS)[T]> };
-  const retry = TOOL_INPUTS[name].safeParse(unpackText(input));
+  const unpacked = unpackText(input);
+  const retry = schema.safeParse(unpacked);
   if (retry.success) return { ok: true, value: retry.data as z.infer<(typeof TOOL_INPUTS)[T]>, unpacked: true };
+  // A missing stated reason never throws away the work: the action runs, and the trace says no reason was given.
+  const onlyWhyMissing = (issues: z.core.$ZodIssue[]) => issues.length > 0 && issues.every((i) => i.path.length === 1 && i.path[0] === "why");
+  for (const [candidate, wasUnpacked] of [[input, false], [unpacked, true]] as const) {
+    const attempt = schema.safeParse(candidate);
+    if (attempt.success || !onlyWhyMissing(attempt.error.issues) || !candidate || typeof candidate !== "object" || Array.isArray(candidate)) continue;
+    const withWhy = schema.safeParse({ ...(candidate as Record<string, unknown>), why: "" });
+    if (withWhy.success) {
+      return { ok: true, value: withWhy.data as z.infer<(typeof TOOL_INPUTS)[T]>, missingWhy: true, ...(wasUnpacked ? { unpacked: true } : {}) };
+    }
+  }
   const issues = result.error.issues.slice(0, 5).map((i) => [i.path.join("."), i.message].filter(Boolean).join(": "));
   return { ok: false, problem: `Badly formed input for ${name}: ${issues.join("; ")}` };
 }

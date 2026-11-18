@@ -474,37 +474,35 @@ export async function runAgent(options: {
       ...(isError ? { is_error: true } : {}),
     });
 
-    type Prepared = { use: ToolUseBlock; name: ToolName; input: unknown; why: string | null; unpacked: boolean } | { use: ToolUseBlock; error: string };
+    type Prepared =
+      | { use: ToolUseBlock; name: ToolName; input: unknown; why: string | null; unpacked: boolean; missingWhy: boolean }
+      | { use: ToolUseBlock; error: string };
     const prepared: Prepared[] = uses.map((use) => {
       const counted = g.countToolCall();
       if (!counted.ok) return { use, error: counted.reason };
-      if (!(TOOL_NAMES as string[]).includes(use.name)) {
-        g.recordToolInput(false);
-        return { use, error: `There's no tool called ${use.name}.` };
-      }
+      if (!(TOOL_NAMES as string[]).includes(use.name)) return { use, error: `There's no tool called ${use.name}.` };
       const name = use.name as ToolName;
       const parsed = parseInput(name, use.input);
-      if (!parsed.ok) {
-        g.recordToolInput(false);
-        return { use, error: parsed.problem };
-      }
-      g.recordToolInput(true);
+      if (!parsed.ok) return { use, error: parsed.problem };
       const value = parsed.value as Record<string, unknown>;
+      const stated = typeof value.why === "string" && value.why.trim() ? value.why.trim() : null;
       return {
         use,
         name,
         input: value,
         why:
           name === "finish" && typeof value.revisionDecision === "string" && value.revisionDecision.trim()
-            ? `${value.why} On revising: ${value.revisionDecision.trim()}`
-            : typeof value.why === "string"
-              ? value.why
-              : name === "abstain"
-                ? String(value.reason ?? "")
-                : null,
+            ? `${stated ?? "(no stated reason)"} On revising: ${value.revisionDecision.trim()}`
+            : name === "abstain"
+              ? String(value.reason ?? "")
+              : stated,
         unpacked: parsed.unpacked === true,
+        missingWhy: parsed.missingWhy === true,
       };
     });
+    // One strike per turn, and only when nothing in the turn was usable: a
+    // single slip repeated across parallel calls gets feedback, not a stop.
+    g.recordToolInput(prepared.some((p) => "name" in p));
 
     let i = 0;
     while (i < prepared.length) {
@@ -523,7 +521,11 @@ export async function runAgent(options: {
           if (ws.ending) return resultBlock(p.use.id, { ok: false, problem: "The scan has already ended." }, true);
           if (signal?.aborted) return resultBlock(p.use.id, { ok: false, problem: "Scan canceled." }, true);
           const { outcome, action, usd } = await runTool(p.name, p.input);
-          const flags = p.unpacked ? ["Code unpacked part of this input that was sent as text.", ...outcome.flags] : outcome.flags;
+          const flags = [
+            ...(p.missingWhy ? ["No stated reason given: the agent left out its \"why\"."] : []),
+            ...(p.unpacked ? ["Code unpacked part of this input that was sent as text."] : []),
+            ...outcome.flags,
+          ];
           step({ actor: p.name, action, statedReason: p.why, result: outcome.result, ok: outcome.ok, flags, changedCourse: outcome.changedCourse, costUsd: usd });
           return resultBlock(p.use.id, outcome.forAgent, !outcome.ok);
         }),

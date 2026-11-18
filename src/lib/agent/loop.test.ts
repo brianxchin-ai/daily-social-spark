@@ -374,3 +374,47 @@ describe("behavior nudges (after the first real run)", () => {
     assert.ok((finishSpec.input_schema.required as string[]).includes("revisionDecision"));
   });
 });
+
+describe("fixes from the second real run (Keurig, 2026-11-18)", () => {
+  it("one turn with several badly formed calls is one strike: the agent gets the errors and carries on", async () => {
+    const bad = () => toolUse("shortlist", { picks: "L1, L2, L3" });
+    const model = new ScriptedModel((turn) => (turn === 1 ? [bad(), bad(), bad()] : [toolUse("abstain", { reason: "Stop." })]));
+    const run = await runAgent({ brief: BRIEF, model, tools: new FakeTools({}), now });
+    assert.equal(run.stopReason, null);
+    assert.equal(run.ending.how, "abstained");
+    assert.equal(model.turns, 2, "the agent saw the three errors and took another turn");
+  });
+
+  it("still stops after three turns in a row with nothing usable", async () => {
+    const model = new ScriptedModel(() => [toolUse("shortlist", { picks: "L1" }), toolUse("develop", { ideaId: 3 })]);
+    const run = await runAgent({ brief: BRIEF, model, tools: new FakeTools({}), now });
+    assert.equal(run.stopReason, "malformed");
+    assert.equal(model.turns, 3);
+  });
+
+  it("runs an action whose stated reason is missing, and says so in the trace", async () => {
+    const model = new ScriptedModel((turn) =>
+      turn === 1 ? [toolUse("web_search", { query: "desk reset", purpose: "category" })] : [toolUse("abstain", { reason: "Stop." })],
+    );
+    const run = await runAgent({ brief: BRIEF, model, tools: new FakeTools({ "desk reset": FRESH_PAGE }), now });
+    const search = run.steps.find((s) => s.actor === "web_search")!;
+    assert.equal(search.ok, true);
+    assert.equal(search.statedReason, null);
+    assert.match(search.flags[0], /No stated reason given/);
+    assert.equal(run.workspace.sources.length, 1, "the work wasn't thrown away");
+  });
+
+  it("asks for the stated reason first in every tool that takes one", () => {
+    for (const spec of toolSpecs()) {
+      const keys = Object.keys(spec.input_schema.properties as Record<string, unknown>);
+      if (keys.includes("why")) assert.equal(keys[0], "why", spec.name);
+    }
+  });
+
+  it("doesn't excuse anything else that's missing", async () => {
+    const model = new ScriptedModel((turn) => (turn === 1 ? [toolUse("web_search", { purpose: "category" })] : [toolUse("abstain", { reason: "Stop." })]));
+    const run = await runAgent({ brief: BRIEF, model, tools: new FakeTools({}), now });
+    assert.equal(run.steps[0].ok, false);
+    assert.match(run.steps[0].result, /query/);
+  });
+});
