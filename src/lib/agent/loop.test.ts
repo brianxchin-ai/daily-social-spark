@@ -515,9 +515,9 @@ describe("open shape: no quota", () => {
     };
     const model = new ScriptedModel((turn, results) => {
       if (turn === 1) return [toolUse("add_ideas", { why: "One strong bet.", ideas: longlistIdeas(1) })];
-      if (turn === 2) return [toolUse("develop", { why: "It's the bet.", ideaId: "L1", treatment: treatment({ basis: "original", groundedIn: [], evidenceBasis: "No live evidence for this scan." }) })];
+      if (turn === 2) return [toolUse("develop", { why: "It's the bet.", route: "original", reachThesis: { behaviors: "Sends.", wouldProveWrong: "No sends." }, ideaId: "L1", treatment: treatment({ basis: "original", groundedIn: [], evidenceBasis: "No live evidence for this scan." }) })];
       if (turn === 3) return [toolUse("evaluate", { why: "Test it.", candidateIds: [String(results[0].candidateId)] })];
-      return [toolUse("finish", { why: "It clears the bar.", revisionDecision: "No revision: nothing below 4.", comparison: "I considered no alternatives worth developing." })];
+      return [toolUse("finish", { why: "It clears the bar.", revisionDecision: "No revision: nothing below 4.", comparison: "I considered no alternatives worth developing.", routeDecision: "Original: no live trend fit." })];
     });
     const run = await runAgent({ brief: BRIEF, model, tools, now });
     assert.equal(run.ending.how, "finished");
@@ -530,11 +530,11 @@ describe("open shape: no quota", () => {
     const tools = new FakeTools({}, { scoreFor: (d) => (d.headline === "Second" ? 4 : 3) });
     const model = new ScriptedModel((turn, results) => {
       if (turn === 1) return [toolUse("add_ideas", { why: "Two bets.", ideas: longlistIdeas(2) })];
-      if (turn === 2) return [toolUse("develop", { why: "First.", ideaId: "L1", treatment: treatment({ basis: "original", groundedIn: [], headline: "First" }) })];
+      if (turn === 2) return [toolUse("develop", { why: "First.", route: "original", reachThesis: { behaviors: "Sends.", wouldProveWrong: "No sends." }, ideaId: "L1", treatment: treatment({ basis: "original", groundedIn: [], headline: "First" }) })];
       if (turn === 3) return [toolUse("evaluate", { why: "Test it.", candidateIds: [String(results[0].candidateId)] })];
-      if (turn === 4) return [toolUse("develop", { why: "Try another.", ideaId: "L2", treatment: treatment({ basis: "original", groundedIn: [], headline: "Second", mechanic: "A different mechanic entirely." }) })];
+      if (turn === 4) return [toolUse("develop", { why: "Try another.", route: "original", reachThesis: { behaviors: "Sends.", wouldProveWrong: "No sends." }, ideaId: "L2", treatment: treatment({ basis: "original", groundedIn: [], headline: "Second", mechanic: "A different mechanic entirely." }) })];
       if (turn === 5) return [toolUse("evaluate", { why: "Compare.", candidateIds: [String(results[0].candidateId)] })];
-      return [toolUse("finish", { why: "Done.", revisionDecision: "No revision.", comparison: "Second beat First on every criterion." })];
+      return [toolUse("finish", { why: "Done.", revisionDecision: "No revision.", comparison: "Second beat First on every criterion.", routeDecision: "Original." })];
     });
     const run = await runAgent({ brief: BRIEF, model, tools, now });
     assert.equal(run.workspace.ranking().scores.length, 2);

@@ -289,3 +289,24 @@ describe("decideRevision: clearing a rejection (Day 6)", () => {
     assert.equal(decideRevision(score(65, false), score(70, false), pass).outcome, "kept-revised");
   });
 });
+
+describe("route-neutral ranking (agent mode, Day 6)", () => {
+  // A fresh trend scoring 4s with one 3 (just under the original's all-4s) wins with the fixed workflow's head start, loses without it.
+  const trend = candidate("trend", [4, 4, 4, 4, 3, 4], { kind: "fresh-trend", index: 0 });
+  const original = candidate("original", [4, 4, 4, 4, 4, 4], { kind: "original", index: 1 });
+
+  it("the fixed workflow keeps its 5-point head start for fresh trends", () => {
+    assert.equal(rankCandidates([trend, original]).leaderId, "trend");
+  });
+
+  it("agent mode ranks on the Spark Score alone", () => {
+    assert.equal(rankCandidates([trend, original], { headStart: 0 }).leaderId, "original");
+  });
+
+  it("a proven pattern is never rejected as stale, and gets no head start", () => {
+    const proven = candidate("proven", [4, 4, 4, 4, 4, 4], { kind: "proven-pattern" });
+    const r = rankCandidates([proven], { headStart: 0 });
+    assert.equal(r.leaderId, "proven");
+    assert.equal(r.scores[0].rejected, false);
+  });
+});

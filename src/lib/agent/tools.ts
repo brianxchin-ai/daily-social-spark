@@ -7,7 +7,7 @@ import {
   validateLonglistBatch,
   validateRevisedCandidate,
 } from "../spark-schema.ts";
-import type { Ending, Workspace } from "./workspace.ts";
+import { AGENT_HEAD_START, type Ending, type Workspace } from "./workspace.ts";
 
 /**
  * The agent's toolkit: what each tool takes, and how the free ones run.
@@ -104,6 +104,10 @@ export const TOOL_INPUTS = {
   record_signal: z.object({
     why,
     ...AgentSignalSchema.shape,
+    role: z
+      .enum(["performing", "emerging"])
+      .describe("Your read of what this signal shows: performing (established and reported as doing well now) or emerging (early, but showing signs of spreading).")
+      .optional(),
     categoryTerms: z.array(z.string()).describe("Words naming the brand's own category, e.g. 'coffee'. May be empty.").optional(),
   }),
   review_evidence: z.object({ why }),
@@ -131,6 +135,17 @@ export const TOOL_INPUTS = {
   develop: z.object({
     why,
     ideaId: z.string().describe("An idea ID from your wall (L…)."),
+    route: z
+      .enum(["proven", "primed", "original"])
+      .describe(
+        "proven: builds on an established pattern with reported evidence it's performing now, with a twist this brand owns. primed: builds on an early or novel signal showing signs it's about to spread. original: an original format not built on any trend.",
+      ),
+    reachThesis: z
+      .object({
+        behaviors: z.string().describe("Which viewer behaviors should earn it views (stopping, watching through, sending, saving, joining in) and why. A hypothesis, no numbers."),
+        wouldProveWrong: z.string().describe("What would show the bet is wrong."),
+      })
+      .describe("Your bet on why this idea earns organic views."),
     treatment: CandidateDraftSchema,
   }),
   evaluate: z.object({
@@ -162,6 +177,9 @@ export const TOOL_INPUTS = {
     comparison: z
       .string()
       .describe("Two or three sentences: what else you considered (other ideas, directions or evidence) and why the recommended idea beats them."),
+    routeDecision: z
+      .string()
+      .describe("One or two sentences: which route the winner takes (proven, primed or original) and why that route beat the others for this brief."),
   }),
   abstain: z.object({
     reason: z.string().describe("Why no idea should be recommended. Shown to the user."),
@@ -314,6 +332,7 @@ export function recordSignal(ws: Workspace, raw: z.infer<typeof TOOL_INPUTS.reco
   const input = ("signal" in raw ? { ...raw.signal, why: raw.why, categoryTerms: raw.categoryTerms } : raw) as z.infer<typeof TOOL_INPUTS.record_signal>;
   const filed = ws.addSignal(toSignalDraft(input), input.categoryTerms ?? []);
   if (!filed.ok) return fail(filed.problem);
+  if (input.role) ws.signalRoles.set(filed.signalId, input.role);
   const ledger = ws.ledger()!;
   const signal = ledger.signals.find((s) => s.id === filed.signalId)!;
   const own = ledger.observations.filter((o) => o.signalId === signal.id);
@@ -398,11 +417,13 @@ export function addIdeas(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.add_id
   };
 }
 
-export function develop(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.develop>): ToolOutcome {
+type DevelopInput = Omit<z.infer<typeof TOOL_INPUTS.develop>, "route" | "reachThesis"> & Partial<Pick<z.infer<typeof TOOL_INPUTS.develop>, "route" | "reachThesis">>;
+
+export function develop(ws: Workspace, input: DevelopInput): ToolOutcome {
   const checked = validateRevisedCandidate(input.treatment);
   if (!checked.ok) return fail(`The treatment didn't pass the format checks: ${checked.problems.slice(0, 4).join("; ")}`);
   const rewriting = !!ws.currentVersion(input.ideaId);
-  const done = ws.develop(input.ideaId, checked.value, input.why);
+  const done = ws.develop(input.ideaId, checked.value, input.why, { route: input.route, reach: input.reachThesis });
   if (!done.ok) return fail(done.problem);
   const c = done.candidate;
   const atRisk = done.flags.some((f) => f.startsWith("REJECTION RISK"));
@@ -417,7 +438,7 @@ export function develop(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.develop
 }
 
 /** End the scan, if code's requirements are met; code picks the winner. */
-export function finish(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.finish>): ToolOutcome {
+export function finish(ws: Workspace, input: Omit<z.infer<typeof TOOL_INPUTS.finish>, "routeDecision"> & { routeDecision?: string }): ToolOutcome {
   const problems = ws.finishProblems();
   if (problems.length) return fail(`Not ready to finish. ${problems.join(" ")}`);
   const tied = ws.tiedWithLeader();
@@ -432,6 +453,7 @@ export function finish(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.finish>)
     tieJudgment,
     revisionDecision: input.revisionDecision.trim() || null,
     comparison: input.comparison.trim() || null,
+    routeDecision: input.routeDecision?.trim() || null,
   };
   ws.end(ending);
   const winner = winnerId ? ws.developed.get(winnerId)! : null;
@@ -451,7 +473,7 @@ export function finish(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.finish>)
 export function abstain(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.abstain>): ToolOutcome {
   const reason = input.reason.trim();
   if (!reason) return fail("Give a reason for abstaining.");
-  const ending: Ending = { how: "abstained", reason, tieJudgment: null, revisionDecision: null, comparison: null };
+  const ending: Ending = { how: "abstained", reason, tieJudgment: null, revisionDecision: null, comparison: null, routeDecision: null };
   ws.end(ending);
   return { ok: true, forAgent: { ok: true }, result: `Abstained: ${reason}`, flags: [], changedCourse: null, ending };
 }
@@ -470,6 +492,7 @@ export function forceFinish(ws: Workspace, why: string): { winnerId: string | nu
     tieJudgment: null,
     revisionDecision: null,
     comparison: null,
+    routeDecision: null,
   };
   ws.end(ending);
   return { winnerId: leaderId, ending };
@@ -484,7 +507,7 @@ export function scoreSummary(ws: Workspace) {
       candidateId: s.candidateId,
       headline: d.candidate.headline,
       sparkScore: Math.round(s.rankingScore),
-      rankingValue: Math.round(rankValue(s)),
+      rankingValue: Math.round(rankValue(s, AGENT_HEAD_START)),
       kind: s.kind,
       rank: s.rank,
       rejected: s.rejected,

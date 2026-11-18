@@ -38,6 +38,12 @@ function evaluationOf(d: Developed, score: CandidateScore): CandidateEvaluation 
   };
 }
 
+function winnerReachOf(run: AgentRun): AgentReport["winnerReach"] {
+  const winner = run.winnerId ? run.workspace.developed.get(run.winnerId) : undefined;
+  if (!winner?.route || !winner.reach) return null;
+  return { route: winner.route, behaviors: winner.reach.behaviors, wouldProveWrong: winner.reach.wouldProveWrong };
+}
+
 export function agentReport(run: AgentRun): AgentReport {
   const s = run.snapshot;
   return {
@@ -49,6 +55,8 @@ export function agentReport(run: AgentRun): AgentReport {
     tieJudgment: run.ending.tieJudgment,
     revisionDecision: run.ending.revisionDecision,
     comparison: run.ending.comparison,
+    routeDecision: run.ending.routeDecision,
+    winnerReach: winnerReachOf(run),
     hypotheses: run.workspace.hypotheses.map((h) => ({ ...h, evidence: [...h.evidence] })),
     spentUsd: s.spentUsd,
     ceilingUsd: s.ceilingUsd,

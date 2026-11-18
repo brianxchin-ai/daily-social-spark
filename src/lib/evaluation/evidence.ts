@@ -70,6 +70,27 @@ export function ideaKind(
   return fresh ? "fresh-trend" : "stale-trend";
 }
 
+/**
+ * Day 6 (agent mode, approved): a proven pattern is an established format
+ * with reported evidence it's still performing. It qualifies when at least
+ * one of its signals is fresh, or has a behavior or publication date within
+ * PROVEN_WINDOW_DAYS. A page-update date alone isn't enough. Otherwise it's
+ * a stale trend, rejected as before. Whether it's past its peak is the
+ * review panel's judgment.
+ */
+export const PROVEN_WINDOW_DAYS = 90;
+
+export function provenKind(candidate: { basis?: "trend" | "original"; groundedIn: string[] }, ledger: EvidenceLedger | null): IdeaKind {
+  if (candidate.basis === "original") return "original";
+  const ok = ledger?.signals.some(
+    (s) =>
+      candidate.groundedIn.includes(s.id) &&
+      (s.freshness?.status === "fresh" ||
+        (s.freshness?.ageDays != null && s.freshness.ageDays <= PROVEN_WINDOW_DAYS && (s.freshness.basis === "behavior" || s.freshness.basis === "published"))),
+  );
+  return ok ? "proven-pattern" : "stale-trend";
+}
+
 /** The freshest of an idea's own signals, for display. */
 export function freshestSignal(groundedIn: string[], ledger: EvidenceLedger | null) {
   const own = (ledger?.signals ?? []).filter((s) => groundedIn.includes(s.id) && s.freshness?.ageDays != null);

@@ -312,12 +312,14 @@ function HypothesisSections({ spark, final }: { spark: HypothesisSpark; final: C
           paragraphs={[
             `${final.whyItWillSpread} ${selectionSentence(spark, finalEvaluation)}`,
             ...(spark.audience && final.audienceConnection ? [`Audience connection: ${final.audienceConnection}`] : []),
+            ...(spark.agent?.winnerReach ? [reachSentence(spark.agent.winnerReach)] : []),
           ]}
           sources={sources}
           verified={finalEvaluation.score.relevanceVerified}
           researched={ledger !== null}
           original={final.basis === "original"}
           freshness={freshestSignal(final.groundedIn, ledger)?.freshness ?? null}
+          route={spark.agent?.winnerReach?.route}
         />
       </Section>
 
@@ -383,6 +385,12 @@ function HypothesisSections({ spark, final }: { spark: HypothesisSpark; final: C
       </Drawer>
     </>
   );
+}
+
+/** Day 6: the agent's reach bet for the winner, labeled as a hypothesis. */
+function reachSentence(reach: NonNullable<NonNullable<HypothesisSpark["agent"]>["winnerReach"]>): string {
+  const route = { proven: "a proven pattern", primed: "a primed signal", original: "an original format" }[reach.route];
+  return `The reach bet (the agent's hypothesis, not a forecast): ${route}. ${reach.behaviors} It would be wrong if ${reach.wouldProveWrong.replace(/^./, (c) => c.toLowerCase())}`;
 }
 
 /** "all three ideas" for the fixed workflow; the agent may review any number. */

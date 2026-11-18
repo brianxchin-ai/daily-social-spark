@@ -1,4 +1,4 @@
-import { checkGrounding, ideaKind } from "../evaluation/evidence.ts";
+import { checkGrounding, ideaKind, PROVEN_WINDOW_DAYS, provenKind } from "../evaluation/evidence.ts";
 import { checkDiversity, type DiversityReport } from "../evaluation/diversity.ts";
 import {
   decideRevision,
@@ -59,6 +59,9 @@ export interface Developed {
   ideaId: string;
   /** The agent's stated reason for developing it (shown with the idea wall). */
   why?: string;
+  /** Day 6: the route the agent bet on, and its reach thesis (a hypothesis). */
+  route?: Route;
+  reach?: ReachThesis;
   /** Set on a revision: the version it revises. */
   revises: string | null;
   /** The evaluator's verdict, once it has one. */
@@ -99,6 +102,8 @@ export interface Ending {
   revisionDecision: string | null;
   /** Open shape: what else the agent considered and why the winner beats it, in its words. */
   comparison: string | null;
+  /** Which route the winner takes and why that route beat the others, in the agent's words. */
+  routeDecision: string | null;
 }
 
 /** A working bet about what will resonate (Day 6, round 2). Code tracks its status; the agent settles it with evidence. */
@@ -114,6 +119,18 @@ export interface Hypothesis {
 export const MAX_HYPOTHESES = 6;
 
 export const MAX_LONGLIST = 20;
+/** Day 6: the two routes to organic views, plus an original format not built on any trend. */
+export type Route = "proven" | "primed" | "original";
+
+/** Why an idea should earn views, and what would prove the bet wrong. A hypothesis, never a forecast. */
+export interface ReachThesis {
+  behaviors: string;
+  wouldProveWrong: string;
+}
+
+/** Agent mode ranks route-neutrally: no head start for any kind of idea (approved Day 6). */
+export const AGENT_HEAD_START = 0;
+
 /** Day 6, open shape: how many ideas one review may score. */
 export const MAX_REVIEW_BATCH = 3;
 
@@ -131,6 +148,8 @@ export class Workspace {
   private readonly registerAdjustments: string[] = [];
   readonly signalDrafts: SignalDraft[] = [];
   readonly categoryTerms: string[] = [];
+  /** The agent's own tag for what a signal is evidence of (Day 6). Its stated view; code shows it, never trusts it for scoring. */
+  readonly signalRoles = new Map<string, "performing" | "emerging">();
   private cachedLedger: EvidenceLedger | null = null;
 
   /* ---------- Idea wall ---------- */
@@ -275,6 +294,9 @@ export class Workspace {
       ageDays: s.freshness.ageDays,
       /** What the freshness rests on: a behavior or publication date, or only a page-update date (the weakest). */
       dateBasis: s.freshness.basis,
+      /** A cited source describes growth or spread (an observation of kind "growth"). */
+      growthReported: ledger!.observations.some((o) => o.signalId === s.id && o.kind === "growth"),
+      role: this.signalRoles.get(s.id) ?? null,
       independentOrigins: independentOrigins(ledger!.observations.filter((o) => o.signalId === s.id)),
       relevanceBar: s.culturalRelevance.status,
     }));
@@ -312,7 +334,9 @@ export class Workspace {
     const parts = signals.map((s) => {
       const fresh = s.freshness === "fresh" ? `fresh, ${s.ageDays} days` : s.freshness;
       const basis = s.dateBasis ? `, ${BASIS[s.dateBasis]}` : "";
-      return `${s.id} ${fresh}${basis}, ${s.independentOrigins} independent source${s.independentOrigins === 1 ? "" : "s"}`;
+      const growth = s.growthReported ? ", growth reported" : "";
+      const role = s.role ? `, tagged ${s.role}` : "";
+      return `${s.id} ${fresh}${basis}, ${s.independentOrigins} independent source${s.independentOrigins === 1 ? "" : "s"}${growth}${role}`;
     });
     const thin = signals.filter((s) => s.freshness === "fresh" && (s.independentOrigins < 2 || s.dateBasis === "page-updated")).map((s) => s.id);
     return `Evidence quality: ${parts.join("; ")}.${thin.length ? ` Thin (one source, or dated only by a page update): ${thin.join(", ")}.` : ""}`;
@@ -386,7 +410,12 @@ export class Workspace {
    * problems, whether it counts as a fresh trend, an original or a stale
    * trend (rejected), and whether it repeats something this person has seen.
    */
-  develop(ideaId: string, draft: CandidateDraft, why = ""): { ok: true; candidate: Candidate; flags: string[] } | { ok: false; problem: string } {
+  develop(
+    ideaId: string,
+    draft: CandidateDraft,
+    why = "",
+    bet: { route?: Route; reach?: ReachThesis } = {},
+  ): { ok: true; candidate: Candidate; flags: string[] } | { ok: false; problem: string } {
     if (!this.wall.some((w) => w.id === ideaId)) {
       return { ok: false, problem: `${ideaId} isn't on your idea wall. Note it with add_ideas first${this.wall.length ? ` (on the wall: ${this.wall.map((w) => w.id).join(", ")})` : ""}.` };
     }
@@ -404,20 +433,33 @@ export class Workspace {
       contextIn: grounding.contextIn,
       groundingWarnings: grounding.warnings,
     };
-    this.developed.set(id, { candidate, ideaId, why: why || current?.why, revises: null, assessment: null });
-    return { ok: true, candidate, flags: this.flagsFor(candidate) };
+    const route = bet.route ?? current?.route ?? (draft.basis === "original" ? "original" : "primed");
+    this.developed.set(id, { candidate, ideaId, why: why || current?.why, route, reach: bet.reach ?? current?.reach, revises: null, assessment: null });
+    return { ok: true, candidate, flags: this.flagsFor(candidate, route) };
+  }
+
+  /** How code classifies an idea: by the route the agent chose and the dates of its evidence. */
+  kindOf(candidate: Candidate, route?: Route): ReturnType<typeof ideaKind> {
+    if (route === "proven") return provenKind(candidate, this.ledger());
+    return ideaKind(candidate, this.ledger());
   }
 
   /** What code will hold against an idea when ranking: told to the agent up front. */
-  flagsFor(candidate: Candidate): string[] {
+  flagsFor(candidate: Candidate, route?: Route): string[] {
     const flags = [...(candidate.groundingWarnings ?? [])];
-    const kind = ideaKind(candidate, this.ledger());
+    const kind = this.kindOf(candidate, route);
     if (kind === "stale-trend") {
-      flags.push("REJECTION RISK: built on a trend with no fresh evidence (none of its signals is dated within 30 days). It will be rejected as stale unless it's grounded in a fresh signal or reframed as an original format.");
+      flags.push(
+        route === "proven"
+          ? `REJECTION RISK: a proven pattern needs at least one signal dated by behavior or publication within ${PROVEN_WINDOW_DAYS} days (or fresh). None of its signals qualifies, so it will be rejected unless re-grounded.`
+          : "REJECTION RISK: built on a trend with no fresh evidence (none of its signals is dated within 30 days). It will be rejected as stale unless it's grounded in a fresh signal, treated as a proven pattern with evidence it's still performing, or reframed as an original format.",
+      );
     } else if (kind === "original") {
-      flags.push("Counts as an original format (no fresh-trend head start).");
+      flags.push("Counts as an original format.");
+    } else if (kind === "proven-pattern") {
+      flags.push(`Counts as a proven pattern (evidence it's performing within ${PROVEN_WINDOW_DAYS} days).`);
     } else {
-      flags.push("Counts as a fresh trend (5-point ranking head start).");
+      flags.push("Counts as a fresh trend.");
     }
     const repeat = repeatOf(candidate, this.brief.recentIdeas);
     if (repeat) flags.push(`REJECTION RISK: repeats an idea this person was already shown ("${repeat.headline}").`);
@@ -523,7 +565,15 @@ export class Workspace {
       contextIn: grounding.contextIn,
       groundingWarnings: grounding.warnings,
     };
-    this.developed.set(revisedId, { candidate: revised, ideaId: original.ideaId, revises: input.originalId, assessment: { ...input.assessment, round: "rescore" } });
+    this.developed.set(revisedId, {
+      candidate: revised,
+      ideaId: original.ideaId,
+      why: original.why,
+      route: original.route,
+      reach: original.reach,
+      revises: input.originalId,
+      assessment: { ...input.assessment, round: "rescore" },
+    });
     const decision = decideRevision(this.scoreOf(original), this.scoreOf(this.developed.get(revisedId)!), input.checks);
     const record: RevisionRecord = {
       originalId: input.originalId,
@@ -550,7 +600,7 @@ export class Workspace {
       results: a.results,
       audioRole: d.candidate.audioRole,
       meaningfulAudioVariations: a.meaningfulAudioVariations,
-      kind: ideaKind(d.candidate, this.ledger()),
+      kind: this.kindOf(d.candidate, d.route),
       makeable: a.makeable,
       repeatOf: repeatOf(d.candidate, this.brief.recentIdeas),
     };
@@ -558,13 +608,13 @@ export class Workspace {
 
   /** Code's score for one evaluated version. */
   scoreOf(d: Developed): CandidateScore {
-    return rankCandidates([this.inputFor(d, 0)]).scores[0];
+    return rankCandidates([this.inputFor(d, 0)], { headStart: AGENT_HEAD_START }).scores[0];
   }
 
   /** Code's ranking of any evaluated versions, in the order given for tie-breaks. */
   rankVersions(versions: Developed[]) {
     const evaluated = versions.filter((d) => d.assessment);
-    return rankCandidates(evaluated.map((d, i) => this.inputFor(d, i)));
+    return rankCandidates(evaluated.map((d, i) => this.inputFor(d, i)), { headStart: AGENT_HEAD_START });
   }
 
   /** The first version developed for an idea (before any revision). */
@@ -572,10 +622,10 @@ export class Workspace {
     return [...this.developed.values()].find((d) => d.ideaId === ideaId && d.revises === null) ?? null;
   }
 
-  /** Code's ranking of the evaluated finalists, in shortlist order for tie-breaks. */
+  /** Code's ranking of every reviewed idea (current versions), in the order developed for tie-breaks. Route-neutral. */
   ranking() {
     const evaluated = this.finalists().filter((d): d is Developed => !!d?.assessment);
-    return rankCandidates(evaluated.map((d, i) => this.inputFor(d, i)));
+    return rankCandidates(evaluated.map((d, i) => this.inputFor(d, i)), { headStart: AGENT_HEAD_START });
   }
 
   /**
@@ -598,8 +648,8 @@ export class Workspace {
     const { scores } = this.ranking();
     const ranked = scores.filter((s) => !s.rejected);
     if (ranked.length < 2) return [];
-    const top = Math.round(rankValue(ranked[0]));
-    const tied = ranked.filter((s) => Math.round(rankValue(s)) === top).map((s) => s.candidateId);
+    const top = Math.round(rankValue(ranked[0], AGENT_HEAD_START));
+    const tied = ranked.filter((s) => Math.round(rankValue(s, AGENT_HEAD_START)) === top).map((s) => s.candidateId);
     return tied.length > 1 ? tied : [];
   }
 

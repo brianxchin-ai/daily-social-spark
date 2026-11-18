@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { evaluatorSystem, generatorSystem } from "./creative.ts";
+import { evaluatorSystem, generatorSystem, ROUTE_REVIEW_GUIDANCE } from "./creative.ts";
 
 /* Acceptance 2 (deterministic part): platform choice changes what the models are told. */
 
@@ -173,4 +173,11 @@ test("reach-first rubric: the reviewer judges distribution behaviors, and makeab
   const g = generatorSystem("tiktok", true);
   assert.ok(g.includes("must be makeable on a phone by one or two people in a day"));
   assert.ok(g.includes("stopping the scroll in the first second"));
+});
+
+test("route-aware review guidance covers all three routes, and the fixed workflow's reviewer never sees it", () => {
+  assert.match(ROUTE_REVIEW_GUIDANCE, /Proven pattern: .*still working rather than past its peak/);
+  assert.match(ROUTE_REVIEW_GUIDANCE, /Primed signal: .*signs of breaking/);
+  assert.match(ROUTE_REVIEW_GUIDANCE, /Original format/);
+  assert.doesNotMatch(evaluatorSystem("tiktok"), /Routes to organic views/);
 });

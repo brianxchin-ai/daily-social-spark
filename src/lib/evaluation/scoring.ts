@@ -164,14 +164,14 @@ export type AudioRole = "audio-led" | "audio-optional" | "no-audio";
  * Fresh trend ideas get a FRESH_TREND_HEAD_START for ranking only, so an
  * original format wins when it's clearly stronger, not on a near-tie.
  */
-export type IdeaKind = "fresh-trend" | "original" | "stale-trend";
+export type IdeaKind = "fresh-trend" | "original" | "stale-trend" | "proven-pattern";
 
 /** Ranking-only bonus for fresh trend ideas, in Spark Score points. The displayed score never includes it. */
 export const FRESH_TREND_HEAD_START = 5;
 
 /** The value candidates are ranked by: the Spark Score, plus the head start for a fresh trend idea. */
-export function rankValue(score: Pick<CandidateScore, "rankingScore" | "kind">): number {
-  return score.rankingScore + (score.kind === "fresh-trend" ? FRESH_TREND_HEAD_START : 0);
+export function rankValue(score: Pick<CandidateScore, "rankingScore" | "kind">, headStart = FRESH_TREND_HEAD_START): number {
+  return score.rankingScore + (score.kind === "fresh-trend" ? headStart : 0);
 }
 
 export interface CandidateInput {
@@ -349,13 +349,14 @@ const EPSILON = 1e-9;
  * Ranks by the Spark Score (all six criteria), with a 5-point head start for
  * fresh trend ideas. Verification of cultural relevance is a label only.
  */
-export function rankCandidates(inputs: CandidateInput[]): Ranking {
+export function rankCandidates(inputs: CandidateInput[], options: { headStart?: number } = {}): Ranking {
   const byId = new Map(inputs.map((i) => [i.candidateId, i]));
   const scored = inputs.map(scoreCandidate);
+  // The fixed workflow gives fresh trends a 5-point head start. Agent mode (Day 6, approved) ranks route-neutrally: 0.
+  const headStart = options.headStart ?? FRESH_TREND_HEAD_START;
 
   const compare = (a: CandidateScore, b: CandidateScore): number => {
-    // Fresh trend ideas carry a 5-point head start; an original wins only when clearly stronger.
-    const diff = rankValue(b) - rankValue(a);
+    const diff = rankValue(b, headStart) - rankValue(a, headStart);
     if (Math.abs(diff) > EPSILON) return diff;
     const ia = byId.get(a.candidateId)!;
     const ib = byId.get(b.candidateId)!;

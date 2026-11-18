@@ -21,6 +21,7 @@ export function WhyThisIdea({
   researched,
   original = false,
   freshness = null,
+  route,
 }: {
   paragraphs: string[];
   sources: IdeaSource[];
@@ -32,6 +33,8 @@ export function WhyThisIdea({
   original?: boolean;
   /** The freshness of the trend it's built on. */
   freshness?: Freshness | null;
+  /** Agent mode: the route the agent bet on. */
+  route?: "proven" | "primed" | "original";
 }) {
   return (
     <div className="flex flex-col gap-3.5">
@@ -44,9 +47,11 @@ export function WhyThisIdea({
       <p className="readout font-bold text-ink">
         {original
           ? "✦ Original format · not built on a current trend"
-          : freshness?.status === "fresh"
-            ? `✓ Fresh trend · ${freshnessPhrase(freshness)}`
-            : "◇ Trend freshness unknown"}
+          : route === "proven" && freshness
+            ? `✓ Proven pattern · newest evidence ${freshnessPhrase(freshness)}`
+            : freshness?.status === "fresh"
+              ? `✓ ${route === "primed" ? "Primed signal" : "Fresh trend"} · ${freshnessPhrase(freshness)}`
+              : "◇ Trend freshness unknown"}
       </p>
       <p className="readout text-hypo">
         ◇{" "}

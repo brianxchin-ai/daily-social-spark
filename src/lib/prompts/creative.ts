@@ -214,3 +214,21 @@ This is a quick gut read, not a full review. Judge each idea on its own; don't r
 
 ${STYLE}`;
 }
+
+/* ---------- Day 6 (agent mode, approved): route-aware review ---------- */
+
+const ROUTE_LABELS = { proven: "proven pattern", primed: "primed signal", original: "original format" } as const;
+
+export function routeLabel(route: "proven" | "primed" | "original"): string {
+  return ROUTE_LABELS[route];
+}
+
+/**
+ * Added to the reviewer's instructions in agent mode only. It doesn't change
+ * the criteria, weights or anchors: it tells the reviewer how to judge reach
+ * fairly whichever route an idea takes. The fixed workflow never sees it.
+ */
+export const ROUTE_REVIEW_GUIDANCE = `Routes to organic views (each candidate names one). Judge every route on its likely organic reach, not on novelty for its own sake and not on safety:
+- Proven pattern: an established format reported as performing now. Ask whether the pattern is still working rather than past its peak, and whether this execution stands out from the copies. A distinctive take on a pattern that's still performing can score high on cultural relevance; a familiar take on a tired pattern can't.
+- Primed signal: an early or novel signal. Ask whether it shows the signs of breaking: a mechanic that's easy to copy, early uptake, a moment or tension it rides. Don't mark it down just for being lightly documented.
+- Original format: judge how timely and true its human insight is for this moment and audience, as before.`;

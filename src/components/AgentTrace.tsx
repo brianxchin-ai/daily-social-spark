@@ -80,6 +80,12 @@ export function AgentTrace({ report }: { report: AgentReport }) {
         · ≈${report.spentUsd.toFixed(3)} of ${report.ceilingUsd.toFixed(2)} · {seconds(report.elapsedMs)}
         {report.uncertainCalls > 0 ? ` · ${report.uncertainCalls} call(s) charged in full (no readable bill)` : ""}
       </p>
+      {report.routeDecision && (
+        <p className="border-l-4 border-line pl-4 text-[14px] leading-relaxed">
+          <span className="readout block text-ink-soft">Why this route, in the agent&apos;s words</span>
+          “{report.routeDecision}”
+        </p>
+      )}
       {report.comparison && (
         <p className="border-l-4 border-line pl-4 text-[14px] leading-relaxed">
           <span className="readout block text-ink-soft">Why this idea over the alternatives, in the agent&apos;s words</span>

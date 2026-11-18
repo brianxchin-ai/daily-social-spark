@@ -3,7 +3,7 @@ import "server-only";
 import { audienceLine } from "@/lib/prompts/audience";
 import { relevanceResult } from "@/lib/evaluation/evidence";
 import { combineFit, CRITERIA, type CriterionResult, type RevisionChecks } from "@/lib/evaluation/scoring";
-import { evaluatorSystem, ledgerDigest } from "@/lib/prompts/creative";
+import { evaluatorSystem, ledgerDigest, routeLabel } from "@/lib/prompts/creative";
 import type { EvidenceLedger } from "@/lib/research/ledger";
 import {
   EvaluationSchema,
@@ -19,7 +19,7 @@ import { callStructured, platformLabel, type ScanUsage } from "./claude";
 const LABELS = ["A", "B", "C"] as const;
 type Label = (typeof LABELS)[number];
 
-function describeCandidate(label: Label, c: CandidateDraft, groundedIn: string[]): string {
+function describeCandidate(label: Label, c: CandidateDraft, groundedIn: string[], route?: "proven" | "primed" | "original"): string {
   const ideas = c.formatIdeas.map((f) => `  - ${f.title}: ${f.hook}. ${f.description}`).join("\n");
   const audio =
     c.audioVariations.length > 0 ? c.audioVariations.map((v) => `  - ${v}`).join("\n") : "  (none listed)";
@@ -28,7 +28,7 @@ Headline: ${c.headline}
 Concept: ${c.concept}
 Mechanic: ${c.mechanic}
 Territory: ${c.territory}
-Basis: ${c.basis === "original" ? "original format (not built on a trend)" : "trend"}
+Basis: ${c.basis === "original" ? "original format (not built on a trend)" : "trend"}${route ? `\nRoute: ${routeLabel(route)}` : ""}
 Grounded in signals (direct evidence): ${groundedIn.length ? groundedIn.join(", ") : "none"}
 Context only (not proof): ${c.contextIn.length ? c.contextIn.join(", ") : "none"}
 Evidence basis (writer's account; check it against the ledger): ${c.evidenceBasis}
@@ -93,9 +93,9 @@ export function toResults(e: Assessment, ledger: EvidenceLedger | null, grounded
  */
 export async function evaluateCandidates(
   request: ScanRequest,
-  candidates: { id: string; draft: CandidateDraft; groundedIn: string[] }[],
+  candidates: { id: string; draft: CandidateDraft; groundedIn: string[]; route?: "proven" | "primed" | "original" }[],
   ledger: EvidenceLedger | null,
-  options: { timeoutMs?: number; random?: () => number; signal?: AbortSignal; fallbacks?: boolean; maxTokens?: number } = {},
+  options: { timeoutMs?: number; random?: () => number; signal?: AbortSignal; fallbacks?: boolean; maxTokens?: number; guidance?: string } = {},
 ): Promise<{ assessments: CandidateAssessment[]; usage: ScanUsage }> {
   const order = shuffled(candidates, options.random);
   const byLabel = new Map<Label, (typeof candidates)[number]>(order.map((c, i) => [LABELS[i], c]));
@@ -105,13 +105,13 @@ Platform: ${platformLabel(request.platform)}${audienceLine(request.audience)}
 
 ${ledger ? ledgerDigest(ledger) : "No evidence ledger for this scan: judge cultural relevance from your general knowledge (judgedFrom: general-knowledge)."}
 
-${order.map((c, i) => describeCandidate(LABELS[i], c.draft, c.groundedIn)).join("\n\n")}
+${order.map((c, i) => describeCandidate(LABELS[i], c.draft, c.groundedIn, c.route)).join("\n\n")}
 
 Evaluate ${order.length === 1 ? "candidate A" : `candidates ${LABELS.slice(0, order.length).join(order.length === 2 ? " and " : ", ").replace(/, (?=[^,]*$)/, " and ")}`}.`;
 
   const { value, usage } = await callStructured({
     step: "evaluator",
-    system: evaluatorSystem(request.platform),
+    system: options.guidance ? `${evaluatorSystem(request.platform)}\n\n${options.guidance}` : evaluatorSystem(request.platform),
     user,
     schema: EvaluationSchema,
     maxTokens: options.maxTokens ?? 10_000, // worst case ≈ $0.10 of output for three
@@ -147,10 +147,11 @@ export async function rescoreRevision(
     weakness: string;
     groundedIn: string[];
     ledger: EvidenceLedger | null;
+    route?: "proven" | "primed" | "original";
   },
   timeoutMs = 90_000,
   signal?: AbortSignal,
-  options: { fallbacks?: boolean } = {},
+  options: { fallbacks?: boolean; guidance?: string } = {},
 ): Promise<{
   results: CriterionResult[];
   meaningfulAudioVariations: number;
@@ -166,7 +167,7 @@ Platform: ${platformLabel(request.platform)}${audienceLine(request.audience)}
 
 ${ledger ? ledgerDigest(ledger) : "No evidence ledger for this scan."}
 
-${describeCandidate("A", revised, groundedIn)}
+${describeCandidate("A", revised, groundedIn, input.route)}
 
 Score candidate A on its own merits, on every criterion including cultural relevance.
 
@@ -180,7 +181,7 @@ introducesUnsupportedClaims: does A add factual cultural or performance claims (
 
   const { value, usage } = await callStructured({
     step: "rescore",
-    system: evaluatorSystem(request.platform),
+    system: options.guidance ? `${evaluatorSystem(request.platform)}\n\n${options.guidance}` : evaluatorSystem(request.platform),
     user,
     schema: RescoreSchema,
     maxTokens: 5_000, // worst case ≈ $0.05 of output

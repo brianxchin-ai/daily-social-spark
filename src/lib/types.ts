@@ -311,6 +311,10 @@ export interface AgentReport {
   revisionDecision: string | null;
   /** What else the agent considered and why the winner beats it, in its words. */
   comparison?: string | null;
+  /** Which route the winner takes and why it beat the others, in the agent's words. */
+  routeDecision?: string | null;
+  /** The winner's route and reach thesis: the agent's bet on why it earns views. A hypothesis, never a forecast. */
+  winnerReach?: { route: "proven" | "primed" | "original"; behaviors: string; wouldProveWrong: string } | null;
   /** Round 2: the agent's working bets and how each was settled (evidence IDs checked by code). */
   hypotheses?: { id: string; statement: string; status: "open" | "supported" | "refuted" | "dropped"; evidence: string[]; note: string }[];
   spentUsd: number;

@@ -261,7 +261,7 @@ export class Director {
       case "shortlisting": {
         if (this.config.finishEarly && !this.triedFinish) {
           this.triedFinish = true;
-          return this.emit([toolUse("finish", { why: "Try to stop early.", revisionDecision: "Not reviewed yet.", comparison: "Nothing reviewed yet." })]);
+          return this.emit([toolUse("finish", { why: "Try to stop early.", revisionDecision: "Not reviewed yet.", comparison: "Nothing reviewed yet.", routeDecision: "Undecided." })]);
         }
         // Open shape: no shortlist tool. It simply chooses which ideas to develop.
         const trendIds = [...this.ideaBasis].filter(([, v]) => v.basis === "trend").map(([k]) => k);
@@ -289,6 +289,8 @@ export class Director {
         return this.emit([
           toolUse("develop", {
             ideaId: next,
+            route: meta.basis === "original" ? "original" : "primed",
+            reachThesis: { behaviors: "People send it to a friend who does the same thing.", wouldProveWrong: "Shares stay flat after the first day." },
             treatment: treatment({
               basis: meta.basis,
               groundedIn: meta.groundedIn,
@@ -328,10 +330,10 @@ export class Director {
         }
         this.stage = "done";
         const tieBreak = tied.length > 1 ? { candidateId: tied[1], note: this.config.tieNote ?? "Its hook lands faster." } : undefined;
-        return this.emit([toolUse("finish", { why: "The scored finalists are strong enough.", comparison: "It outscored the other reviewed ideas.", revisionDecision: this.revised ? "Revised the leader once to fix its slow open." : "No revision: the leader has no criterion at 3 or below.", ...(tieBreak ? { tieBreak } : {}) })]);
+        return this.emit([toolUse("finish", { why: "The scored finalists are strong enough.", comparison: "It outscored the other reviewed ideas.", routeDecision: "The fresh signal made the primed route strongest.", revisionDecision: this.revised ? "Revised the leader once to fix its slow open." : "No revision: the leader has no criterion at 3 or below.", ...(tieBreak ? { tieBreak } : {}) })]);
       }
       default:
-        return this.emit([toolUse("finish", { why: "Done.", revisionDecision: "No revision.", comparison: "Only option left." })]);
+        return this.emit([toolUse("finish", { why: "Done.", revisionDecision: "No revision.", comparison: "Only option left.", routeDecision: "Original." })]);
     }
   }
 }

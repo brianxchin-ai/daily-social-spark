@@ -7,7 +7,7 @@ import type { ScanRequest } from "@/lib/types";
 import { callStructured, EngineError, getClient, platformLabel, type ScanUsage } from "./claude";
 import { evaluateCandidates, rescoreRevision } from "./evaluator";
 import { audienceLine } from "@/lib/prompts/audience";
-import { gutCheckSystem } from "@/lib/prompts/creative";
+import { gutCheckSystem, ROUTE_REVIEW_GUIDANCE } from "@/lib/prompts/creative";
 import { GutCheckSchema, validateGutCheck } from "@/lib/spark-schema";
 
 /**
@@ -50,6 +50,8 @@ export function agentPaidTools(): PaidTools {
           fallbacks: false,
           // Sized to how many ideas this review scores (1 to 3).
           maxTokens: maxOutputTokens,
+          // Agent mode only: judge reach fairly whichever route an idea takes (criteria unchanged).
+          guidance: ROUTE_REVIEW_GUIDANCE,
         });
         return {
           assessments: assessments.map((a) => ({
@@ -90,9 +92,12 @@ Give a quick read on ideas 1 to ${ideas.length}.`;
         throw failureOf(error);
       }
     },
-    async rescore({ brief, original, revised, weakness, groundedIn, ledger, timeoutMs, signal }) {
+    async rescore({ brief, original, revised, weakness, groundedIn, ledger, route, timeoutMs, signal }) {
       try {
-        const r = await rescoreRevision(scanOf(brief), { original, revised, weakness, groundedIn, ledger }, timeoutMs, signal, { fallbacks: false });
+        const r = await rescoreRevision(scanOf(brief), { original, revised, weakness, groundedIn, ledger, route }, timeoutMs, signal, {
+          fallbacks: false,
+          guidance: ROUTE_REVIEW_GUIDANCE,
+        });
         return {
           assessment: { evaluatorLabel: "A", results: r.results, meaningfulAudioVariations: r.meaningfulAudioVariations, makeable: r.makeable, makeableNote: r.makeableNote },
           checks: r.checks,

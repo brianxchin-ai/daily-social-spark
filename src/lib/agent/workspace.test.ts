@@ -512,3 +512,57 @@ describe("finishing requires settled hypotheses (round 2 fix)", () => {
     assert.ok(finish(ws, { why, revisionDecision: RD, comparison: CMP }).ok);
   });
 });
+
+describe("routes: proven, primed, original (Day 6)", () => {
+  const dated = (url: string, quote: string) => ({
+    query: url,
+    purpose: "category" as const,
+    results: [{ url, title: "Coverage", pageAge: null }],
+    citations: [{ url, citedText: quote }],
+  });
+  const PROVEN_URL = "https://trade.example.com/format-still-working";
+  const OLD_URL = "https://trade.example.com/format-from-summer";
+
+  function withSignal(quote: string, dateText: string, url: string) {
+    const ws = fresh();
+    ws.addSearch(dated(url, quote));
+    recordSignal(ws, { signal: signal("A known format", "C1", dateText), why });
+    addIdeas(ws, { ideas: longlistIdeas(1), why });
+    return ws;
+  }
+
+  it("counts a proven pattern with evidence 31 to 90 days old, which a primed route would reject as stale", () => {
+    const ws = withSignal("On September 29, 2026, brands were still posting the format.", "September 29, 2026", PROVEN_URL);
+    const proven = develop(ws, { ideaId: "L1", route: "proven", reachThesis: { behaviors: "b", wouldProveWrong: "w" }, treatment: treatment({ groundedIn: ["G1"] }), why });
+    assert.match(proven.flags.join(" "), /Counts as a proven pattern/);
+    const ws2 = withSignal("On September 29, 2026, brands were still posting the format.", "September 29, 2026", PROVEN_URL);
+    const primed = develop(ws2, { ideaId: "L1", route: "primed", reachThesis: { behaviors: "b", wouldProveWrong: "w" }, treatment: treatment({ groundedIn: ["G1"] }), why });
+    assert.match(primed.flags.join(" "), /REJECTION RISK: built on a trend with no fresh evidence/);
+  });
+
+  it("rejects a proven pattern whose newest evidence is older than 90 days", () => {
+    const ws = withSignal("On July 1, 2026, the format was everywhere.", "July 1, 2026", OLD_URL);
+    const out = develop(ws, { ideaId: "L1", route: "proven", reachThesis: { behaviors: "b", wouldProveWrong: "w" }, treatment: treatment({ groundedIn: ["G1"] }), why });
+    assert.match(out.flags.join(" "), /REJECTION RISK: a proven pattern needs at least one signal dated by behavior or publication within 90 days/);
+  });
+
+  it("stores the route and reach thesis, and a revision keeps them", () => {
+    const ws = shortlisted();
+    const out = develop(ws, { ideaId: "L1", route: "original", reachThesis: { behaviors: "Tag a friend.", wouldProveWrong: "No tags." }, treatment: treatment({ basis: "original", groundedIn: [] }), why });
+    const id = out.forAgent.candidateId as string;
+    assert.equal(ws.developed.get(id)!.route, "original");
+    ws.recordAssessments(1, [assessment(id, uniform(3))]);
+    ws.recordRevision({ originalId: id, draft: treatment({ basis: "original", groundedIn: [], headline: "Better" }), weakness: "w", whatChanged: "c", assessment: assessment(id, uniform(4)), checks: { preservesMechanic: true, addressesWeakness: true, noUnsupportedClaims: true }, checksRationale: "r" });
+    assert.equal(ws.developed.get(`${id}-rev`)!.reach?.behaviors, "Tag a friend.");
+  });
+
+  it("shows growth and the agent's role tag in the evidence line", () => {
+    const ws = fresh();
+    ws.addSearch(dated(PROVEN_URL, "On November 10, 2026, the format grew fast among creators."));
+    const sig = signal("Growing format", "C1", "November 10, 2026");
+    sig.observations[0].kind = "growth";
+    sig.observations[0].statement = "The format grew fast among creators.";
+    recordSignal(ws, { ...sig, role: "emerging", why } as never);
+    assert.match(ws.evidenceLine()!, /growth reported, tagged emerging/);
+  });
+});

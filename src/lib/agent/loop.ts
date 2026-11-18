@@ -111,6 +111,7 @@ export interface FinalistForReview {
   id: string;
   draft: CandidateDraft;
   groundedIn: string[];
+  route?: "proven" | "primed" | "original";
 }
 
 export type AssessmentResult = Omit<Assessment, "round">;
@@ -137,7 +138,15 @@ export interface PaidTools {
     billed: Billed;
   }>;
   rescore(
-    input: { brief: Brief; original: CandidateDraft; revised: CandidateDraft; weakness: string; groundedIn: string[]; ledger: EvidenceLedger | null } & CallLimits,
+    input: {
+      brief: Brief;
+      original: CandidateDraft;
+      revised: CandidateDraft;
+      weakness: string;
+      groundedIn: string[];
+      ledger: EvidenceLedger | null;
+      route?: "proven" | "primed" | "original";
+    } & CallLimits,
   ): Promise<{ assessment: AssessmentResult; checks: RevisionChecks; checksRationale: string; billed: Billed }>;
   /** A quick first read on short ideas (numbered 1…n). Never part of the Spark Score. */
   gutCheck(
@@ -429,7 +438,7 @@ export async function runAgent(options: {
         const action = `Sent ${i.candidateIds.length === 1 ? "an idea" : `${i.candidateIds.length} ideas`} to the review panel`;
         const ready = ws.readyForEvaluation(i.candidateIds);
         if (!ready.ok) return { outcome: fail(ready.problem), action, usd: null };
-        const finalists = ready.finalists.map((d) => ({ id: d.candidate.id, draft: toDraft(d.candidate), groundedIn: d.candidate.groundedIn }));
+        const finalists = ready.finalists.map((d) => ({ id: d.candidate.id, draft: toDraft(d.candidate), groundedIn: d.candidate.groundedIn, route: d.route }));
         const ledger = ws.ledger();
         const round = g.count("evaluate") + 1;
         const r = await paid("evaluate", "evaluator", reviewPlan({ finalists, ledger }, CALL_PLANS.evaluateOutputPerIdea * finalists.length), TIMEOUTS.evaluate, (l) =>
@@ -489,7 +498,7 @@ export async function runAgent(options: {
         const original = prep.original.candidate;
         const ledger = ws.ledger();
         const r = await paid("rescore", "rescore", reviewPlan({ original, revised: checked.value, ledger }, CALL_PLANS.rescoreOutput), TIMEOUTS.rescore, (l) =>
-          tools.rescore({ brief, original: toDraft(original), revised: checked.value, weakness: i.weakness, groundedIn: original.groundedIn, ledger, ...l }),
+          tools.rescore({ brief, original: toDraft(original), revised: checked.value, weakness: i.weakness, groundedIn: original.groundedIn, ledger, route: prep.original.route, ...l }),
         );
         if (!r.ok) return { outcome: fail(`The rescore didn't run, so the original stands: ${r.problem}`), action, usd: r.usd };
         const v = r.value as Awaited<ReturnType<PaidTools["rescore"]>>;
@@ -563,6 +572,7 @@ export async function runAgent(options: {
           name === "finish" && typeof value.revisionDecision === "string" && value.revisionDecision.trim()
             ? `${stated ?? "(no stated reason)"} On revising: ${value.revisionDecision.trim()}${
                 typeof value.comparison === "string" && value.comparison.trim() ? ` Compared with the alternatives: ${value.comparison.trim()}` : ""
+              }${typeof value.routeDecision === "string" && value.routeDecision.trim() ? ` On the route: ${value.routeDecision.trim()}` : ""
               }`
             : name === "abstain"
               ? String(value.reason ?? "")

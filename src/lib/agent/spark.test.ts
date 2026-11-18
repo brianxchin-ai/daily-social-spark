@@ -145,3 +145,13 @@ describe("hypotheses on the page", () => {
     assert.deepEqual(spark.agent?.hypotheses, [{ id: "H1", statement: "Desk resets are live", status: "open", evidence: [], note: "" }]);
   });
 });
+
+describe("the reach bet on the page", () => {
+  it("carries the winner's route, reach thesis and the route decision into the report", async () => {
+    const run = await runAgent({ brief: BRIEF, model: new Director({ queries: ["desk reset", "exam"] }).asModel(), tools: new FakeTools({ "desk reset": FRESH }), now });
+    const spark = toSpark(run, { stamp: 1, now: NOW });
+    assert.ok(spark.agent?.winnerReach);
+    assert.match(spark.agent!.winnerReach!.behaviors, /send it to a friend/);
+    assert.equal(spark.agent?.routeDecision, "The fresh signal made the primed route strongest.");
+  });
+});
