@@ -6,6 +6,7 @@ import { FRESH_QUOTE, FRESH_URL, NOW, STALE_QUOTE, STALE_URL, longlistIdeas, tre
 import { validateEvaluation, validateGutCheck } from "../spark-schema.ts";
 import { AGENT_LIMITS, Governor } from "./governor.ts";
 import { CallFailure, runAgent, toolSpecs, type AgentRun } from "./loop.ts";
+import { agentSystem } from "./prompt.ts";
 import type { Brief } from "./workspace.ts";
 
 const BRIEF: Brief = { brand: "Acme Coffee", platform: "tiktok", recentIdeas: [] };
@@ -613,5 +614,54 @@ describe("quick gut-check", () => {
     assert.ok(validateGutCheck(good, 2).ok);
     assert.equal(validateGutCheck(good, 3).ok, false);
     assert.equal(validateGutCheck({ reads: [{ label: "1", stopPower: 7, shareability: 3, note: "x" }] }, 1).ok, false);
+  });
+});
+
+describe("range: a lead nothing has challenged (Day 6)", () => {
+  const soloRun = () =>
+    new ScriptedModel((turn, results) => {
+      if (turn === 1) return [toolUse("add_ideas", { why: "One strong bet.", ideas: longlistIdeas(1) })];
+      if (turn === 2) return [toolUse("develop", { why: "It's the bet.", route: "original", reachThesis: { behaviors: "Sends.", wouldProveWrong: "No sends." }, ideaId: "L1", treatment: treatment({ basis: "original", groundedIn: [] }) })];
+      if (turn === 3) return [toolUse("evaluate", { why: "Test it.", candidateIds: [String(results[0].candidateId)] })];
+      return [toolUse("finish", { why: "Done.", revisionDecision: "No revision.", comparison: "No contender was worth it: every other direction relied on stale signals.", routeDecision: "Original." })];
+    });
+
+  it("challenges a solo finish once, shows the contest, then accepts the agent's call", async () => {
+    const model = soloRun();
+    const run = await runAgent({ brief: BRIEF, model, tools: new FakeTools({}), now });
+    const finishes = run.steps.filter((s) => s.actor === "finish");
+    assert.equal(finishes.length, 2);
+    assert.equal(finishes[0].ok, false);
+    assert.match(finishes[0].result, /Challenged/);
+    assert.equal(run.ending.how, "finished");
+    assert.ok(run.winnerId);
+    const afterReview = JSON.stringify(model.requests[3].messages.at(-1));
+    assert.match(afterReview, /unchallenged \(no other idea reviewed\)/);
+    assert.match(afterReview, /costs about \$0\.0\d/);
+    assert.match(JSON.stringify(model.requests[4].messages.at(-1)), /call finish again and say why in comparison/);
+  });
+
+  it("doesn't challenge a lead that was ranked against a contender, and reports the gap", async () => {
+    const tools = new FakeTools({}, { scoreFor: (d) => (d.headline === "Second" ? 4 : 3) });
+    const model = new ScriptedModel((turn, results) => {
+      if (turn === 1) return [toolUse("add_ideas", { why: "Two bets.", ideas: longlistIdeas(2) })];
+      if (turn === 2)
+        return [
+          toolUse("develop", { why: "First.", route: "original", reachThesis: { behaviors: "Sends.", wouldProveWrong: "No sends." }, ideaId: "L1", treatment: treatment({ basis: "original", groundedIn: [], headline: "First" }) }),
+          toolUse("develop", { why: "Second.", route: "original", reachThesis: { behaviors: "Sends.", wouldProveWrong: "No sends." }, ideaId: "L2", treatment: treatment({ basis: "original", groundedIn: [], headline: "Second", mechanic: "A different mechanic entirely." }) }),
+        ];
+      if (turn === 3) return [toolUse("evaluate", { why: "Side by side.", candidateIds: results.map((r) => String(r.candidateId)) })];
+      return [toolUse("finish", { why: "Done.", revisionDecision: "No revision.", comparison: "Second beat First.", routeDecision: "Original." })];
+    });
+    const run = await runAgent({ brief: BRIEF, model, tools, now });
+    assert.equal(run.steps.filter((s) => s.actor === "finish").length, 1);
+    assert.match(JSON.stringify(model.requests[3].messages.at(-1)), /against 1 reviewed contender\(s\); runner-up .* point\(s\) behind/);
+  });
+
+  it("tells the agent why range matters, without setting a quota", () => {
+    const system = agentSystem(BRIEF);
+    assert.match(system, /a lead that nothing has challenged is a guess/);
+    assert.match(system, /How many to put up, and which, is your call/);
+    assert.match(system, /There is no required number of ideas/);
   });
 });

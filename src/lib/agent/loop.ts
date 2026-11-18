@@ -3,8 +3,8 @@ import { formatScore } from "../evaluation/scoring.ts";
 import { normalizeUrl, type EvidenceLedger, type RawCitation } from "../research/ledger.ts";
 import { validateRevisedCandidate, type CandidateDraft } from "../spark-schema.ts";
 import type { Candidate } from "../types.ts";
-import type { BilledUsage } from "../usage/pricing.ts";
-import { estimateTokens, Governor, STOP_TEXT, type CallPlan, type PaidCallKind } from "./governor.ts";
+import { estimateCostUsd, type BilledUsage } from "../usage/pricing.ts";
+import { AGENT_MODEL, estimateTokens, Governor, STOP_TEXT, type CallPlan, type PaidCallKind } from "./governor.ts";
 import { ledgerDigest } from "../prompts/creative.ts";
 import { agentSystem, briefMessage } from "./prompt.ts";
 import {
@@ -169,6 +169,9 @@ export const CALL_PLANS = {
   /** Instructions and rubric sent with every review call. */
   reviewOverheadTokens: 5_000,
 } as const;
+
+/** Range (Day 6): the most one more idea adds to a review, at the review's output allowance. Shown to the agent as a fact. */
+export const CONTENDER_COST_USD = estimateCostUsd(AGENT_MODEL, 1_500, CALL_PLANS.evaluateOutputPerIdea);
 
 /** Round 2: finalists scoring below this are flagged to the agent as candidates to replace. Guidance only; ranking is unchanged. */
 export const WEAK_FINALIST_SCORE = 65;
@@ -473,12 +476,13 @@ export async function runAgent(options: {
               option: `A reviewed idea below ${WEAK_FINALIST_SCORE} or rejected may not be your best: you can revise it, develop another idea and review that, or look further. Your call.`,
             }
           : null;
+        const contestNote = contestText(ws, g);
         return {
           action,
           usd: r.usd,
           outcome: {
             ok: true,
-            forAgent: { ok: true, round, scores, tiedAtTop: tied, diversityNotes: diversity, revisionNote, replacementNote },
+            forAgent: { ok: true, round, scores, tiedAtTop: tied, diversityNotes: diversity, revisionNote, replacementNote, contestNote },
             result: `Review round ${round}: ${scores
               .map((s) => `${s.candidateId} ${s.rejected ? `rejected (${s.rejectionReasons.join(" ")})` : `${s.sparkScore}`}`)
               .join("; ")}.${tied.length ? ` Exact tie at the top: ${tied.join(", ")}.` : ""}`,
@@ -531,6 +535,14 @@ export async function runAgent(options: {
       }
       case "finish": {
         const i = input as z.infer<typeof TOOL_INPUTS.finish>;
+        // Range (Day 6): a lead nothing has challenged gets one challenge, while a review is still affordable. Not a quota: finishing again is accepted.
+        const c = ws.contest();
+        const snap = g.snapshot();
+        if (c.reviewed === 1 && !ws.soloChallenged && snap.stage === "normal" && snap.evaluations < snap.maxEvaluations && ws.finishProblems().length === 0) {
+          ws.soloChallenged = true;
+          const problem = `Your leader ${c.leaderId} is unchallenged: it's the only idea the panel has reviewed, so its score has nothing to beat and there's no evidence it's your best. A genuinely different contender (another route, mechanic or tension) costs about $${CONTENDER_COST_USD.toFixed(2)} more in a review, and if it loses, your leader wins with proof. If you still judge a contender not worth it, call finish again and say why in comparison; it will be accepted.`;
+          return { outcome: { ok: false, forAgent: { ok: false, problem }, result: "Challenged: the leader is the only reviewed idea.", flags: [], changedCourse: null, ending: null }, action: "Called finish", usd: null };
+        }
         const outcome = finish(ws, i);
         if (outcome.ok) winnerId = (outcome.forAgent.winnerId as string | null) ?? null;
         return { outcome, action: "Called finish", usd: null };
@@ -728,6 +740,8 @@ export function readout(g: Governor, ws: Workspace): string {
         : ""
     }. Developed: ${finalists}.`,
   ];
+  const contest = contestText(ws, g);
+  if (contest) lines.push(contest);
   const quality = ws.evidenceLine();
   if (quality) lines.push(quality);
   if (ws.hypotheses.length) {
@@ -735,6 +749,18 @@ export function readout(g: Governor, ws: Workspace): string {
   }
   if (s.stage === "wrap-up") lines.push(`STAGE: WRAP-UP. ${wrapText(g).replace(/^Wrap-up: /, "")}`);
   return lines.join("\n");
+}
+
+/** Range (Day 6): how contested the lead is, in one line. Null before any review. */
+export function contestText(ws: Workspace, g: Governor): string | null {
+  const c = ws.contest();
+  if (!c.leaderId) return null;
+  const s = g.snapshot();
+  const reviewsLeft = s.maxEvaluations - s.evaluations;
+  if (c.reviewed === 1) {
+    return `Contest: ${c.leaderId} leads at ${c.leaderScore}, unchallenged (no other idea reviewed). One more idea in a review costs about $${CONTENDER_COST_USD.toFixed(2)}; ${reviewsLeft} review round(s) left.`;
+  }
+  return `Contest: ${c.leaderId} leads at ${c.leaderScore} against ${c.reviewed - 1} reviewed contender(s)${c.runnerUp ? `; runner-up ${c.runnerUp.candidateId} is ${c.runnerUp.gap} point(s) behind` : ""}.`;
 }
 
 /** Measured cost of everything in a run, for the footer. */

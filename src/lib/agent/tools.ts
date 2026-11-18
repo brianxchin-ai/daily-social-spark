@@ -176,7 +176,7 @@ export const TOOL_INPUTS = {
       .describe("One or two sentences: why you did or didn't revise the leading idea, naming the criterion or evidence that decided it."),
     comparison: z
       .string()
-      .describe("Two or three sentences: what else you considered (other ideas, directions or evidence) and why the recommended idea beats them."),
+      .describe("Two or three sentences: what else you considered (other ideas, directions or evidence), which reviewed contenders the winner beat, and why it wins. If it was the only idea reviewed, say why no contender was worth reviewing."),
     routeDecision: z
       .string()
       .describe("One or two sentences: which route the winner takes (proven, primed or original) and why that route beat the others for this brief."),

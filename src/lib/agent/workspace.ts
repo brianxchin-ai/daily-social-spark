@@ -158,6 +158,8 @@ export class Workspace {
   readonly developed = new Map<string, Developed>();
   readonly revisions: RevisionRecord[] = [];
   ending: Ending | null = null;
+  /** Range (Day 6): set once code has challenged a finish with a single, unchallenged reviewed idea. */
+  soloChallenged = false;
   private developedCount = 0;
 
   constructor(brief: Brief, options: { now?: () => Date; idPrefix?: string } = {}) {
@@ -651,6 +653,22 @@ export class Workspace {
     const top = Math.round(rankValue(ranked[0], AGENT_HEAD_START));
     const tied = ranked.filter((s) => Math.round(rankValue(s, AGENT_HEAD_START)) === top).map((s) => s.candidateId);
     return tied.length > 1 ? tied : [];
+  }
+
+  /**
+   * Range (Day 6): how contested the lead is. The leader, how many reviewed
+   * ideas it was ranked against, and the runner-up's gap. Facts from code's ranking.
+   */
+  contest(): { leaderId: string | null; leaderScore: number | null; reviewed: number; runnerUp: { candidateId: string; gap: number } | null } {
+    const { leaderId, scores } = this.ranking();
+    const lead = scores.find((s) => s.candidateId === leaderId) ?? null;
+    const next = scores.find((s) => s.candidateId !== leaderId && !s.rejected) ?? scores.find((s) => s.candidateId !== leaderId) ?? null;
+    return {
+      leaderId,
+      leaderScore: lead ? Math.round(lead.rankingScore) : null,
+      reviewed: scores.length,
+      runnerUp: lead && next ? { candidateId: next.candidateId, gap: Math.round(lead.rankingScore - next.rankingScore) } : null,
+    };
   }
 
   diversity(): DiversityReport {

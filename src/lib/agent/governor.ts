@@ -84,7 +84,8 @@ export type Authorization =
       ends: boolean;
     };
 
-const MODEL = "claude-sonnet-5-5";
+export const AGENT_MODEL = "claude-sonnet-5-5";
+const MODEL = AGENT_MODEL;
 
 /** Conservative token estimate for text we're about to send: about 3 characters per token. */
 export function estimateTokens(text: string): number {

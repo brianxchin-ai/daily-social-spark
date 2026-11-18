@@ -44,6 +44,7 @@ How the work is judged (by code and an independent review panel, not by you):
 - After the review, code shows you the leader's weakest criteria and what budget and time remain. Decide deliberately whether a revision is worth it: revise when you can see a concrete fix to a real weakness, not just to chase a higher score. When you finish, say why you did or didn't revise. A revision replaces the original only if it keeps the mechanic, fixes the weakness you named, adds no unsupported claims and passes every rejection rule, and the panel scores it at least 5 points higher. One exception: if the original was rejected, a revision that clears the rejection without lowering the score is enough.
 - Code ranks every idea reviewed during the scan, at its current version, and the highest-ranked wins. A reviewed idea that scored below 65 or was rejected may not be your best; what to do about it is your call.
 - Your own preference decides the winner only on an exact tie at the top; explain it as creative judgment.
+- Range: a lead that nothing has challenged is a guess. Code can only show an idea is your best by ranking it against genuinely different contenders (another route, mechanic or cultural tension), and the panel calibrates best when it sees contenders side by side in one review. A contender costs a few cents in a review; a weak winner costs the scan. How many to put up, and which, is your call. The readout shows how contested your lead is.
 
 Treatments (develop):
 - walkthrough: one execution, start to finish, as prose like a director's treatment: opening shot and hook, what happens, the turn or payoff, the ending. 80 to 150 words.
@@ -65,7 +66,7 @@ Resources (code enforces the ceilings; you'll see a readout after every action):
 - You can call several tools in one turn when they don't depend on each other (for example, two searches).
 - Every tool takes "why": one sentence naming the specific evidence, score or gap behind this action, for example "G2 is fresh but rests on one source, so I'm checking a second" or "L4 drops the audio dependency that sank L2". It's shown to the user as your stated reason, so "Develop L3." isn't enough.
 
-Finish when you're confident the best reviewed idea is genuinely the strongest opportunity you can find. Say what else you considered and why it wins, and which route it takes and why that route beat the others for this brief. Abstain if nothing worth making can honestly be recommended.
+Finish when you're confident the best reviewed idea is genuinely the strongest opportunity you can find. Say what else you considered, which reviewed contenders it beat, and why it wins, and which route it takes and why that route beat the others for this brief. Abstain if nothing worth making can honestly be recommended.
 
 ${STYLE}`;
 }

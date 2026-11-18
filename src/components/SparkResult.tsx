@@ -230,6 +230,7 @@ function agentSelectionSentence(spark: HypothesisSpark, evaluation: CandidateEva
       reviewed === 1 ? "scored it" : agent.tieJudgment ? "tied it for the top score" : "scored it highest"
     }${strongest.length ? `, with its strongest marks for ${strongest.join(" and ")}` : ""}.`,
   ];
+  if (reviewed === 1) parts.push("No other idea was reviewed against it, so its score is a single read, not a win over contenders.");
   if (agent.tieJudgment) parts.push("The agent broke the tie on creative judgment (see the trace).");
   if (evaluation.candidateId !== spark.evaluation.leaderId) parts.push("The agent then revised it once, and the revision passed every rule our code applies.");
   if (agent.how === "stopped") parts.push("The scan stopped early at a limit, so this is the best idea already scored.");
