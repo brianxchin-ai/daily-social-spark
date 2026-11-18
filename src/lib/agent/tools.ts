@@ -7,7 +7,7 @@ import {
   validateLonglistBatch,
   validateRevisedCandidate,
 } from "../spark-schema.ts";
-import { AGENT_HEAD_START, type Ending, type Workspace } from "./workspace.ts";
+import { AGENT_HEAD_START, routesSupported, type Ending, type Workspace } from "./workspace.ts";
 
 /**
  * The agent's toolkit: what each tool takes, and how the free ones run.
@@ -341,11 +341,18 @@ export function recordSignal(ws: Workspace, raw: z.infer<typeof TOOL_INPUTS.reco
   const dropped = input.observations.length - signal.observationIds.length;
   if (dropped > 0) flags.push(`${dropped} of ${input.observations.length} observation(s) didn't hold up against the quotes and became inferences.`);
   if (signal.observationIds.length === 0) flags.push("No quoted observations survived, so this signal can't directly support an idea.");
-  if (signal.freshness.status !== "fresh") flags.push(`Not fresh: ${signal.freshness.reason || "no date within 30 days"}.`);
+  const supports = routesSupported(signal.freshness);
+  if (signal.freshness.status !== "fresh") {
+    flags.push(
+      `Not fresh: ${signal.freshness.reason || "no date within 30 days"}. ${
+        supports === "proven" ? "It can still carry a proven idea (dated by behavior or publication within 90 days)." : "It can't carry a primed or proven idea; use it as context."
+      }`,
+    );
+  }
   if (own.length > 0 && independent === 0) flags.push("Its only sources are owned by the brand or the platform, so none counts as independent.");
   const result = `Filed ${signal.id} "${signal.name}": ${signal.observationIds.length} quoted observation(s), ${signal.freshness.status}${
     signal.freshness.ageDays != null ? ` (${signal.freshness.ageDays} days)` : ""
-  }, ${independent} independent source(s).`;
+  }, ${independent} independent source(s), ${{ "primed-and-proven": "can carry primed or proven", proven: "can carry proven only", context: "context only" }[supports]}.`;
   return {
     ok: true,
     forAgent: {

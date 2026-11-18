@@ -13,7 +13,7 @@ import {
   uniform,
 } from "./fixtures.ts";
 import { abstain, addIdeas, develop, finish, forceFinish, hypothesize, parseInput, recordSignal, reviewEvidence, settleHypothesis } from "./tools.ts";
-import { Workspace, type Brief } from "./workspace.ts";
+import { routesSupported, Workspace, type Brief } from "./workspace.ts";
 
 const BRIEF: Brief = { brand: "Acme Coffee", platform: "tiktok", recentIdeas: [] };
 const fresh = () => new Workspace(BRIEF, { now: () => NOW });
@@ -564,5 +564,23 @@ describe("routes: proven, primed, original (Day 6)", () => {
     sig.observations[0].statement = "The format grew fast among creators.";
     recordSignal(ws, { ...sig, role: "emerging", why } as never);
     assert.match(ws.evidenceLine()!, /growth reported, tagged emerging/);
+  });
+});
+
+describe("route eligibility and revisions that change basis (Day 6)", () => {
+  it("labels which routes a signal can carry", () => {
+    assert.equal(routesSupported({ status: "fresh", ageDays: 3, basis: "published" }), "primed-and-proven");
+    assert.equal(routesSupported({ status: "stale", ageDays: 43, basis: "published" }), "proven");
+    assert.equal(routesSupported({ status: "stale", ageDays: 35, basis: "page-updated" }), "context");
+    assert.equal(routesSupported({ status: "stale", ageDays: 120, basis: "behavior" }), "context");
+  });
+
+  it("a revision that switches a trend idea to an original format takes the original route", () => {
+    const ws = shortlisted();
+    const out = develop(ws, { ideaId: "L1", route: "proven", reachThesis: { behaviors: "b", wouldProveWrong: "w" }, treatment: treatment({ groundedIn: ["G1"] }), why });
+    const id = out.forAgent.candidateId as string;
+    ws.recordAssessments(1, [assessment(id, uniform(3))]);
+    ws.recordRevision({ originalId: id, draft: treatment({ basis: "original", groundedIn: [], headline: "Now original" }), weakness: "w", whatChanged: "c", assessment: assessment(id, uniform(3)), checks: { preservesMechanic: true, addressesWeakness: true, noUnsupportedClaims: true }, checksRationale: "r" });
+    assert.equal(ws.developed.get(`${id}-rev`)!.route, "original");
   });
 });

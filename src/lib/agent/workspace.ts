@@ -134,6 +134,17 @@ export const AGENT_HEAD_START = 0;
 /** Day 6, open shape: how many ideas one review may score. */
 export const MAX_REVIEW_BATCH = 3;
 
+/**
+ * Which trend routes a signal can carry, under the same rules code applies
+ * when it flags rejections: fresh carries primed or proven; dated by behavior
+ * or publication within 90 days carries proven; anything else is context only.
+ */
+export function routesSupported(f: { status: string; ageDays: number | null; basis?: string | null }): "primed-and-proven" | "proven" | "context" {
+  if (f.status === "fresh") return "primed-and-proven";
+  if (f.ageDays != null && f.ageDays <= PROVEN_WINDOW_DAYS && (f.basis === "behavior" || f.basis === "published")) return "proven";
+  return "context";
+}
+
 export class Workspace {
   readonly brief: Brief;
   private readonly now: () => Date;
@@ -301,12 +312,18 @@ export class Workspace {
       role: this.signalRoles.get(s.id) ?? null,
       independentOrigins: independentOrigins(ledger!.observations.filter((o) => o.signalId === s.id)),
       relevanceBar: s.culturalRelevance.status,
+      /** Which trend routes this signal can carry under code's rules (Day 6). */
+      supports: routesSupported(s.freshness),
     }));
     const gaps: string[] = [];
     if (this.queries.length === 0) gaps.push("No research yet.");
     else if (signals.length === 0) gaps.push("No signals filed yet: nothing from the searches counts as evidence until it's filed with quotes.");
     if (signals.length > 0 && !signals.some((s) => s.freshness === "fresh")) {
-      gaps.push("No fresh signal: nothing is dated within the last 30 days, so any trend idea would be rejected as stale. Search for newer evidence or develop original formats.");
+      gaps.push(
+        signals.some((s) => s.supports === "proven")
+          ? "No fresh signal: nothing is dated within the last 30 days, so a primed idea would be rejected. A proven idea can still build on a signal dated by behavior or publication within 90 days; otherwise search for newer evidence or develop original formats."
+          : "No fresh signal, and nothing dated by behavior or publication within 90 days: a primed or proven idea would be rejected as stale. Search for newer evidence or develop original formats.",
+      );
     }
     for (const s of signals) {
       if (s.observations === 0) gaps.push(`${s.id} has no quoted observations, so it can't support an idea directly.`);
@@ -329,6 +346,7 @@ export class Workspace {
    * independent sources each signal has. Null before any research.
    */
   evidenceLine(): string | null {
+    const SUPPORTS = { "primed-and-proven": "can carry primed or proven", proven: "can carry proven only", context: "context only" } as const;
     if (this.queries.length === 0) return null;
     const { signals } = this.evidenceReport();
     if (signals.length === 0) return "Evidence quality: nothing filed yet, so no idea has evidence behind it.";
@@ -338,7 +356,7 @@ export class Workspace {
       const basis = s.dateBasis ? `, ${BASIS[s.dateBasis]}` : "";
       const growth = s.growthReported ? ", growth reported" : "";
       const role = s.role ? `, tagged ${s.role}` : "";
-      return `${s.id} ${fresh}${basis}, ${s.independentOrigins} independent source${s.independentOrigins === 1 ? "" : "s"}${growth}${role}`;
+      return `${s.id} ${fresh}${basis}, ${s.independentOrigins} independent source${s.independentOrigins === 1 ? "" : "s"}${growth}${role}, ${SUPPORTS[s.supports]}`;
     });
     const thin = signals.filter((s) => s.freshness === "fresh" && (s.independentOrigins < 2 || s.dateBasis === "page-updated")).map((s) => s.id);
     return `Evidence quality: ${parts.join("; ")}.${thin.length ? ` Thin (one source, or dated only by a page update): ${thin.join(", ")}.` : ""}`;
@@ -571,7 +589,8 @@ export class Workspace {
       candidate: revised,
       ideaId: original.ideaId,
       why: original.why,
-      route: original.route,
+      // A revision that changes basis changes route with it: an original format can't be a proven or primed bet, and vice versa.
+      route: input.draft.basis === "original" ? "original" : original.route === "original" ? "primed" : original.route,
       reach: original.reach,
       revises: input.originalId,
       assessment: { ...input.assessment, round: "rescore" },
