@@ -486,3 +486,17 @@ describe("round 2: working hypotheses", () => {
     assert.equal(over.ok, false);
   });
 });
+
+describe("finishing requires settled hypotheses (round 2 fix)", () => {
+  it("refuses to finish while a bet is open, and accepts once it's settled", () => {
+    const ws = shortlisted();
+    const [c1, c2, c3] = developAll(ws);
+    ws.recordAssessments(1, [assessment(c1, uniform(4)), assessment(c2, uniform(3)), assessment(c3, uniform(3))]);
+    hypothesize(ws, { why, hypotheses: ["Exam rituals are shareable"] });
+    const early = finish(ws, { why, revisionDecision: RD });
+    assert.equal(early.ok, false);
+    assert.match(early.result, /Settle or drop your open hypotheses first/);
+    settleHypothesis(ws, { why, id: "H1", verdict: "dropped", evidence: [], note: "No time to test it." });
+    assert.ok(finish(ws, { why, revisionDecision: RD }).ok);
+  });
+});

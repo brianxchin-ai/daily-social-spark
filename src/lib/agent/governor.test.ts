@@ -58,7 +58,7 @@ describe("governor: permission to spend", () => {
   });
 
   it("lowers an agent turn's output cap to fit the money left", () => {
-    const g = new Governor({ ceilingUsd: 0.06, wrapUpUsd: 0.06 });
+    const g = new Governor({ ceilingUsd: 0.06, wrapUpUsd: 0.06, finishingReserveUsd: 0, reviewReserveUsd: 0 });
     const auth = g.authorize("agent-turn", TURN);
     assert.ok(auth.ok);
     assert.ok(auth.maxOutputTokens < TURN.maxOutputTokens);
@@ -101,7 +101,7 @@ describe("governor: permission to spend", () => {
   });
 
   it("stops the run if a bill comes in above the ceiling (e.g., an unexpected model)", () => {
-    const g = new Governor({ ceilingUsd: 0.1, wrapUpUsd: 0.08 });
+    const g = new Governor({ ceilingUsd: 0.1, wrapUpUsd: 0.08, finishingReserveUsd: 0, reviewReserveUsd: 0 });
     const auth = g.authorize("agent-turn", { inputTokens: 1_000, maxOutputTokens: 2_000 });
     assert.ok(auth.ok);
     g.settle(auth.ticket, { model: "claude-mystery", usage: { inputTokens: 5_000, outputTokens: 2_000 } });
@@ -266,5 +266,45 @@ describe("governor: the ceiling holds under random runs", () => {
       assert.ok(g.spentUsd() <= AGENT_LIMITS.ceilingUsd + 1e-9, `seed ${seed}: spent $${g.spentUsd()}`);
       assert.equal(g.snapshot().overrun, false);
     }
+  });
+});
+
+describe("governor: the finishing reserve (after a real run couldn't afford its review)", () => {
+  const settleAt = (g: Governor, kind: PaidCallKind, plan: CallPlan, usd: number) => {
+    const a = g.authorize(kind, plan);
+    assert.ok(a.ok, `${kind} should be allowed`);
+    // Bill the call at the given cost (as output tokens at $10 per million).
+    g.settle(a.ticket, { model: MODEL, usage: { inputTokens: 0, outputTokens: Math.round(usd * 100_000) } });
+  };
+
+  it("refuses research that would cut into the reserve, but still allows the review", () => {
+    const g = new Governor();
+    settleAt(g, "search", SEARCH, 0.4);
+    const search = g.authorize("search", SEARCH);
+    assert.equal(search.ok, false);
+    if (!search.ok) assert.match(search.reason, /held for reviewing and finishing/);
+    assert.ok(g.authorize("evaluate", EVALUATE).ok, "the review can use the reserve");
+  });
+
+  it("lets agent turns use the finishing part of the reserve, never the review's part", () => {
+    const g = new Governor();
+    settleAt(g, "search", SEARCH, 0.55);
+    const turn = g.authorize("agent-turn", TURN);
+    assert.ok(turn.ok);
+    assert.ok(g.committedUsd() <= AGENT_LIMITS.ceilingUsd - AGENT_LIMITS.reviewReserveUsd + 1e-9);
+  });
+
+  it("releases the reserve once a review has run", () => {
+    const g = new Governor();
+    assert.equal(g.snapshot().reservedUsd, AGENT_LIMITS.finishingReserveUsd);
+    settleAt(g, "evaluate", EVALUATE, 0.05);
+    assert.equal(g.snapshot().reservedUsd, 0);
+    assert.ok(g.authorize("search", SEARCH).ok);
+  });
+
+  it("always leaves enough for one worst-case review of a full evidence board", () => {
+    const g = new Governor();
+    const fullReview: CallPlan = { inputTokens: 12_000, maxOutputTokens: 10_000 };
+    assert.ok(g.worstCaseUsd(fullReview) <= AGENT_LIMITS.reviewReserveUsd + 1e-9, `review worst case ${g.worstCaseUsd(fullReview)}`);
   });
 });

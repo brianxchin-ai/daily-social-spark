@@ -20,8 +20,16 @@ import { costOfUsage, priceFor, SEARCH_PRICE_USD, type BilledUsage } from "../us
 export const AGENT_LIMITS = {
   /** Never start a call whose worst case would take the scan past this. */
   ceilingUsd: 0.75,
-  /** From here on, research stops and the agent is told to finish. */
-  wrapUpUsd: 0.55,
+  /** From here on, research stops and the agent is told to finish (the ceiling minus the finishing reserve). */
+  wrapUpUsd: 0.47,
+  /**
+   * Held back until the first review has run, so research can never leave a
+   * scan unable to finish (Day 6, after a real run spent $0.63 and couldn't
+   * afford its review). Searches, page reads and rescores can't touch it.
+   */
+  finishingReserveUsd: 0.28,
+  /** The part of the finishing reserve only the review itself may use: agent turns can't touch it either. */
+  reviewReserveUsd: 0.15,
   maxTurns: 24,
   wrapUpTurn: 18,
   maxToolCalls: 40,
@@ -163,6 +171,8 @@ export class Governor {
       committedUsd: round4(this.committedUsd()),
       ceilingUsd: this.limits.ceilingUsd,
       remainingUsd: round4(Math.max(0, this.limits.ceilingUsd - this.committedUsd())),
+      /** Held back for the first review and finishing; released once a review has run. */
+      reservedUsd: this.counts.evaluate > 0 ? 0 : this.limits.finishingReserveUsd,
       elapsedMs: this.elapsedMs(),
       timeLeftMs: Math.max(0, this.timeLeftMs()),
       turns: this.counts["agent-turn"],
@@ -216,7 +226,9 @@ export class Governor {
       return { ok: false, reason: `Research is closed: the scan is wrapping up (${WRAP_TEXT[wrap]}). Finish with the ideas you have.`, ends: false };
     }
 
-    const room = L.ceilingUsd - this.committedUsd();
+    // Until the first review has run, part of the budget is held for it (and for the turns around it).
+    const reserved = this.counts.evaluate > 0 || kind === "evaluate" ? 0 : isTurn ? L.reviewReserveUsd : L.finishingReserveUsd;
+    const room = L.ceilingUsd - this.committedUsd() - reserved;
     let maxOutputTokens = plan.maxOutputTokens;
     if (isTurn) {
       // Fit the output cap to the money left, never above the per-turn cap.
@@ -230,7 +242,9 @@ export class Governor {
     if (holdUsd > room + 1e-9) {
       return {
         ok: false,
-        reason: `Not enough budget left for this ${KIND_TEXT[kind]} (worst case $${holdUsd.toFixed(3)}, $${Math.max(0, room).toFixed(3)} left).`,
+        reason: `Not enough budget left for this ${KIND_TEXT[kind]} (worst case $${holdUsd.toFixed(3)}, $${Math.max(0, room).toFixed(3)} available${
+          reserved ? `; $${reserved.toFixed(2)} is held for reviewing and finishing` : ""
+        }).`,
         ends: false,
       };
     }

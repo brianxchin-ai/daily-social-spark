@@ -5,6 +5,7 @@ import { validateRevisedCandidate, type CandidateDraft } from "../spark-schema.t
 import type { Candidate } from "../types.ts";
 import type { BilledUsage } from "../usage/pricing.ts";
 import { estimateTokens, Governor, STOP_TEXT, type CallPlan, type PaidCallKind } from "./governor.ts";
+import { ledgerDigest } from "../prompts/creative.ts";
 import { agentSystem, briefMessage } from "./prompt.ts";
 import {
   abstain,
@@ -290,10 +291,14 @@ export async function runAgent(options: {
     }
   };
 
-  const reviewPlan = (payload: unknown, output: number): CallPlan => ({
-    inputTokens: estimateTokens(JSON.stringify(payload)) + CALL_PLANS.reviewOverheadTokens,
-    maxOutputTokens: output,
-  });
+  /** A review call's size: what the panel actually receives (the candidates and the ledger digest), plus instructions. */
+  const reviewPlan = (payload: { ledger: EvidenceLedger | null } & Record<string, unknown>, output: number): CallPlan => {
+    const { ledger, ...rest } = payload;
+    return {
+      inputTokens: estimateTokens(JSON.stringify(rest)) + (ledger ? estimateTokens(ledgerDigest(ledger)) : 0) + CALL_PLANS.reviewOverheadTokens,
+      maxOutputTokens: output,
+    };
+  };
 
   async function runTool(name: ToolName, input: unknown): Promise<{ outcome: ToolOutcome; action: string; usd: number | null }> {
     const fail = (problem: string): ToolOutcome => ({ ok: false, forAgent: { ok: false, problem }, result: `Refused: ${problem}`, flags: [], changedCourse: null, ending: null });
@@ -659,7 +664,9 @@ export function readout(g: Governor, ws: Workspace): string {
         .join(", ")
     : "none yet";
   const lines = [
-    `[Readout from code] Budget: $${s.spentUsd.toFixed(3)} used, $${s.remainingUsd.toFixed(3)} still available to invest · ${Math.floor(s.timeLeftMs / 1000)} s left · turn ${s.turns} of ${s.maxTurns} · searches ${s.searches}/${s.maxSearches} · page reads ${s.reads}/${s.maxReads} · review rounds ${s.evaluations}/${s.maxEvaluations} · revisions ${s.rescores}/${s.maxRescores}`,
+    `[Readout from code] Budget: $${s.spentUsd.toFixed(3)} used, $${Math.max(0, s.remainingUsd - s.reservedUsd).toFixed(3)} still available to invest${
+      s.reservedUsd ? ` (plus $${s.reservedUsd.toFixed(2)} held for your first review and finishing)` : ""
+    } · ${Math.floor(s.timeLeftMs / 1000)} s left · turn ${s.turns} of ${s.maxTurns} · searches ${s.searches}/${s.maxSearches} · page reads ${s.reads}/${s.maxReads} · review rounds ${s.evaluations}/${s.maxEvaluations} · revisions ${s.rescores}/${s.maxRescores}`,
     `Evidence: ${ws.sources.length} source(s), ${ws.signalDrafts.length} signal(s). Longlist: ${ws.wall.length}. Finalists: ${finalists}.`,
   ];
   const quality = ws.evidenceLine();

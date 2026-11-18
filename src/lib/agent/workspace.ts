@@ -620,6 +620,8 @@ export class Workspace {
     if (undeveloped.length) problems.push(`Not yet developed: ${undeveloped.join(", ")}.`);
     const unevaluated = finalists.filter((d) => d && !d.assessment).map((d) => d!.candidate.id);
     if (unevaluated.length) problems.push(`Not yet evaluated: ${unevaluated.join(", ")}.`);
+    const open = this.hypotheses.filter((h) => h.status === "open").map((h) => h.id);
+    if (open.length) problems.push(`Settle or drop your open hypotheses first (settle_hypothesis): ${open.join(", ")}.`);
     return problems;
   }
 
