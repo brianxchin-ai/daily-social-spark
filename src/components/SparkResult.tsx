@@ -13,6 +13,7 @@ import {
   type SparkOrigin,
 } from "@/lib/types";
 import { ConfidenceBlocks } from "./ConfidenceBlocks";
+import { AgentTrace } from "./AgentTrace";
 import { DecisionTrace } from "./DecisionTrace";
 import { OriginBadge } from "./DemoBadge";
 import { EvidencePanel } from "./EvidencePanel";
@@ -216,12 +217,28 @@ function finalEvaluationOf(spark: HypothesisSpark): CandidateEvaluation {
  */
 const NUMBER_WORDS: Record<number, string> = { 2: "two", 3: "three", 4: "four", 5: "five", 10: "ten" };
 
+/** Day 6: the same facts, told as the agent's process rather than the fixed workflow's. */
+function agentSelectionSentence(spark: HypothesisSpark, evaluation: CandidateEvaluation, strongest: string[]): string {
+  const agent = spark.agent!;
+  const pool = spark.longlist?.ideas.length ?? 0;
+  const parts = [
+    `The agent shortlisted it from a longlist of ${NUMBER_WORDS[pool] ?? pool} and developed it as one of ${NUMBER_WORDS[spark.candidates.length] ?? spark.candidates.length} finalists. The independent review panel ${
+      agent.tieJudgment ? "tied it for the top score" : "scored it highest"
+    }${strongest.length ? `, with its strongest marks for ${strongest.join(" and ")}` : ""}.`,
+  ];
+  if (agent.tieJudgment) parts.push("The agent broke the tie on creative judgment (see the trace).");
+  if (evaluation.candidateId !== spark.evaluation.leaderId) parts.push("The agent then revised it once, and the revision scored higher.");
+  if (agent.how === "stopped") parts.push("The scan stopped early at a limit, so this is the best idea already scored.");
+  return parts.join(" ");
+}
+
 function selectionSentence(spark: HypothesisSpark, evaluation: CandidateEvaluation): string {
   const strongest = evaluation.results
     .filter((r) => r.status === "scored" && r.score !== null && criterion(r.criterionId).basis === "concept")
     .sort((a, b) => b.score! - a.score! || criterion(b.criterionId).weight - criterion(a.criterionId).weight)
     .slice(0, 2)
     .map((r) => criterion(r.criterionId).name.toLowerCase());
+  if (spark.agent) return agentSelectionSentence(spark, evaluation, strongest);
   const others = spark.candidates.length - 1;
   const name = (id: string) => spark.candidates.find((c) => c.id === id)?.trendName ?? id;
   const tie = computeTies(spark.evaluation).find((t) => t.ahead === spark.evaluation.leaderId);
@@ -267,6 +284,9 @@ function HypothesisSections({ spark, final }: { spark: HypothesisSpark; final: C
   const sources = sourcesForIdea(final, ledger);
   return (
     <>
+      {spark.agent?.how === "stopped" && (
+        <p className="readout border-l-4 border-ember pl-3 text-ink">Stopped early · {spark.agent.endReason}</p>
+      )}
       <Section index={1} title="Spark Score" origin={origin}>
         <SparkScore
           evaluation={finalEvaluation}
@@ -353,7 +373,7 @@ function HypothesisSections({ spark, final }: { spark: HypothesisSpark; final: C
           <EvidencePanel spark={spark} />
         </DrawerPart>
 
-        <DecisionTrace spark={spark} />
+        {spark.agent ? <AgentTrace report={spark.agent} /> : <DecisionTrace spark={spark} />}
         <GenerationFooter spark={spark} />
       </Drawer>
     </>
@@ -412,6 +432,20 @@ function ThreeIdeas({
   );
 }
 
+function noLeaderTitle(spark: HypothesisSpark): string {
+  if (spark.agent?.how === "abstained") return "The agent didn't recommend an idea";
+  if (spark.agent?.how === "stopped") return "Stopped before an idea cleared the bar";
+  return "No candidate cleared the bar";
+}
+
+function noLeaderText(spark: HypothesisSpark): string {
+  const agent = spark.agent;
+  if (agent?.how === "abstained") return `In its words: “${agent.endReason}” Nothing is recommended. The full trace is below.`;
+  if (agent?.how === "stopped") return `${agent.endReason} No placeholder was substituted. The full trace is below.`;
+  const count = NUMBER_WORDS[spark.candidates.length] ?? spark.candidates.length;
+  return `All ${count} ideas were rejected by our rules, so none is recommended. The reasons are in the evaluation below. Try another scan, or a different brand or platform.`;
+}
+
 /** Every candidate was rejected: say so plainly, and show why. Nothing is promoted. */
 function NoLeader({ spark }: { spark: HypothesisSpark }) {
   return (
@@ -421,20 +455,19 @@ function NoLeader({ spark }: { spark: HypothesisSpark }) {
           <p className="readout text-ember">Scan result</p>
           <OriginBadge origin={spark.origin} />
         </div>
-        <h2 className="headline text-[42px] text-balance sm:text-[56px]">No candidate cleared the bar</h2>
-        <p className="text-[16px] leading-relaxed">
-          All three opportunities were rejected by our rules, so none is recommended. The reasons are in the
-          evaluation below. Try another scan, or a different brand or platform.
-        </p>
+        <h2 className="headline text-[42px] text-balance sm:text-[56px]">{noLeaderTitle(spark)}</h2>
+        <p className="text-[16px] leading-relaxed">{noLeaderText(spark)}</p>
         <p className="readout text-ink-soft">For: {spark.brand}</p>
       </header>
-      <Section index={1} title="Evaluation" origin={spark.origin}>
-        <Scoreboard report={spark.evaluation} candidates={spark.candidates} />
-      </Section>
-      <Section index={2} title="Evidence" origin={spark.origin}>
+      {spark.candidates.length > 0 && (
+        <Section index={1} title="Evaluation" origin={spark.origin}>
+          <Scoreboard report={spark.evaluation} candidates={spark.candidates} />
+        </Section>
+      )}
+      <Section index={spark.candidates.length > 0 ? 2 : 1} title="Evidence" origin={spark.origin}>
         <EvidencePanel spark={spark} />
       </Section>
-      <DecisionTrace spark={spark} />
+      {spark.agent ? <AgentTrace report={spark.agent} /> : <DecisionTrace spark={spark} />}
       <GenerationFooter spark={spark} />
     </>
   );
@@ -466,6 +499,7 @@ function GenerationFooter({ spark }: { spark: HypothesisSpark }) {
       {research ? ` (research ${research.calls.length} + creative ${generation.calls.length})` : ` (${generation.calls.map((c) => c.step).join(" + ")})`}
       {research ? ` · ${plural(research.webSearches, "web search", "web searches")}` : ""} · creative {generation.inputTokens.toLocaleString()} in /{" "}
       {generation.outputTokens.toLocaleString()} out tokens · ≈${cost.toFixed(3)} estimated
+      {spark.agent ? ` of a $${spark.agent.ceilingUsd.toFixed(2)} per-scan ceiling` : ""}
     </p>
   );
 }

@@ -2,9 +2,21 @@
 
 import { loadRecentIdeas, rememberSpark } from "@/lib/idea-history";
 import { useEffect, useRef, useState } from "react";
-import { localDate, localTime, runScan, ScanCanceled, ScanError, ScanLimited, type BetaLimits, type ScanPhase } from "@/lib/scan";
-import type { Platform, Spark } from "@/lib/types";
+import {
+  fetchAgentAvailable,
+  localDate,
+  localTime,
+  runAgentScan,
+  runScan,
+  ScanCanceled,
+  ScanError,
+  ScanLimited,
+  type BetaLimits,
+  type ScanPhase,
+} from "@/lib/scan";
+import type { AgentTraceStep, Platform, Spark } from "@/lib/types";
 import { useEngineStatus } from "@/lib/use-engine-status";
+import { AgentProgress } from "./AgentProgress";
 import { ScanForm } from "./ScanForm";
 import { ScanProgress } from "./ScanProgress";
 import { SparkResult } from "./SparkResult";
@@ -13,9 +25,12 @@ import { TimeRibbon } from "./TimeRibbon";
 
 type ScanState =
   | { status: "idle" }
-  | { status: "scanning"; brand: string; runId: number }
+  | { status: "scanning"; brand: string; runId: number; engine: EngineChoice }
   | { status: "done"; spark: Spark }
   | { status: "error"; message: string; limit: string | null };
+
+/** Day 6: which engine runs the scan. The agent is offered only where the server allows it (local testing). */
+type EngineChoice = "fixed" | "agent";
 
 /** The card heading for each kind of usage refusal. */
 const LIMIT_SLATES: Record<string, string> = {
@@ -54,6 +69,18 @@ export function ScanExperience() {
   // Bumped after every scan, so the beta allowance shown on the page stays current.
   const [statusKey, setStatusKey] = useState(0);
   const engineStatus = useEngineStatus(statusKey);
+  const [agentAvailable, setAgentAvailable] = useState(false);
+  const [engineChoice, setEngineChoice] = useState<EngineChoice>("fixed");
+  const [agentSteps, setAgentSteps] = useState<AgentTraceStep[]>([]);
+  const [agentTurn, setAgentTurn] = useState(0);
+
+  useEffect(() => {
+    let live = true;
+    fetchAgentAvailable().then((available) => live && setAgentAvailable(available));
+    return () => {
+      live = false;
+    };
+  }, []);
 
   // On narrow screens the stage sits below the form, so bring it into view.
   useEffect(() => {
@@ -73,16 +100,31 @@ export function ScanExperience() {
     const controller = new AbortController();
     cancelRef.current = controller;
     setNotice(null);
-    setState({ status: "scanning", brand: brand.trim(), runId });
+    const engine: EngineChoice = agentAvailable ? engineChoice : "fixed";
+    setState({ status: "scanning", brand: brand.trim(), runId, engine });
     try {
       setPhase("research");
-      const spark = await runScan(
-        { brand, platform, audience, recentIdeas: loadRecentIdeas() },
-        (p) => {
-          if (runId === latestRun.current) setPhase(p);
-        },
-        controller.signal,
-      );
+      setAgentSteps([]);
+      setAgentTurn(0);
+      const request = { brand, platform, audience, recentIdeas: loadRecentIdeas() };
+      const spark =
+        engine === "agent"
+          ? await runAgentScan(
+              request,
+              (event) => {
+                if (runId !== latestRun.current) return;
+                if (event.type === "turn") setAgentTurn(event.turn);
+                else setAgentSteps((steps) => [...steps, event.step]);
+              },
+              controller.signal,
+            )
+          : await runScan(
+              request,
+              (p) => {
+                if (runId === latestRun.current) setPhase(p);
+              },
+              controller.signal,
+            );
       if (runId === latestRun.current) {
         rememberSpark(spark);
         setState({ status: "done", spark });
@@ -153,6 +195,9 @@ export function ScanExperience() {
           onAudienceChange={setAudience}
           onSubmit={handleSubmit}
         />
+        {agentAvailable && (
+          <EngineSwitch value={engineChoice} onChange={setEngineChoice} disabled={state.status === "scanning"} />
+        )}
         {/* After a scan, keep the visitor's remaining beta allowance in view. */}
         {hasRun && engineStatus?.engine === "claude" && engineStatus.limits?.enforced && (
           <p className="readout -mt-4 text-ink-soft">{allowanceLine(engineStatus.limits)}</p>
@@ -181,7 +226,10 @@ export function ScanExperience() {
             )}
           </StoryCard>
         )}
-        {state.status === "scanning" && (
+        {state.status === "scanning" && state.engine === "agent" && (
+          <AgentProgress key={state.runId} brand={state.brand} steps={agentSteps} turn={agentTurn} onCancel={cancelScan} />
+        )}
+        {state.status === "scanning" && state.engine === "fixed" && (
           <ScanProgress
             key={state.runId}
             brand={state.brand}
@@ -210,5 +258,40 @@ export function ScanExperience() {
         {state.status === "done" && <SparkResult key={state.spark.id} spark={state.spark} />}
       </div>
     </div>
+  );
+}
+
+/** Day 6: a local-only switch between the fixed workflow and the agent. */
+function EngineSwitch({ value, onChange, disabled }: { value: EngineChoice; onChange: (v: EngineChoice) => void; disabled: boolean }) {
+  const options: { id: EngineChoice; label: string; note: string }[] = [
+    { id: "fixed", label: "Fixed", note: "Set workflow" },
+    { id: "agent", label: "Agent", note: "Decides its own path" },
+  ];
+  return (
+    <fieldset className="-mt-3 flex flex-col gap-2" disabled={disabled}>
+      <legend className="readout mb-2 text-ink-soft">
+        Engine <span className="normal-case">· local test only</span>
+      </legend>
+      <div className="grid grid-cols-2 gap-[2px] border-2 border-ink bg-ink">
+        {options.map((o) => {
+          const selected = o.id === value;
+          return (
+            <label
+              key={o.id}
+              className={`flex cursor-pointer flex-col items-start px-3 py-2 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-4 has-[:focus-visible]:outline-ember ${
+                selected ? "bg-ink text-surface" : "bg-surface hover:bg-canvas"
+              }`}
+            >
+              <input type="radio" name="engine" value={o.id} checked={selected} onChange={() => onChange(o.id)} className="sr-only" />
+              <span className="font-mono text-[14px] font-bold">{o.label}</span>
+              <span className={`readout ${selected ? "text-ember" : "text-ink-soft"}`}>
+                {selected ? "● " : ""}
+                {o.note}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
   );
 }

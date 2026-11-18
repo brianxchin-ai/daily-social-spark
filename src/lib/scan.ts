@@ -1,4 +1,4 @@
-import type { EngineMode, ScanRequest, Spark } from "@/lib/types";
+import type { AgentTraceStep, EngineMode, ScanRequest, Spark } from "@/lib/types";
 
 /**
  * The page's side of a scan. It never generates content itself: it asks our
@@ -229,4 +229,105 @@ export async function runScan(
     throw new ScanError("The server returned a result in an unexpected format.");
   }
   return spark;
+}
+
+/* ---------- Day 6: agent mode (local only) ---------- */
+
+/** A live update from an agent scan: one observable step, or the start of a new turn. */
+export type AgentStreamEvent = { type: "step"; step: AgentTraceStep } | { type: "turn"; turn: number };
+
+/** Whether this server can run agent scans (local only, switched on in settings). */
+export async function fetchAgentAvailable(): Promise<boolean> {
+  try {
+    const response = await fetch("/api/agent-scan", { cache: "no-store" });
+    if (!response.ok) return false;
+    const body = (await response.json()) as { available?: boolean };
+    return body.available === true;
+  } catch {
+    return false;
+  }
+}
+
+const AGENT_TIMEOUT_MS = 5 * 60_000;
+
+/**
+ * Run one agent scan. The server streams one JSON line per step while the
+ * agent works, then the finished result. Usage-limit refusals and input
+ * errors arrive as a plain JSON response before anything starts.
+ */
+export async function runAgentScan(
+  request: ScanRequest,
+  onEvent: (event: AgentStreamEvent) => void,
+  cancel?: AbortSignal,
+): Promise<Spark> {
+  const brand = request.brand.trim();
+  if (!brand) throw new ScanError("Enter a brand or category to scan.");
+  const audience = request.audience?.replace(/\s+/g, " ").trim();
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AGENT_TIMEOUT_MS);
+  const onCancel = () => controller.abort();
+  cancel?.addEventListener("abort", onCancel);
+  try {
+    let response: Response;
+    try {
+      response = await fetch("/api/agent-scan", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          brand,
+          platform: request.platform,
+          ...(audience ? { audience } : {}),
+          ...(request.recentIdeas?.length ? { recentIdeas: request.recentIdeas } : {}),
+        }),
+        signal: controller.signal,
+      });
+    } catch {
+      if (cancel?.aborted) throw new ScanCanceled("Scan canceled.");
+      throw new ScanError(controller.signal.aborted ? "The agent scan took longer than 5 minutes and was stopped." : "Couldn't reach the app's server. Is it still running?");
+    }
+
+    if (!response.ok || !response.body || !(response.headers.get("content-type") ?? "").includes("ndjson")) {
+      const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+      const limited = limitMessage(payload);
+      if (limited) throw new ScanLimited(limited, limitKind(payload));
+      throw new ScanError(typeof payload?.error === "string" ? payload.error : `The agent scan failed (HTTP ${response.status}).`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let spark: Spark | null = null;
+    for (;;) {
+      let chunk: ReadableStreamReadResult<Uint8Array>;
+      try {
+        chunk = await reader.read();
+      } catch {
+        if (cancel?.aborted) throw new ScanCanceled("Scan canceled.");
+        throw new ScanError("The connection to the agent scan was lost. Nothing was retried.");
+      }
+      if (chunk.done) break;
+      buffer += decoder.decode(chunk.value, { stream: true });
+      let newline: number;
+      while ((newline = buffer.indexOf("\n")) >= 0) {
+        const line = buffer.slice(0, newline).trim();
+        buffer = buffer.slice(newline + 1);
+        if (!line) continue;
+        let event: Record<string, unknown>;
+        try {
+          event = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        if (event.type === "step" || event.type === "turn") onEvent(event as AgentStreamEvent);
+        else if (event.type === "result") spark = event.spark as Spark;
+        else if (event.type === "error") throw new ScanError(typeof event.error === "string" ? event.error : "The agent scan failed.");
+      }
+    }
+    if (!spark || spark.origin !== "ai-hypothesis") throw new ScanError("The agent scan ended without a result. Nothing was retried.");
+    return spark;
+  } finally {
+    clearTimeout(timer);
+    cancel?.removeEventListener("abort", onCancel);
+  }
 }
