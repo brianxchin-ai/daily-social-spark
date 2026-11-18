@@ -100,9 +100,10 @@ export const TOOL_INPUTS = {
     sourceId: z.string().describe("A source ID (S3) from an earlier search. Only pages a search returned can be read."),
     question: z.string().describe("What you want to learn from the page."),
   }),
+  // The signal's fields sit directly in the input: real runs kept sending a nested "signal" block as broken text.
   record_signal: z.object({
     why,
-    signal: AgentSignalSchema,
+    ...AgentSignalSchema.shape,
     categoryTerms: z.array(z.string()).describe("Words naming the brand's own category, e.g. 'coffee'. May be empty.").optional(),
   }),
   review_evidence: z.object({ why }),
@@ -250,8 +251,18 @@ export function parseInput<T extends ToolName>(
   input: unknown,
 ): { ok: true; value: z.infer<(typeof TOOL_INPUTS)[T]>; unpacked?: boolean; missingWhy?: boolean } | { ok: false; problem: string } {
   const schema = TOOL_INPUTS[name];
+  // The earlier nested signal shape: lift it, and note when it arrived as text.
+  const nested = name === "record_signal" && input && typeof input === "object" ? (input as Record<string, unknown>).signal : undefined;
+  if (nested !== undefined) input = liftNestedSignal(input);
+  const liftedText = typeof nested === "string" && !(input && typeof input === "object" && "signal" in (input as Record<string, unknown>));
+  if (typeof nested === "string" && !liftedText) {
+    return {
+      ok: false,
+      problem: `Badly formed input for ${name}: the signal was sent as text that isn't valid JSON. Send its fields directly (name, category, categoryRelation, summary, observations) instead of inside "signal".`,
+    };
+  }
   const result = schema.safeParse(input);
-  if (result.success) return { ok: true, value: result.data as z.infer<(typeof TOOL_INPUTS)[T]> };
+  if (result.success) return { ok: true, value: result.data as z.infer<(typeof TOOL_INPUTS)[T]>, ...(liftedText ? { unpacked: true } : {}) };
   const unpacked = unpackText(input);
   const retry = schema.safeParse(unpacked);
   if (retry.success) return { ok: true, value: retry.data as z.infer<(typeof TOOL_INPUTS)[T]>, unpacked: true };
@@ -280,16 +291,33 @@ export function parseInput<T extends ToolName>(
 
 /* ---------- Free tools ---------- */
 
-export function recordSignal(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.record_signal>): ToolOutcome {
-  const filed = ws.addSignal(toSignalDraft(input.signal), input.categoryTerms ?? []);
+/** The earlier input shape, with the signal nested under "signal". Still accepted. */
+type NestedSignalInput = { why: string; signal: AgentSignal; categoryTerms?: string[] };
+
+/**
+ * Accept the earlier nested shape ({ signal: {...} }, possibly sent as text)
+ * by lifting its fields to the top level. Anything else passes through.
+ */
+export function liftNestedSignal(input: unknown): unknown {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return input;
+  const { signal, ...rest } = input as Record<string, unknown>;
+  if (signal === undefined) return input;
+  const inner = unpackText(signal);
+  if (!inner || typeof inner !== "object" || Array.isArray(inner)) return input;
+  return { ...(inner as Record<string, unknown>), ...rest };
+}
+
+export function recordSignal(ws: Workspace, raw: z.infer<typeof TOOL_INPUTS.record_signal> | NestedSignalInput): ToolOutcome {
+  const input = ("signal" in raw ? { ...raw.signal, why: raw.why, categoryTerms: raw.categoryTerms } : raw) as z.infer<typeof TOOL_INPUTS.record_signal>;
+  const filed = ws.addSignal(toSignalDraft(input), input.categoryTerms ?? []);
   if (!filed.ok) return fail(filed.problem);
   const ledger = ws.ledger()!;
   const signal = ledger.signals.find((s) => s.id === filed.signalId)!;
   const own = ledger.observations.filter((o) => o.signalId === signal.id);
   const independent = independentOrigins(own);
   const flags: string[] = [];
-  const dropped = input.signal.observations.length - signal.observationIds.length;
-  if (dropped > 0) flags.push(`${dropped} of ${input.signal.observations.length} observation(s) didn't hold up against the quotes and became inferences.`);
+  const dropped = input.observations.length - signal.observationIds.length;
+  if (dropped > 0) flags.push(`${dropped} of ${input.observations.length} observation(s) didn't hold up against the quotes and became inferences.`);
   if (signal.observationIds.length === 0) flags.push("No quoted observations survived, so this signal can't directly support an idea.");
   if (signal.freshness.status !== "fresh") flags.push(`Not fresh: ${signal.freshness.reason || "no date within 30 days"}.`);
   if (own.length > 0 && independent === 0) flags.push("Its only sources are owned by the brand or the platform, so none counts as independent.");

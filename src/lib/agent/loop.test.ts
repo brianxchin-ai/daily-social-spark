@@ -420,11 +420,36 @@ describe("fixes from the second real run (Keurig, 2026-11-18)", () => {
 });
 
 describe("the signal tool as the API sees it", () => {
-  it("lists only the essentials as required", () => {
+  it("takes the signal's fields directly, and lists only the essentials as required", () => {
     const spec = toolSpecs().find((t) => t.name === "record_signal")!;
-    const signal = (spec.input_schema.properties as Record<string, { required?: string[]; properties: Record<string, { items?: { required?: string[] } }> }>).signal;
-    assert.deepEqual([...(signal.required ?? [])].sort(), ["category", "categoryRelation", "name", "observations", "summary"]);
-    assert.deepEqual([...(signal.properties.observations.items?.required ?? [])].sort(), ["citationIds", "dateBasis", "dateText", "statement"]);
+    const props = spec.input_schema.properties as Record<string, { items?: { required?: string[] } }>;
+    assert.equal("signal" in props, false, "no nested signal block");
+    assert.equal(Object.keys(props)[0], "why");
+    assert.deepEqual([...(spec.input_schema.required as string[])].sort(), ["category", "categoryRelation", "name", "observations", "summary", "why"]);
+    assert.deepEqual([...(props.observations.items?.required ?? [])].sort(), ["citationIds", "dateBasis", "dateText", "statement"]);
+  });
+
+  it("files a signal sent in the flat shape through the real loop", async () => {
+    const model = new ScriptedModel((turn) => {
+      if (turn === 1) return [toolUse("web_search", { why: "Look.", query: "desk reset", purpose: "category" })];
+      if (turn === 2)
+        return [
+          toolUse("record_signal", {
+            why: "C1 is dated.",
+            name: "Desk resets",
+            category: "creator-behavior",
+            categoryRelation: "adjacent",
+            summary: "Students post desk resets before exams.",
+            observations: [{ statement: "Desk reset videos are being posted.", citationIds: ["C1"], dateText: "November 10, 2026", dateBasis: "behavior" }],
+          }),
+        ];
+      return [toolUse("abstain", { reason: "Stop." })];
+    });
+    const run = await runAgent({ brief: BRIEF, model, tools: new FakeTools({ "desk reset": FRESH_PAGE }), now });
+    const filed = run.steps.find((x) => x.actor === "record_signal")!;
+    assert.equal(filed.ok, true, filed.result);
+    assert.equal(filed.action, "Filed a signal: Desk resets");
+    assert.equal(run.workspace.ledger()!.signals[0].freshness.status, "fresh");
   });
 });
 

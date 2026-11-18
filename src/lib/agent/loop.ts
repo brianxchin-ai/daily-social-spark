@@ -362,7 +362,7 @@ export async function runAgent(options: {
       }
       case "record_signal": {
         const i = input as z.infer<typeof TOOL_INPUTS.record_signal>;
-        return { outcome: recordSignal(ws, i), action: `Filed a signal: ${i.signal.name}`, usd: null };
+        return { outcome: recordSignal(ws, i), action: `Filed a signal: ${i.name}`, usd: null };
       }
       case "review_evidence":
         return { outcome: reviewEvidence(ws), action: "Reviewed the evidence", usd: null };

@@ -341,11 +341,8 @@ describe("fixes from the first real run (Keurig, 2026-11-18)", () => {
   it("unpacks a signal the model sent as a block of JSON text", () => {
     const sig = signal("Desk resets", "C1", "November 10, 2026");
     const out = parseInput("record_signal", { signal: JSON.stringify(sig), why });
-    assert.ok(out.ok);
-    if (out.ok) {
-      assert.equal(out.unpacked, true);
-      assert.equal(out.value.signal.name, "Desk resets");
-    }
+    assert.ok(out.ok, "the earlier nested shape, even sent as text, is still accepted");
+    if (out.ok) assert.equal(out.value.name, "Desk resets");
   });
 
   it("leaves well-formed text alone, even text that starts with a bracket", () => {
@@ -417,7 +414,7 @@ describe("evidence filing, made easier (after the third real run)", () => {
     const out = parseInput("record_signal", { why, signal: JSON.stringify(bad) });
     assert.equal(out.ok, false);
     if (!out.ok) {
-      assert.match(out.problem, /signal\.observations\.0\.dateBasis/);
+      assert.match(out.problem, /observations\.0\.dateBasis/);
       assert.doesNotMatch(out.problem, /expected object, received string/);
     }
   });
@@ -425,7 +422,7 @@ describe("evidence filing, made easier (after the third real run)", () => {
   it("explains when a field was sent as text that isn't valid JSON", () => {
     const out = parseInput("record_signal", { why, signal: "{name: 'Desk resets'" });
     assert.equal(out.ok, false);
-    if (!out.ok) assert.match(out.problem, /isn't valid JSON: send it as a structured object/);
+    if (!out.ok) assert.match(out.problem, /isn't valid JSON\. Send its fields directly/);
   });
 });
 
