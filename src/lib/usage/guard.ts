@@ -174,6 +174,30 @@ export async function beginAttempt(gate: UsageGate, who: Visitor, withResearch: 
   }
 }
 
+/** Start an agent-mode scan (Day 6): one attempt, one phase, held at the agent's $0.75 ceiling. */
+export async function beginAgentAttempt(gate: UsageGate, who: Visitor, now = Date.now()): Promise<Begin> {
+  if (gate.mode === "off") return { ok: true, attemptId: null, reserveUsd: 0 };
+  if (gate.mode === "unavailable") {
+    console.warn(`[usage] refusing paid work: ${gate.reason}`);
+    return unavailable();
+  }
+  const id = randomBytes(12).toString("hex");
+  try {
+    const result = await gate.store.transact((state) =>
+      startAttempt(state, { id, visitor: who.visitor, network: who.network, withResearch: false, agent: true, now }, gate.config),
+    );
+    if (!result.ok) {
+      console.info(`[usage] refused: ${result.kind}`);
+      return refuse(result);
+    }
+    console.info(`[usage] attempt ${id} started (agent)`);
+    return { ok: true, attemptId: id, reserveUsd: RESERVE_USD.agent };
+  } catch (error) {
+    console.warn(`[usage] ${error instanceof UsageUnavailable ? error.message : "unexpected storage error"}`);
+    return unavailable();
+  }
+}
+
 /** Start the one creative phase of an attempt whose research has finished. */
 export async function beginCreative(gate: UsageGate, who: Visitor, attemptId: string, now = Date.now()): Promise<Begin> {
   if (gate.mode === "off") return { ok: true, attemptId: null, reserveUsd: 0 };

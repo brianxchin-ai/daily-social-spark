@@ -33,6 +33,12 @@ export const RESERVE_USD = {
   research: 0.8,
   /** Generator, evaluator, editor and rescore at their token caps. Typical: about $0.15–0.20. */
   creative: 0.6,
+  /**
+   * Day 6 agent mode: one phase, held at the agent's per-scan ceiling. The
+   * agent's own governor (agent/governor.ts) never lets a scan's estimated
+   * spend pass this, so the hold covers it.
+   */
+  agent: 0.75,
 } as const;
 
 /** How long a phase may run before its hold is treated as abandoned (beyond the 300s request limit). */
@@ -40,7 +46,7 @@ export const PHASE_TTL_MS = 6 * 60_000;
 /** After research, how long the creative request has to start. */
 export const HANDOFF_TTL_MS = 3 * 60_000;
 
-type Phase = "research" | "creative";
+type Phase = "research" | "creative" | "agent";
 
 export interface Attempt {
   id: string;
@@ -196,7 +202,7 @@ const BUSY: Refusal = {
  */
 export function startAttempt(
   state: UsageState,
-  input: { id: string; visitor: string; network: string; withResearch: boolean; now: number },
+  input: { id: string; visitor: string; network: string; withResearch: boolean; agent?: boolean; now: number },
   config: UsageConfig,
 ): { ok: true; attempt: Attempt } | Refusal {
   const { now } = input;
@@ -204,8 +210,13 @@ export function startAttempt(
 
   if (activeAttemptFor(state, input.visitor)) return BUSY;
 
-  const first: Phase = input.withResearch ? "research" : "creative";
-  const needed = input.withResearch ? RESERVE_USD.research + RESERVE_USD.creative : RESERVE_USD.creative;
+  // An agent scan is one phase that does its own research.
+  const first: Phase = input.agent ? "agent" : input.withResearch ? "research" : "creative";
+  const needed = input.agent
+    ? RESERVE_USD.agent
+    : input.withResearch
+      ? RESERVE_USD.research + RESERVE_USD.creative
+      : RESERVE_USD.creative;
   if (committedUsd(state) + needed > config.budgetUsd + 1e-9) {
     return {
       ok: false,
@@ -237,9 +248,10 @@ export function startAttempt(
     visitor: input.visitor,
     network: input.network,
     createdAt: now,
-    stage: first,
+    // An agent scan counts as the attempt's final phase, so it can't be continued like research.
+    stage: first === "agent" ? "creative" : first,
     inflight: { phase: first, reserveUsd: RESERVE_USD[first], expiresAt: now + PHASE_TTL_MS },
-    heldUsd: input.withResearch ? RESERVE_USD.creative : 0,
+    heldUsd: input.withResearch && !input.agent ? RESERVE_USD.creative : 0,
     holdExpiresAt: now + PHASE_TTL_MS + HANDOFF_TTL_MS,
     chargedUsd: 0,
   };

@@ -275,6 +275,43 @@ export interface HypothesisSpark {
   diversity: DiversityReport;
   /** Day 5: the 10 ideas the Generator considered before picking 3. Absent on older results. */
   longlist?: Longlist;
+  /** Day 6: present when the agent engine made this result. */
+  agent?: AgentReport;
+}
+
+/** Day 6: one observable step of an agent run, written by code. */
+export interface AgentTraceStep {
+  turn: number;
+  /** The tool used, or "code" / "model" for the line producer or the AI connection. */
+  actor: string;
+  action: string;
+  /** The agent's own stated reason, verbatim. Never its hidden reasoning. */
+  statedReason: string | null;
+  result: string;
+  ok: boolean;
+  flags: string[];
+  changedCourse: string | null;
+  costUsd: number | null;
+  atMs: number;
+}
+
+/** Day 6: how an agent run went, for the trace in the drawer. */
+export interface AgentReport {
+  steps: AgentTraceStep[];
+  turns: number;
+  /** finished: the agent called finish. abstained: it declined to recommend. stopped: a limit or failure ended it. */
+  how: "finished" | "abstained" | "stopped";
+  endReason: string;
+  stopReason: string | null;
+  /** The agent's creative judgment on an exact tie, labeled as judgment. */
+  tieJudgment: { chosenId: string; tiedWith: string[]; note: string } | null;
+  spentUsd: number;
+  ceilingUsd: number;
+  elapsedMs: number;
+  counts: { searches: number; reads: number; evaluations: number; rescores: number; toolCalls: number };
+  changesOfCourse: number;
+  /** Calls that ended without a readable bill, charged at their full worst case. */
+  uncertainCalls: number;
 }
 
 /**

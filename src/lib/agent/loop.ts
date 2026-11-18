@@ -172,6 +172,7 @@ export interface CallUsage {
   model: string;
   inputTokens: number;
   outputTokens: number;
+  webSearches?: number;
   estimatedCostUsd: number;
 }
 
@@ -244,6 +245,7 @@ export async function runAgent(options: {
       model: billed.model,
       inputTokens: u.inputTokens + (u.cacheReadTokens ?? 0) + (u.cacheWriteTokens ?? 0),
       outputTokens: u.outputTokens,
+      webSearches: u.webSearches ?? 0,
       estimatedCostUsd: usd,
     });
     return usd;
@@ -414,6 +416,8 @@ export async function runAgent(options: {
           originalId: original.id,
           draft: checked.value,
           weakness: i.weakness,
+          affectedCriterion: i.affectedCriterion,
+          why: i.why,
           whatChanged: i.whatChanged,
           assessment: v.assessment,
           checks: v.checks,

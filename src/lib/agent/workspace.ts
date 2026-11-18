@@ -6,6 +6,7 @@ import {
   rankValue,
   type CandidateInput,
   type CandidateScore,
+  type CriterionId,
   type CriterionResult,
   type RevisionChecks,
   type RevisionDecision,
@@ -78,6 +79,10 @@ export interface RevisionRecord {
   originalId: string;
   revisedId: string;
   weakness: string;
+  /** The criterion the agent said the weakness affects. */
+  affectedCriterion: CriterionId;
+  /** The agent's stated reason for revising. */
+  why: string;
   whatChanged: string;
   checks: RevisionChecks;
   checksRationale: string;
@@ -420,6 +425,8 @@ export class Workspace {
     originalId: string;
     draft: CandidateDraft;
     weakness: string;
+    affectedCriterion?: CriterionId;
+    why?: string;
     whatChanged: string;
     assessment: Omit<Assessment, "round">;
     checks: RevisionChecks;
@@ -443,6 +450,8 @@ export class Workspace {
       originalId: input.originalId,
       revisedId,
       weakness: input.weakness,
+      affectedCriterion: input.affectedCriterion ?? "stopPower",
+      why: input.why ?? "",
       whatChanged: input.whatChanged,
       checks: input.checks,
       checksRationale: input.checksRationale,
@@ -471,6 +480,17 @@ export class Workspace {
   /** Code's score for one evaluated version. */
   scoreOf(d: Developed): CandidateScore {
     return rankCandidates([this.inputFor(d, 0)]).scores[0];
+  }
+
+  /** Code's ranking of any evaluated versions, in the order given for tie-breaks. */
+  rankVersions(versions: Developed[]) {
+    const evaluated = versions.filter((d) => d.assessment);
+    return rankCandidates(evaluated.map((d, i) => this.inputFor(d, i)));
+  }
+
+  /** The first version developed for an idea (before any revision). */
+  originalOf(ideaId: string): Developed | null {
+    return [...this.developed.values()].find((d) => d.ideaId === ideaId && d.revises === null) ?? null;
   }
 
   /** Code's ranking of the evaluated finalists, in shortlist order for tie-breaks. */

@@ -62,6 +62,9 @@ export const TOOL_INPUTS = {
   revise: z.object({
     candidateId: z.string().describe("The evaluated candidate to improve."),
     weakness: z.string().describe("The specific weakness the revision fixes, in one or two sentences."),
+    affectedCriterion: z
+      .enum(["culturalRelevance", "stopPower", "shareability", "watchThrough", "participation", "brandPlatformFit"])
+      .describe("The rubric criterion that weakness most affects."),
     whatChanged: z.string().describe("What you changed, in one or two sentences."),
     revised: CandidateDraftSchema,
     why,

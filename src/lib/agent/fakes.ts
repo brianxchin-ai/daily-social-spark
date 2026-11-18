@@ -302,6 +302,7 @@ export class Director {
               toolUse("revise", {
                 candidateId: best.candidateId,
                 weakness: "The opening takes too long to land.",
+                affectedCriterion: "stopPower",
                 whatChanged: "Opens on the payoff.",
                 revised: treatment({ basis: "original", groundedIn: [], headline: "Sharper open", mechanic: "Mechanic alpha with its own distinct shape." }),
                 why: "The hook is the weakest part; one revision could fix it.",
