@@ -115,6 +115,13 @@ export interface FinalistForReview {
 
 export type AssessmentResult = Omit<Assessment, "round">;
 
+export interface GutRead {
+  label: string;
+  stopPower: number;
+  shareability: number;
+  note: string;
+}
+
 export interface PaidTools {
   search(input: { query: string } & CallLimits): Promise<{
     results: { url: string; title: string; pageAge: string | null }[];
@@ -132,6 +139,10 @@ export interface PaidTools {
   rescore(
     input: { brief: Brief; original: CandidateDraft; revised: CandidateDraft; weakness: string; groundedIn: string[]; ledger: EvidenceLedger | null } & CallLimits,
   ): Promise<{ assessment: AssessmentResult; checks: RevisionChecks; checksRationale: string; billed: Billed }>;
+  /** A quick first read on short ideas (numbered 1…n). Never part of the Spark Score. */
+  gutCheck(
+    input: { brief: Brief; ideas: { label: string; headline: string; mechanic: string; territory: string }[] } & CallLimits,
+  ): Promise<{ reads: GutRead[]; billed: Billed }>;
 }
 
 /** Worst-case shapes of each paid call, before the governor fits them to the budget. */
@@ -140,6 +151,9 @@ export const CALL_PLANS = {
   search: { inputTokens: 1_500, maxOutputTokens: 2_000, maxSearches: 1, serverAddedTokens: 25_000 },
   /** One page read: page text capped by the tool, a short answer with quotes. */
   read: { inputTokens: 1_500, maxOutputTokens: 2_000, serverAddedTokens: 12_000 },
+  /** A quick gut-check: a short prompt per idea, a short read per idea. */
+  gutCheckPerIdea: { inputTokens: 120, outputTokens: 120 },
+  gutCheckOverheadTokens: 700,
   /** Review output allowance per idea scored (open shape: a review scores 1 to 3 ideas). */
   evaluateOutputPerIdea: 3_500,
   rescoreOutput: 5_000,
@@ -150,7 +164,7 @@ export const CALL_PLANS = {
 /** Round 2: finalists scoring below this are flagged to the agent as candidates to replace. Guidance only; ranking is unchanged. */
 export const WEAK_FINALIST_SCORE = 65;
 
-const TIMEOUTS = { turn: 90_000, search: 60_000, read: 45_000, evaluate: 90_000, rescore: 60_000 };
+const TIMEOUTS = { gutCheck: 45_000, turn: 90_000, search: 60_000, read: 45_000, evaluate: 90_000, rescore: 60_000 };
 
 /* ---------- The trace ---------- */
 
@@ -377,6 +391,34 @@ export async function runAgent(options: {
       case "add_ideas": {
         const i = input as z.infer<typeof TOOL_INPUTS.add_ideas>;
         return { outcome: addIdeas(ws, i), action: `Noted ${i.ideas.length} idea(s) on the idea wall`, usd: null };
+      }
+      case "gut_check": {
+        const i = input as z.infer<typeof TOOL_INPUTS.gut_check>;
+        const action = `Gut-checked ${i.ideaIds.length === 1 ? "an idea" : `${i.ideaIds.length} ideas`}`;
+        const ready = ws.readyForGutCheck(i.ideaIds);
+        if (!ready.ok) return { outcome: fail(ready.problem), action, usd: null };
+        const ideas = ready.ideas.map((w, n) => ({ label: String(n + 1), headline: w.headline, mechanic: w.mechanic, territory: w.territory }));
+        const plan: CallPlan = {
+          inputTokens: CALL_PLANS.gutCheckOverheadTokens + estimateTokens(JSON.stringify(ideas)),
+          maxOutputTokens: Math.max(400, CALL_PLANS.gutCheckPerIdea.outputTokens * ideas.length),
+        };
+        const r = await paid("gut-check", "gut-check", plan, TIMEOUTS.gutCheck, (l) => tools.gutCheck({ brief, ideas, ...l }));
+        if (!r.ok) return { outcome: fail(`The gut-check didn't run: ${r.problem}`), action, usd: r.usd };
+        const v = r.value as Awaited<ReturnType<PaidTools["gutCheck"]>>;
+        ws.recordGutReads(ready.ideas, v.reads);
+        const reads = ready.ideas.map((w) => ({ ideaId: w.id, ...(w.gutCheck ?? {}) }));
+        return {
+          action,
+          usd: r.usd,
+          outcome: {
+            ok: true,
+            forAgent: { ok: true, reads, note: "A first read from the headline and mechanic only. It doesn't count toward the Spark Score or the winner." },
+            result: reads.map((x) => `${x.ideaId} stop ${x.stopPower ?? "?"} · share ${x.shareability ?? "?"}`).join("; ") + ".",
+            flags: [],
+            changedCourse: null,
+            ending: null,
+          },
+        };
       }
       case "develop": {
         const i = input as z.infer<typeof TOOL_INPUTS.develop>;
@@ -669,8 +711,12 @@ export function readout(g: Governor, ws: Workspace): string {
   const lines = [
     `[Readout from code] Budget: $${s.spentUsd.toFixed(3)} used, $${Math.max(0, s.remainingUsd - s.reservedUsd).toFixed(3)} still available to invest${
       s.reservedUsd ? ` (plus $${s.reservedUsd.toFixed(2)} held for your first review and finishing)` : ""
-    } · ${Math.floor(s.timeLeftMs / 1000)} s left · turn ${s.turns} of ${s.maxTurns} · searches ${s.searches}/${s.maxSearches} · page reads ${s.reads}/${s.maxReads} · review rounds ${s.evaluations}/${s.maxEvaluations} · revisions ${s.rescores}/${s.maxRescores}`,
-    `Evidence: ${ws.sources.length} source(s), ${ws.signalDrafts.length} signal(s). Idea wall: ${ws.wall.length}. Developed: ${finalists}.`,
+    } · ${Math.floor(s.timeLeftMs / 1000)} s left · turn ${s.turns} of ${s.maxTurns} · searches ${s.searches}/${s.maxSearches} · page reads ${s.reads}/${s.maxReads} · review rounds ${s.evaluations}/${s.maxEvaluations} · revisions ${s.rescores}/${s.maxRescores} · gut-checks ${s.gutChecks}/${s.maxGutChecks}`,
+    `Evidence: ${ws.sources.length} source(s), ${ws.signalDrafts.length} signal(s). Idea wall: ${ws.wall.length}${
+      ws.wall.some((w) => w.gutCheck)
+        ? ` (gut-checked: ${ws.wall.filter((w) => w.gutCheck).map((w) => `${w.id} ${w.gutCheck!.stopPower}/${w.gutCheck!.shareability}`).join(", ")})`
+        : ""
+    }. Developed: ${finalists}.`,
   ];
   const quality = ws.evidenceLine();
   if (quality) lines.push(quality);

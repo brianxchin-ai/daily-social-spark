@@ -244,8 +244,10 @@ export interface LonglistIdea {
   distributionDrivers: DistributionDriver[];
   /** The Generator's hypothesis about organic distribution. Judgment, not a forecast. */
   distributionBet: string;
-  /** Set when this idea was one of the 3 picks. */
+  /** Set when this idea was one of the 3 picks (agent mode: when it was developed). */
   pick: { reason: string; candidateId: string } | null;
+  /** Agent mode: the latest quick gut-check. A first read only, never part of the Spark Score. */
+  gutCheck?: { stopPower: number; shareability: number; note: string };
 }
 
 /** The Generator's longlist and why it picked the 3 it developed. */
@@ -314,7 +316,7 @@ export interface AgentReport {
   spentUsd: number;
   ceilingUsd: number;
   elapsedMs: number;
-  counts: { searches: number; reads: number; evaluations: number; rescores: number; toolCalls: number };
+  counts: { searches: number; reads: number; evaluations: number; rescores: number; toolCalls: number; gutChecks?: number };
   changesOfCourse: number;
   /** Calls that ended without a readable bill, charged at their full worst case. */
   uncertainCalls: number;

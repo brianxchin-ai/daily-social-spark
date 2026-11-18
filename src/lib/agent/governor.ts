@@ -38,6 +38,8 @@ export const AGENT_LIMITS = {
   /** Open shape: reviews of 1 to 3 ideas each. */
   maxEvaluations: 4,
   maxRescores: 2,
+  /** Quick first reads on noted ideas (not scores). Cheap, and limited so they don't replace judgment. */
+  maxGutChecks: 3,
   /** Output cap for one agent turn (thinking included); lowered when money is short. Raised from 8,000 with high effort. */
   maxTurnOutputTokens: 12_000,
   /** Below this, an agent turn isn't worth making: the run ends instead. */
@@ -55,7 +57,7 @@ export const AGENT_LIMITS = {
 
 export type AgentLimits = { [K in keyof typeof AGENT_LIMITS]: number };
 
-export type PaidCallKind = "agent-turn" | "search" | "read" | "evaluate" | "rescore";
+export type PaidCallKind = "agent-turn" | "search" | "read" | "evaluate" | "rescore" | "gut-check";
 export type Stage = "normal" | "wrap-up" | "stopped";
 export type StopReason = "budget" | "time" | "turns" | "tool-calls" | "malformed" | "canceled" | "model-refused" | "model-error";
 export type WrapUpReason = "budget" | "time" | "turns" | "context";
@@ -101,7 +103,7 @@ export class Governor {
   private readonly holds = new Map<number, { kind: PaidCallKind; usd: number }>();
   private nextTicket = 1;
 
-  private readonly counts: Record<PaidCallKind, number> = { "agent-turn": 0, search: 0, read: 0, evaluate: 0, rescore: 0 };
+  private readonly counts: Record<PaidCallKind, number> = { "agent-turn": 0, search: 0, read: 0, evaluate: 0, rescore: 0, "gut-check": 0 };
   private toolCalls = 0;
   private consecutiveMalformed = 0;
   private lastContextTokens = 0;
@@ -188,6 +190,8 @@ export class Governor {
       maxEvaluations: this.limits.maxEvaluations,
       rescores: this.counts.rescore,
       maxRescores: this.limits.maxRescores,
+      gutChecks: this.counts["gut-check"],
+      maxGutChecks: this.limits.maxGutChecks,
       uncertainCalls: this.uncertainCalls,
       overrun: this.overrun,
     };
@@ -333,6 +337,7 @@ function countLimit(kind: PaidCallKind, counts: Record<PaidCallKind, number>, L:
   if (kind === "read" && counts.read >= L.maxReads) return `Page-reading limit reached (${L.maxReads} per scan).`;
   if (kind === "evaluate" && counts.evaluate >= L.maxEvaluations) return `Evaluation limit reached (${L.maxEvaluations} rounds per scan).`;
   if (kind === "rescore" && counts.rescore >= L.maxRescores) return `Revision limit reached (${L.maxRescores} per scan).`;
+  if (kind === "gut-check" && counts["gut-check"] >= L.maxGutChecks) return `Gut-check limit reached (${L.maxGutChecks} per scan).`;
   return null;
 }
 
@@ -342,6 +347,7 @@ const KIND_TEXT: Record<PaidCallKind, string> = {
   read: "page read",
   evaluate: "evaluation",
   rescore: "rescore",
+  "gut-check": "gut-check",
 };
 
 const WRAP_TEXT: Record<WrapUpReason, string> = {

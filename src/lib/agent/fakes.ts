@@ -71,6 +71,7 @@ interface FakeToolOptions {
   makeable?: (draft: CandidateDraft) => boolean;
   rescoreScore?: number;
   rescoreChecks?: RevisionChecks;
+  gutFor?: (headline: string) => number;
   onCall?: (kind: string) => void;
 }
 
@@ -121,6 +122,15 @@ export class FakeTools implements PaidTools {
         makeableNote: "A phone and an afternoon.",
       })),
       billed: this.billed(12_000, 3_500),
+    };
+  }
+
+  async gutCheck({ ideas }: { ideas: { label: string; headline: string }[] }) {
+    this.log.push(`gut-check:${ideas.length}`);
+    this.options.onCall?.("gut-check");
+    return {
+      reads: ideas.map((i) => ({ label: i.label, stopPower: this.options.gutFor?.(i.headline) ?? 3, shareability: 3, note: `First read on ${i.headline}.` })),
+      billed: this.billed(1_500, 400),
     };
   }
 

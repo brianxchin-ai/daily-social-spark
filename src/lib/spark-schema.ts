@@ -390,3 +390,49 @@ export function validateRescore(value: unknown): Validated<RescoreDraft> {
   const result = StrictRescoreSchema.safeParse(value);
   return result.success ? { ok: true, value: result.data } : { ok: false, problems: describeIssues(result.error) };
 }
+
+/* ---------- Day 6 (agent mode): a quick gut-check on noted ideas ---------- */
+
+/**
+ * A fast, cheap first read on short ideas: stop power and shareability only.
+ * It guides which ideas the agent develops; it never counts toward the Spark
+ * Score or the winner.
+ */
+export const GutCheckSchema = z.object({
+  reads: z
+    .array(
+      z.object({
+        label: z.string().describe("The idea's number, exactly as given (1, 2, 3…)."),
+        stopPower: z.number().describe("1 to 5: would it stop the scroll in the first second?"),
+        shareability: z.number().describe("1 to 5: would people send it to someone?"),
+        note: z.string().describe("One short phrase naming the biggest strength or doubt. 15 words or fewer."),
+      }),
+    )
+    .describe("One entry per idea, in the order given."),
+});
+
+export type GutCheckDraft = z.infer<typeof GutCheckSchema>;
+
+export function validateGutCheck(value: unknown, count: number): Validated<GutCheckDraft> {
+  const schema = z
+    .object({
+      reads: z
+        .array(
+          z.object({
+            label: nonEmpty,
+            stopPower: z.number().int().min(1).max(5),
+            shareability: z.number().int().min(1).max(5),
+            note: nonEmpty.max(160),
+          }),
+        )
+        .length(count),
+    })
+    .superRefine((v, ctx) => {
+      const labels = v.reads.map((r) => r.label.trim()).sort((a, b) => Number(a) - Number(b)).join(",");
+      const expected = Array.from({ length: count }, (_, i) => String(i + 1)).join(",");
+      if (labels !== expected) ctx.addIssue({ code: "custom", message: `Reads must cover ideas 1 to ${count} exactly once.` });
+      if (!noUrls(v)) ctx.addIssue({ code: "custom", message: "Notes must not contain URLs." });
+    });
+  const result = schema.safeParse(value);
+  return result.success ? { ok: true, value: result.data } : { ok: false, problems: describeIssues(result.error) };
+}

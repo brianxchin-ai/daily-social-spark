@@ -81,6 +81,12 @@ export function LonglistPanel({
                 </span>
               )}
             </div>
+            {idea.gutCheck && (
+              <p className="readout text-ink-soft">
+                Gut-check (a first read, not a score): stop {idea.gutCheck.stopPower}/5 · share {idea.gutCheck.shareability}/5 ·{" "}
+                <span className="normal-case">{idea.gutCheck.note}</span>
+              </p>
+            )}
             {idea.pick && (
               <p className="text-[13px] leading-relaxed text-ink-soft">
                 {byAgent ? "Why the agent developed it" : "Why it made the cut"}: {idea.pick.reason}

@@ -49,6 +49,8 @@ export type SignalDraft = LedgerDraft["signals"][number];
 
 export interface WallIdea extends LonglistIdeaDraft {
   id: string; // L1, L2…
+  /** The latest quick gut-check, if any. Guidance only: never part of the Spark Score. */
+  gutCheck?: { stopPower: number; shareability: number; note: string };
 }
 
 /** One developed treatment. A revision is a new version linked to its original. */
@@ -466,6 +468,23 @@ export class Workspace {
     for (const a of assessments) {
       const d = this.developed.get(a.candidateId);
       if (d) d.assessment = { ...a, round };
+    }
+  }
+
+  /** Ideas on the wall that can be gut-checked: 1 to 10 known IDs. */
+  readyForGutCheck(ideaIds: string[]): { ok: true; ideas: WallIdea[] } | { ok: false; problem: string } {
+    const ids = [...new Set(ideaIds.map((id) => id.trim()).filter(Boolean))];
+    if (ids.length < 1 || ids.length > 10) return { ok: false, problem: "Gut-check 1 to 10 ideas from your wall at a time." };
+    const ideas = ids.map((id) => this.wall.find((w) => w.id === id));
+    const unknown = ids.filter((_, i) => !ideas[i]);
+    if (unknown.length) return { ok: false, problem: `Not on your idea wall: ${unknown.join(", ")}.` };
+    return { ok: true, ideas: ideas as WallIdea[] };
+  }
+
+  recordGutReads(ideas: WallIdea[], reads: { label: string; stopPower: number; shareability: number; note: string }[]): void {
+    for (const r of reads) {
+      const idea = ideas[Number(r.label) - 1];
+      if (idea) idea.gutCheck = { stopPower: r.stopPower, shareability: r.shareability, note: r.note };
     }
   }
 

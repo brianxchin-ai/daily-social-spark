@@ -124,6 +124,10 @@ export const TOOL_INPUTS = {
     why,
     ideas: z.array(LonglistIdeaSchema.omit({ id: true })).describe("1 to 10 short ideas to note on your idea wall. Code assigns IDs (L1, L2…)."),
   }),
+  gut_check: z.object({
+    why,
+    ideaIds: z.array(z.string()).describe("1 to 10 idea IDs from your wall (L…)."),
+  }),
   develop: z.object({
     why,
     ideaId: z.string().describe("An idea ID from your wall (L…)."),
@@ -166,7 +170,7 @@ export const TOOL_INPUTS = {
 
 export type ToolName = keyof typeof TOOL_INPUTS;
 export const TOOL_NAMES = Object.keys(TOOL_INPUTS) as ToolName[];
-export const PAID_TOOLS: ReadonlySet<ToolName> = new Set(["web_search", "read_source", "evaluate", "revise"]);
+export const PAID_TOOLS: ReadonlySet<ToolName> = new Set(["web_search", "read_source", "gut_check", "evaluate", "revise"]);
 
 export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   web_search:
@@ -182,6 +186,8 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   review_evidence:
     "Get code's factual report on the evidence: which signals are fresh (dated within 30 days), which rest on one source, and what's missing. Free.",
   add_ideas: "Note short ideas on your idea wall, as many or as few as are useful. Free.",
+  gut_check:
+    "Get a quick, cheap first read on up to 10 noted ideas from the review panel: stop power and shareability (1 to 5) and a one-line note, judged from the headline and mechanic alone. It's a first read, not a score: it never counts toward the Spark Score or the winner. Costs about a cent or two; limited per scan.",
   develop:
     "Write the full treatment for any idea on your wall. Code reports how it will be judged: fresh trend, original format, or stale trend (rejected), and whether it repeats something this person has seen. Free.",
   evaluate:

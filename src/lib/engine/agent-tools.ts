@@ -4,8 +4,11 @@ import { anthropicAgentModel, anthropicResearchTools } from "@/lib/agent/anthrop
 import { CallFailure, type AgentModel, type Billed, type PaidTools } from "@/lib/agent/loop";
 import type { Brief } from "@/lib/agent/workspace";
 import type { ScanRequest } from "@/lib/types";
-import { EngineError, getClient, type ScanUsage } from "./claude";
+import { callStructured, EngineError, getClient, platformLabel, type ScanUsage } from "./claude";
 import { evaluateCandidates, rescoreRevision } from "./evaluator";
+import { audienceLine } from "@/lib/prompts/audience";
+import { gutCheckSystem } from "@/lib/prompts/creative";
+import { GutCheckSchema, validateGutCheck } from "@/lib/spark-schema";
 
 /**
  * Agent mode's real connections, for the server only. The review panel and
@@ -59,6 +62,30 @@ export function agentPaidTools(): PaidTools {
           })),
           billed: billedOf(usage),
         };
+      } catch (error) {
+        throw failureOf(error);
+      }
+    },
+    async gutCheck({ brief, ideas, maxOutputTokens, timeoutMs, signal }) {
+      try {
+        const user = `Brand or category: ${brief.brand}
+Platform: ${platformLabel(brief.platform)}${audienceLine(brief.audience)}
+
+${ideas.map((i) => `${i.label}. Headline: ${i.headline}\n   Mechanic: ${i.mechanic}\n   Territory: ${i.territory}`).join("\n")}
+
+Give a quick read on ideas 1 to ${ideas.length}.`;
+        const { value, usage } = await callStructured({
+          step: "gut-check",
+          system: gutCheckSystem(brief.platform),
+          user,
+          schema: GutCheckSchema,
+          maxTokens: maxOutputTokens,
+          timeoutMs,
+          validate: (v) => validateGutCheck(v, ideas.length),
+          signal,
+          fallbacks: false,
+        });
+        return { reads: value.reads, billed: billedOf(usage) };
       } catch (error) {
         throw failureOf(error);
       }

@@ -199,3 +199,18 @@ Rules:
 
 ${STYLE}`;
 }
+
+/* ---------- Day 6 (agent mode): quick gut-check ---------- */
+
+/** A fast first read: stop power and shareability only. Guidance for the agent, never a score that decides anything. */
+export function gutCheckSystem(platform: Platform): string {
+  const label = PLATFORM_PROFILES[platform].label;
+  return `You give a fast first read on short-form content ideas for ${label}. For each idea, judge only two things from its headline, mechanic and territory:
+- stopPower: would it stop the scroll in the first second? 1 weak, 3 typical, 5 exceptional.
+- shareability: would people send it to someone, save it or tag a friend? 1 weak, 3 typical, 5 exceptional.
+Add one short note naming the biggest strength or doubt.
+
+This is a quick gut read, not a full review. Judge each idea on its own; don't reward length or polish, and don't assume details that aren't there. Never cite statistics, view counts or performance data.
+
+${STYLE}`;
+}

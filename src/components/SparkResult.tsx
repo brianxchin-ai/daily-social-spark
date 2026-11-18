@@ -389,7 +389,7 @@ function HypothesisSections({ spark, final }: { spark: HypothesisSpark; final: C
 function ideasLabel(spark: HypothesisSpark): string {
   const n = spark.candidates.length;
   if (!spark.agent) return "all three ideas";
-  return n === 1 ? "the one reviewed idea" : `all ${NUMBER_WORDS[n] ?? n} reviewed ideas`;
+  return n === 1 ? "the one reviewed idea" : n === 2 ? "both reviewed ideas" : `all ${NUMBER_WORDS[n] ?? n} reviewed ideas`;
 }
 
 /** All reviewed ideas, ranked, each with its full strategy, so alternatives can be inspected. */

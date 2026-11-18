@@ -70,7 +70,7 @@ describe("agent turns", () => {
     assert.equal((sent.output_config as { effort?: string }).effort, "high", "the director thinks at high effort");
     assert.equal("fallbacks" in sent, false);
     assert.equal(sent.max_tokens, 4_000);
-    assert.equal((sent.tools as unknown[]).length, 12);
+    assert.equal((sent.tools as unknown[]).length, 13);
     assert.equal(out.stopReason, "tool_use");
     assert.equal(out.usage.cacheReadTokens, 9_000);
     assert.equal(out.usage.cacheWriteTokens, 1_000);
@@ -200,7 +200,7 @@ describe("a whole run over the real connection (fake API)", () => {
     const run = await runAgent({
       brief: { brand: "Acme Coffee", platform: "tiktok", recentIdeas: [] },
       model: anthropicAgentModel(client),
-      tools: { ...fake, ...anthropicResearchTools(client), evaluate: fake.evaluate.bind(fake), rescore: fake.rescore.bind(fake) },
+      tools: { ...fake, ...anthropicResearchTools(client), evaluate: fake.evaluate.bind(fake), rescore: fake.rescore.bind(fake), gutCheck: fake.gutCheck.bind(fake) },
       now: () => NOW,
     });
     assert.equal(run.ending.how, "abstained");

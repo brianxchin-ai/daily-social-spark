@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { sourcesForIdea } from "../research/idea-sources.ts";
 import { Director, FakeTools, ScriptedModel, timeoutFailure, toolUse, type WorldPage } from "./fakes.ts";
 import { FRESH_QUOTE, FRESH_URL, NOW, STALE_QUOTE, STALE_URL, longlistIdeas, treatment } from "./fixtures.ts";
-import { validateEvaluation } from "../spark-schema.ts";
+import { validateEvaluation, validateGutCheck } from "../spark-schema.ts";
 import { AGENT_LIMITS, Governor } from "./governor.ts";
 import { CallFailure, runAgent, toolSpecs, type AgentRun } from "./loop.ts";
 import type { Brief } from "./workspace.ts";
@@ -31,7 +31,7 @@ const count = (run: AgentRun, actor: string) => run.steps.filter((s) => s.actor 
 describe("tool specs", () => {
   it("describes every tool to the API with a JSON schema", () => {
     const specs = toolSpecs();
-    assert.equal(specs.length, 12);
+    assert.equal(specs.length, 13);
     for (const s of specs) {
       assert.equal(s.input_schema.type, "object", s.name);
       assert.equal("$schema" in s.input_schema, false);
@@ -561,3 +561,57 @@ const REVIEW = {
   makeableNote: "A phone.",
   meaningfulAudioVariations: 0,
 };
+
+describe("quick gut-check", () => {
+  it("reads noted ideas cheaply, records them on the wall, and never touches the Spark Score", async () => {
+    const tools = new FakeTools({}, { gutFor: (h) => (h.includes("number 2") ? 5 : 2) });
+    const model = new ScriptedModel((turn) => {
+      if (turn === 1) return [toolUse("add_ideas", { why: "Range widely.", ideas: longlistIdeas(4) })];
+      if (turn === 2) return [toolUse("gut_check", { why: "See which bets look strongest.", ideaIds: ["L1", "L2", "L3", "L4"] })];
+      return [toolUse("abstain", { reason: "Stop." })];
+    });
+    const run = await runAgent({ brief: BRIEF, model, tools, now });
+    const step = run.steps.find((s) => s.actor === "gut_check")!;
+    assert.equal(step.ok, true);
+    assert.match(step.result, /L2 stop 5/);
+    assert.equal(run.workspace.wall[1].gutCheck?.stopPower, 5);
+    assert.equal(run.workspace.ranking().scores.length, 0, "nothing was scored");
+    assert.match(JSON.stringify(model.requests[2].messages.at(-1)), /gut-checked: L1 2\/3, L2 5\/3/);
+    assert.equal(run.snapshot.gutChecks, 1);
+    const call = run.calls.find((c) => c.step === "gut-check")!;
+    assert.ok(call.estimatedCostUsd < 0.02, `a gut-check costs about a cent (${call.estimatedCostUsd})`);
+  });
+
+  it("refuses ideas that aren't on the wall, and more than 10 at once", async () => {
+    const model = new ScriptedModel((turn) => {
+      if (turn === 1) return [toolUse("gut_check", { why: "x", ideaIds: ["L9"] })];
+      if (turn === 2) return [toolUse("gut_check", { why: "x", ideaIds: Array.from({ length: 11 }, (_, i) => `L${i + 1}`) })];
+      return [toolUse("abstain", { reason: "Stop." })];
+    });
+    const tools = new FakeTools({});
+    const run = await runAgent({ brief: BRIEF, model, tools, now });
+    const refused = run.steps.filter((s) => s.actor === "gut_check");
+    assert.match(refused[0].result, /Not on your idea wall/);
+    assert.match(refused[1].result, /1 to 10 ideas/);
+    assert.equal(tools.log.filter((l) => l.startsWith("gut-check")).length, 0, "no paid call was made");
+  });
+
+  it("is limited per scan", () => {
+    const g = new Governor();
+    for (let i = 0; i < AGENT_LIMITS.maxGutChecks; i++) {
+      const a = g.authorize("gut-check", { inputTokens: 1_500, maxOutputTokens: 1_200 });
+      assert.ok(a.ok);
+      g.settle(a.ticket, { model: "claude-sonnet-5-5", usage: { inputTokens: 1_500, outputTokens: 400 } });
+    }
+    const over = g.authorize("gut-check", { inputTokens: 1_500, maxOutputTokens: 1_200 });
+    assert.equal(over.ok, false);
+    if (!over.ok) assert.match(over.reason, /Gut-check limit reached/);
+  });
+
+  it("the gut-check rulebook needs one read per idea, scored 1 to 5", () => {
+    const good = { reads: [{ label: "1", stopPower: 4, shareability: 3, note: "Clear hook." }, { label: "2", stopPower: 2, shareability: 2, note: "Generic." }] };
+    assert.ok(validateGutCheck(good, 2).ok);
+    assert.equal(validateGutCheck(good, 3).ok, false);
+    assert.equal(validateGutCheck({ reads: [{ label: "1", stopPower: 7, shareability: 3, note: "x" }] }, 1).ok, false);
+  });
+});

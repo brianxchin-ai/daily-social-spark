@@ -72,6 +72,7 @@ export function AgentTrace({ report }: { report: AgentReport }) {
           count(report.steps.length, "action"),
           count(report.counts.searches, "search", "searches"),
           count(report.counts.reads, "page read"),
+          count(report.counts.gutChecks ?? 0, "gut-check"),
           count(report.counts.evaluations, "review round"),
           count(report.counts.rescores, "revision"),
           count(report.changesOfCourse, "change of course", "changes of course"),

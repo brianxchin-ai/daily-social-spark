@@ -53,7 +53,7 @@ export function agentReport(run: AgentRun): AgentReport {
     spentUsd: s.spentUsd,
     ceilingUsd: s.ceilingUsd,
     elapsedMs: s.elapsedMs,
-    counts: { searches: s.searches, reads: s.reads, evaluations: s.evaluations, rescores: s.rescores, toolCalls: s.toolCalls },
+    counts: { searches: s.searches, reads: s.reads, evaluations: s.evaluations, rescores: s.rescores, toolCalls: s.toolCalls, gutChecks: s.gutChecks },
     changesOfCourse: run.steps.filter((x) => x.changedCourse).length,
     uncertainCalls: s.uncertainCalls,
   };
