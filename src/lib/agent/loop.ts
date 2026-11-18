@@ -383,12 +383,24 @@ export async function runAgent(options: {
         const scores = scoreSummary(ws);
         const diversity = ws.diversity().notes;
         const tied = ws.tiedWithLeader();
+        const weak = ws.leaderWeaknesses();
+        const snap = g.snapshot();
+        const revisionNote = weak
+          ? {
+              leader: weak.candidateId,
+              weakestCriteria: weak.weakest,
+              revisionsLeft: snap.maxRescores - snap.rescores,
+              budgetLeftUsd: snap.remainingUsd,
+              secondsLeft: Math.floor(snap.timeLeftMs / 1000),
+              rule: "A revision replaces the original only if the panel scores it at least 5 points higher, it keeps the mechanic, fixes the weakness you name and adds no unsupported claims.",
+            }
+          : null;
         return {
           action,
           usd: r.usd,
           outcome: {
             ok: true,
-            forAgent: { ok: true, round, scores, tiedAtTop: tied, diversityNotes: diversity },
+            forAgent: { ok: true, round, scores, tiedAtTop: tied, diversityNotes: diversity, revisionNote },
             result: `Review round ${round}: ${scores
               .map((s) => `${s.candidateId} ${s.rejected ? `rejected (${s.rejectionReasons.join(" ")})` : `${s.sparkScore}`}`)
               .join("; ")}.${tied.length ? ` Exact tie at the top: ${tied.join(", ")}.` : ""}`,
@@ -482,7 +494,14 @@ export async function runAgent(options: {
         use,
         name,
         input: value,
-        why: typeof value.why === "string" ? value.why : name === "abstain" ? String(value.reason ?? "") : null,
+        why:
+          name === "finish" && typeof value.revisionDecision === "string" && value.revisionDecision.trim()
+            ? `${value.why} On revising: ${value.revisionDecision.trim()}`
+            : typeof value.why === "string"
+              ? value.why
+              : name === "abstain"
+                ? String(value.reason ?? "")
+                : null,
         unpacked: parsed.unpacked === true,
       };
     });
@@ -616,6 +635,8 @@ export function readout(g: Governor, ws: Workspace): string {
     `[Readout from code] Spent $${s.spentUsd.toFixed(3)} of $${s.ceilingUsd.toFixed(2)} · ${Math.floor(s.timeLeftMs / 1000)} s left · turn ${s.turns} of ${s.maxTurns} · searches ${s.searches}/${s.maxSearches} · page reads ${s.reads}/${s.maxReads} · review rounds ${s.evaluations}/${s.maxEvaluations} · revisions ${s.rescores}/${s.maxRescores}`,
     `Evidence: ${ws.sources.length} source(s), ${ws.signalDrafts.length} signal(s). Longlist: ${ws.wall.length}. Finalists: ${finalists}.`,
   ];
+  const quality = ws.evidenceLine();
+  if (quality) lines.push(quality);
   if (s.stage === "wrap-up") lines.push(`STAGE: WRAP-UP. ${wrapText(g).replace(/^Wrap-up: /, "")}`);
   return lines.join("\n");
 }

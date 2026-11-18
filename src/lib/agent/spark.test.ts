@@ -124,3 +124,13 @@ describe("usage gate: the agent phase", () => {
     if (!r.ok) assert.equal(r.kind, "budget");
   });
 });
+
+describe("the revision decision on the page", () => {
+  it("quotes the agent's reason when it didn't revise", async () => {
+    const run = await runAgent({ brief: BRIEF, model: new Director({ queries: ["desk reset", "exam"] }).asModel(), tools: new FakeTools({ "desk reset": FRESH }), now });
+    const spark = toSpark(run, { stamp: 1, now: NOW });
+    assert.equal(spark.refinement.status, "skipped");
+    if (spark.refinement.status === "skipped") assert.match(spark.refinement.reason, /In its words: “No revision: the leader has no criterion at 3 or below\.”/);
+    assert.equal(spark.agent?.revisionDecision, "No revision: the leader has no criterion at 3 or below.");
+  });
+});

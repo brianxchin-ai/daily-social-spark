@@ -77,6 +77,9 @@ export const TOOL_INPUTS = {
       })
       .describe("Only if the review left an exact tie at the top: which tied idea should win, and why.")
       .optional(),
+    revisionDecision: z
+      .string()
+      .describe("One or two sentences: why you did or didn't revise the leading idea, naming the criterion or evidence that decided it."),
     why,
   }),
   abstain: z.object({
@@ -279,6 +282,7 @@ export function finish(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.finish>)
     how: "finished",
     reason: winnerId ? "The agent finished and code picked the winner from the review panel's scores." : "The agent finished, but no finalist cleared the bar.",
     tieJudgment,
+    revisionDecision: input.revisionDecision.trim() || null,
   };
   ws.end(ending);
   const winner = winnerId ? ws.developed.get(winnerId)! : null;
@@ -298,7 +302,7 @@ export function finish(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.finish>)
 export function abstain(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.abstain>): ToolOutcome {
   const reason = input.reason.trim();
   if (!reason) return fail("Give a reason for abstaining.");
-  const ending: Ending = { how: "abstained", reason, tieJudgment: null };
+  const ending: Ending = { how: "abstained", reason, tieJudgment: null, revisionDecision: null };
   ws.end(ending);
   return { ok: true, forAgent: { ok: true }, result: `Abstained: ${reason}`, flags: [], changedCourse: null, ending };
 }
@@ -315,6 +319,7 @@ export function forceFinish(ws: Workspace, why: string): { winnerId: string | nu
       ? `${why} Code finished the scan with the best idea already scored.`
       : `${why} No scored idea cleared the bar, so there's no recommendation.`,
     tieJudgment: null,
+    revisionDecision: null,
   };
   ws.end(ending);
   return { winnerId: leaderId, ending };

@@ -246,7 +246,7 @@ export class Director {
       case "shortlisting": {
         if (this.config.finishEarly && !this.triedFinish) {
           this.triedFinish = true;
-          return this.emit([toolUse("finish", { why: "Try to stop early." })]);
+          return this.emit([toolUse("finish", { why: "Try to stop early.", revisionDecision: "Not reviewed yet." })]);
         }
         const trendIds = [...this.ideaBasis].filter(([, v]) => v.basis === "trend").map(([k]) => k);
         this.picks = trendIds.length >= 2 ? [trendIds[0], trendIds[1], this.unusedOriginals.shift()!] : this.unusedOriginals.splice(0, 3);
@@ -312,10 +312,10 @@ export class Director {
         }
         this.stage = "done";
         const tieBreak = tied.length > 1 ? { candidateId: tied[1], note: this.config.tieNote ?? "Its hook lands faster." } : undefined;
-        return this.emit([toolUse("finish", { why: "The scored finalists are strong enough.", ...(tieBreak ? { tieBreak } : {}) })]);
+        return this.emit([toolUse("finish", { why: "The scored finalists are strong enough.", revisionDecision: this.revised ? "Revised the leader once to fix its slow open." : "No revision: the leader has no criterion at 3 or below.", ...(tieBreak ? { tieBreak } : {}) })]);
       }
       default:
-        return this.emit([toolUse("finish", { why: "Done." })]);
+        return this.emit([toolUse("finish", { why: "Done.", revisionDecision: "No revision." })]);
     }
   }
 }

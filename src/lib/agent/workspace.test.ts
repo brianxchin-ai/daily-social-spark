@@ -19,6 +19,7 @@ const BRIEF: Brief = { brand: "Acme Coffee", platform: "tiktok", recentIdeas: []
 const fresh = () => new Workspace(BRIEF, { now: () => NOW });
 
 const why = "Test.";
+const RD = "No revision: every criterion scored 4 or higher.";
 
 /** A workspace with a longlist of 10 original ideas and L1–L3 shortlisted. */
 function shortlisted(brief: Brief = BRIEF) {
@@ -208,7 +209,7 @@ describe("finish: code checks the requirements and picks the winner", () => {
     const ws = shortlisted();
     const [c1, c2] = developAll(ws);
     ws.recordAssessments(1, [assessment(c1, uniform(4)), assessment(c2, uniform(3))]);
-    const out = finish(ws, { why });
+    const out = finish(ws, { why, revisionDecision: RD });
     assert.equal(out.ok, false);
     assert.match(out.result, /Not yet evaluated/);
     assert.equal(ws.ending, null);
@@ -218,7 +219,7 @@ describe("finish: code checks the requirements and picks the winner", () => {
     const ws = shortlisted();
     const [c1, c2, c3] = developAll(ws);
     ws.recordAssessments(1, [assessment(c1, uniform(3)), assessment(c2, uniform(4)), assessment(c3, uniform(3))]);
-    const out = finish(ws, { tieBreak: { candidateId: c1, note: "I like it more." }, why });
+    const out = finish(ws, { tieBreak: { candidateId: c1, note: "I like it more." }, why, revisionDecision: RD });
     assert.ok(out.ok);
     assert.equal(out.forAgent.winnerId, c2);
     assert.match(out.flags.join(" "), /no exact tie/);
@@ -230,7 +231,7 @@ describe("finish: code checks the requirements and picks the winner", () => {
     const [c1, c2, c3] = developAll(ws);
     ws.recordAssessments(1, [assessment(c1, uniform(4)), assessment(c2, uniform(4)), assessment(c3, uniform(3))]);
     assert.deepEqual(ws.tiedWithLeader().sort(), [c1, c2].sort());
-    const out = finish(ws, { tieBreak: { candidateId: c2, note: "Its hook lands faster." }, why });
+    const out = finish(ws, { tieBreak: { candidateId: c2, note: "Its hook lands faster." }, why, revisionDecision: RD });
     assert.equal(out.forAgent.winnerId, c2);
     assert.deepEqual(ws.ending?.tieJudgment, { chosenId: c2, tiedWith: [c1], note: "Its hook lands faster." });
   });
@@ -239,7 +240,7 @@ describe("finish: code checks the requirements and picks the winner", () => {
     const ws = shortlisted();
     const [c1, c2, c3] = developAll(ws);
     ws.recordAssessments(1, [assessment(c1, uniform(2)), assessment(c2, uniform(4), false), assessment(c3, uniform(2))]);
-    const out = finish(ws, { why });
+    const out = finish(ws, { why, revisionDecision: RD });
     assert.ok(out.ok);
     assert.equal(out.forAgent.winnerId, null);
   });

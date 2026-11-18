@@ -47,6 +47,7 @@ export function agentReport(run: AgentRun): AgentReport {
     endReason: run.ending.reason,
     stopReason: run.stopReason,
     tieJudgment: run.ending.tieJudgment,
+    revisionDecision: run.ending.revisionDecision,
     spentUsd: s.spentUsd,
     ceilingUsd: s.ceilingUsd,
     elapsedMs: s.elapsedMs,
@@ -79,7 +80,7 @@ export function toSpark(run: AgentRun, options: { stamp: number; now: Date }): H
   }
   const evaluations = ordered.map((score) => evaluationOf(ws.developed.get(score.candidateId)!, score));
 
-  const refinement = refinementOf(ws, winner, leaderId);
+  const refinement = refinementOf(ws, winner, leaderId, run.ending.revisionDecision);
 
   const research: ResearchOutcome =
     ledger && ws.queries.length > 0
@@ -142,11 +143,18 @@ function researchUsageOf(run: AgentRun) {
 }
 
 /** The revision story of the winning idea, in the fixed pipeline's shape. Other revisions are in the agent trace. */
-function refinementOf(ws: Workspace, winner: Developed | null, leaderId: string | null): RefinementReport {
+function refinementOf(ws: Workspace, winner: Developed | null, leaderId: string | null, decision: string | null): RefinementReport {
   if (!winner || !leaderId) return { status: "skipped", reason: "No idea cleared the bar, so nothing was refined." };
   const chain = ws.revisions.filter((r) => rootOf(ws, ws.developed.get(r.originalId)!).candidate.id === leaderId);
   const rec = chain.find((r) => r.revisedId === winner.candidate.id) ?? chain.at(-1);
-  if (!rec) return { status: "skipped", reason: "The agent didn't revise the winning idea before finishing (its stated reason is in the agent trace)." };
+  if (!rec) {
+    return {
+      status: "skipped",
+      reason: decision
+        ? `The agent didn't revise the winning idea. In its words: “${decision}”`
+        : "The agent didn't revise the winning idea before finishing (its stated reason is in the agent trace).",
+    };
+  }
   const revised = ws.developed.get(rec.revisedId)!;
   return {
     status: "complete",

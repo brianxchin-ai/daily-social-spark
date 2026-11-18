@@ -305,6 +305,8 @@ export interface AgentReport {
   stopReason: string | null;
   /** The agent's creative judgment on an exact tie, labeled as judgment. */
   tieJudgment: { chosenId: string; tiedWith: string[]; note: string } | null;
+  /** The agent's stated reason for revising the leader or not. */
+  revisionDecision: string | null;
   spentUsd: number;
   ceilingUsd: number;
   elapsedMs: number;

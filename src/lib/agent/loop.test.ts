@@ -331,3 +331,46 @@ describe("text-formatted input in a real loop", () => {
     assert.equal(run.snapshot.stopReason, null);
   });
 });
+
+describe("behavior nudges (after the first real run)", () => {
+  it("shows evidence quality in code's readout, and calls out thin signals", async () => {
+    const run = new Director({ queries: ["desk reset", "exam"] });
+    const model = run.asModel();
+    await runAgent({ brief: BRIEF, model, tools: new FakeTools({ "desk reset": FRESH_PAGE, exam: SECOND_FRESH }), now });
+    const afterFiling = JSON.stringify(model.requests[2].messages.at(-1));
+    assert.match(afterFiling, /Evidence quality: G1 fresh, 8 days, behavior date, 1 independent source/);
+    assert.match(afterFiling, /Thin \(one source, or dated only by a page update\): G1, G2/);
+  });
+
+  it("gives the agent the leader's weakest criteria and what's left, after a review", async () => {
+    const model = new Director({ queries: ["latte", "foam"] }).asModel();
+    await runAgent({ brief: BRIEF, model, tools: new FakeTools({}, { scoreFor: () => 3 }), now });
+    const review = model.requests.map((r) => JSON.stringify(r.messages.at(-1))).find((m) => m.includes("revisionNote"))!;
+    assert.match(review, /weakestCriteria/);
+    assert.match(review, /revisionsLeft/);
+    assert.match(review, /at least 5 points higher/);
+  });
+
+  it("requires a revision decision to finish, and shows it as the agent's own words", async () => {
+    const noDecision = new ScriptedModel(() => [toolUse("finish", { why: "Done." })]);
+    const refused = await runAgent({ brief: BRIEF, model: noDecision, tools: new FakeTools({}), now });
+    assert.match(refused.steps[0].result, /revisionDecision/);
+
+    const run = await runAgent({ brief: BRIEF, model: new Director({ queries: ["latte", "foam"] }).asModel(), tools: new FakeTools({}), now });
+    const fin = run.steps.find((s) => s.actor === "finish" && s.ok)!;
+    assert.match(fin.statedReason!, /On revising: No revision: the leader has no criterion at 3 or below\./);
+    assert.equal(run.ending.revisionDecision, "No revision: the leader has no criterion at 3 or below.");
+  });
+
+  it("tells the agent the evidence bar and asks for specific reasons", async () => {
+    const model = new Director({ queries: ["latte", "foam"] }).asModel();
+    await runAgent({ brief: BRIEF, model, tools: new FakeTools({}), now });
+    const system = model.requests[0].system;
+    assert.match(system, /two or more independent sources/);
+    assert.match(system, /"Develop L3\." isn't enough/);
+    assert.match(system, /say why you did or didn't revise/);
+    const specs = model.requests[0].tools;
+    const finishSpec = specs.find((t) => t.name === "finish")!;
+    assert.ok((finishSpec.input_schema.required as string[]).includes("revisionDecision"));
+  });
+});

@@ -96,6 +96,8 @@ export interface Ending {
   reason: string;
   /** The agent's tie-break judgment, when it decided an exact tie. */
   tieJudgment: { chosenId: string; tiedWith: string[]; note: string } | null;
+  /** The agent's stated reason for revising the leader or not (Day 6). */
+  revisionDecision: string | null;
 }
 
 export const MAX_LONGLIST = 20;
@@ -261,6 +263,8 @@ export class Workspace {
       observations: s.observationIds.length,
       freshness: s.freshness.status,
       ageDays: s.freshness.ageDays,
+      /** What the freshness rests on: a behavior or publication date, or only a page-update date (the weakest). */
+      dateBasis: s.freshness.basis,
       independentOrigins: independentOrigins(ledger!.observations.filter((o) => o.signalId === s.id)),
       relevanceBar: s.culturalRelevance.status,
     }));
@@ -283,6 +287,25 @@ export class Workspace {
       gaps,
       notes: (ledger?.adjustments ?? []).slice(-8),
     };
+  }
+
+  /**
+   * One line on evidence quality, for code's readout after every action
+   * (Day 6). Facts only: freshness, what the date rests on, and how many
+   * independent sources each signal has. Null before any research.
+   */
+  evidenceLine(): string | null {
+    if (this.queries.length === 0) return null;
+    const { signals } = this.evidenceReport();
+    if (signals.length === 0) return "Evidence quality: nothing filed yet, so no idea has evidence behind it.";
+    const BASIS = { behavior: "behavior date", published: "publication date", "page-updated": "page update only" } as const;
+    const parts = signals.map((s) => {
+      const fresh = s.freshness === "fresh" ? `fresh, ${s.ageDays} days` : s.freshness;
+      const basis = s.dateBasis ? `, ${BASIS[s.dateBasis]}` : "";
+      return `${s.id} ${fresh}${basis}, ${s.independentOrigins} independent source${s.independentOrigins === 1 ? "" : "s"}`;
+    });
+    const thin = signals.filter((s) => s.freshness === "fresh" && (s.independentOrigins < 2 || s.dateBasis === "page-updated")).map((s) => s.id);
+    return `Evidence quality: ${parts.join("; ")}.${thin.length ? ` Thin (one source, or dated only by a page update): ${thin.join(", ")}.` : ""}`;
   }
 
   /* ================= Ideas ================= */
@@ -498,6 +521,21 @@ export class Workspace {
   ranking() {
     const evaluated = this.finalists().filter((d): d is Developed => !!d?.assessment);
     return rankCandidates(evaluated.map((d, i) => this.inputFor(d, i)));
+  }
+
+  /**
+   * After a review: the leader's weakest criteria (scored 3 or below), so the
+   * agent can weigh a revision. Facts from the panel's scores only.
+   */
+  leaderWeaknesses(): { candidateId: string; weakest: { criterion: string; score: number; rationale: string }[] } | null {
+    const { leaderId } = this.ranking();
+    const leader = leaderId ? this.developed.get(leaderId) : null;
+    if (!leader?.assessment) return null;
+    const weakest = leader.assessment.results
+      .filter((r) => r.score !== null && r.score <= 3)
+      .sort((a, b) => a.score! - b.score!)
+      .map((r) => ({ criterion: r.criterionId, score: r.score!, rationale: r.rationale }));
+    return { candidateId: leader.candidate.id, weakest };
   }
 
   /** Finalists tied with the leader on whole-point ranking value. Empty when there's no tie. */
