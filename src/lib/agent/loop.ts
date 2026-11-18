@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { formatScore } from "../evaluation/scoring.ts";
-import type { EvidenceLedger, RawCitation } from "../research/ledger.ts";
+import { normalizeUrl, type EvidenceLedger, type RawCitation } from "../research/ledger.ts";
 import { validateRevisedCandidate, type CandidateDraft } from "../spark-schema.ts";
 import type { Candidate } from "../types.ts";
 import type { BilledUsage } from "../usage/pricing.ts";
@@ -118,6 +118,8 @@ export interface PaidTools {
     results: { url: string; title: string; pageAge: string | null }[];
     citations: RawCitation[];
     errorCode: string | null;
+    /** The query the search actually ran, if the API reports it. */
+    executedQuery?: string | null;
     billed: Billed;
   }>;
   read(input: { url: string; title: string; question: string } & CallLimits): Promise<{ citations: RawCitation[]; billed: Billed }>;
@@ -295,8 +297,14 @@ export async function runAgent(options: {
         const r = await paid("search", "search", CALL_PLANS.search, TIMEOUTS.search, (l) => tools.search({ query: i.query, ...l }));
         if (!r.ok) return { outcome: fail(`The search didn't run: ${r.problem}`), action, usd: r.usd };
         const v = r.value as Awaited<ReturnType<PaidTools["search"]>>;
-        const filed = ws.addSearch({ query: i.query, purpose: i.purpose, results: v.results, citations: v.citations, errorCode: v.errorCode });
-        const flags = [...filed.adjustments, ...(v.errorCode ? [`The search reported an error: ${v.errorCode}.`] : [])];
+        // The register records the query that actually ran.
+        const ran = v.executedQuery?.trim() || i.query;
+        const filed = ws.addSearch({ query: ran, purpose: i.purpose, results: v.results, citations: v.citations, errorCode: v.errorCode });
+        const flags = [
+          ...filed.adjustments,
+          ...(v.errorCode ? [`The search reported an error: ${v.errorCode}.`] : []),
+          ...(ran !== i.query ? [`The search ran as "${ran}".`] : []),
+        ];
         return {
           action,
           usd: r.usd,
@@ -325,7 +333,7 @@ export async function runAgent(options: {
         if (!r.ok) return { outcome: fail(`The page read didn't run: ${r.problem}`), action, usd: r.usd };
         const v = r.value as Awaited<ReturnType<PaidTools["read"]>>;
         // Quotes must point at this very page; anything else is dropped by the register.
-        const filed = ws.addCitations(v.citations.filter((c) => c.url === source.url));
+        const filed = ws.addCitations(v.citations.filter((c) => normalizeUrl(c.url) === normalizeUrl(source.url)));
         return {
           action,
           usd: r.usd,

@@ -42,7 +42,7 @@ export class EngineError extends Error {
 }
 
 let client: Anthropic | null = null;
-function getClient(): Anthropic {
+export function getClient(): Anthropic {
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new EngineError(
       "Claude engine is selected but no API key is configured. Add ANTHROPIC_API_KEY to .env.local and restart the server.",
@@ -71,6 +71,11 @@ export async function callStructured<T>(options: {
   validate: (value: unknown) => { ok: true; value: T } | { ok: false; problems: string[] };
   /** Fires when the person cancels the scan: the call in progress is stopped. */
   signal?: AbortSignal;
+  /**
+   * Server-side model fallback (default on). Agent mode turns it off: its
+   * per-scan ceiling needs to know the price before every call.
+   */
+  fallbacks?: boolean;
 }): Promise<{ value: T; usage: ScanUsage }> {
   const anthropic = getClient();
   const { step } = options;
@@ -86,8 +91,8 @@ export async function callStructured<T>(options: {
       .create({
         model: MODEL,
         max_tokens: options.maxTokens,
-        betas: ["server-side-fallback-2026-07-01"],
-        fallbacks: "default", // if the model declines on policy grounds, Anthropic retries on a suitable model
+        // If the model declines on policy grounds, Anthropic retries on a suitable model (unless turned off).
+        ...(options.fallbacks === false ? {} : { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const }),
         system: options.system,
         messages: [{ role: "user", content: options.user }],
         output_config: {

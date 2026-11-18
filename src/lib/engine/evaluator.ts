@@ -95,7 +95,7 @@ export async function evaluateCandidates(
   request: ScanRequest,
   candidates: { id: string; draft: CandidateDraft; groundedIn: string[] }[],
   ledger: EvidenceLedger | null,
-  options: { timeoutMs?: number; random?: () => number; signal?: AbortSignal } = {},
+  options: { timeoutMs?: number; random?: () => number; signal?: AbortSignal; fallbacks?: boolean } = {},
 ): Promise<{ assessments: CandidateAssessment[]; usage: ScanUsage }> {
   const order = shuffled(candidates, options.random);
   const byLabel = new Map<Label, (typeof candidates)[number]>(order.map((c, i) => [LABELS[i], c]));
@@ -118,6 +118,7 @@ Evaluate candidates A, B and C.`;
     timeoutMs: options.timeoutMs ?? 90_000,
     validate: validateEvaluation,
     signal: options.signal,
+    fallbacks: options.fallbacks,
   });
 
   const assessments = value.evaluations.map((e): CandidateAssessment => {
@@ -149,6 +150,7 @@ export async function rescoreRevision(
   },
   timeoutMs = 90_000,
   signal?: AbortSignal,
+  options: { fallbacks?: boolean } = {},
 ): Promise<{
   results: CriterionResult[];
   meaningfulAudioVariations: number;
@@ -185,6 +187,7 @@ introducesUnsupportedClaims: does A add factual cultural or performance claims (
     timeoutMs,
     validate: validateRescore,
     signal,
+    fallbacks: options.fallbacks,
   });
 
   // The revision keeps the original's signals, so its relevance can be verified against them.
