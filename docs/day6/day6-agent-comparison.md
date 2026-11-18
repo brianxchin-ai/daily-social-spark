@@ -193,7 +193,7 @@ Instructions alone did much less. Getting creative exploration from an agent wou
 - **Blind read: range round vs routes round (the user's picks).** The range round won 2 of 3:
   - Glossier: range (reveal-first rewind to the meltdown face). *"Transformation videos are psychologically satisfying and proven to work."*
   - Hardware store: range (hose as a mic). *"A good hook of straight-to-camera delivery… can remind people of their own stories."*
-  - Liquid Death: routes round (the primed GTA VI wanted level), which also won its earlier blind read. *"One of the highest trending topics in entertainment and culture today."* The copy may need to be made generic so it doesn't name GTA. The range run lost a primed bet here, steered by the out-of-date evidence warning fixed afterward.
+  - Liquid Death: routes round (the primed GTA VI wanted level), which also won its earlier blind read. *"One of the highest trending topics in entertainment and culture today."* The copy may need to be made generic so it doesn't name GTA. The range run went original instead. The out-of-date evidence warning (since fixed) may have steered it, but a rerun after the fix ($0.42) also went original, with "Unlock the rarest finals achievement: drinking water" (70 over 58). The new route labels worked as intended, but this time the agent never searched beyond the audience's own study culture, so the GTA VI moment never came up. The primed GTA idea came from what the agent chose to research, not from the rules.
   - For the first time, the Spark Score agreed with every pick: 74 vs 70, 75 vs 68 and 75 vs 73.
 - **Two fixes the range runs exposed:**
   - The evidence check still told the agent that no fresh signal meant any trend idea would be rejected. That predates the proven route and steered the Liquid Death run toward an original format. Each signal is now labeled with the routes it can carry.
@@ -227,7 +227,8 @@ Instructions alone did much less. Getting creative exploration from an agent wou
 | Gut-check | 3 | $0.94 |
 | Routes | 4 | $1.59 |
 | Range | 3 | $1.30 |
-| **Total** | 35 | **$13.13** |
+| Liquid Death rerun after the label fix | 1 | $0.42 |
+| **Total** | 36 | **$13.55** |
 
 ## 9. Open questions (no decisions taken)
 

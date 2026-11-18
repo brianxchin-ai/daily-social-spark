@@ -344,7 +344,7 @@ export function recordSignal(ws: Workspace, raw: z.infer<typeof TOOL_INPUTS.reco
   const supports = routesSupported(signal.freshness);
   if (signal.freshness.status !== "fresh") {
     flags.push(
-      `Not fresh: ${signal.freshness.reason || "no date within 30 days"}. ${
+      `Not fresh: ${(signal.freshness.reason || "no date within 30 days").replace(/\.+$/, "")}. ${
         supports === "proven" ? "It can still carry a proven idea (dated by behavior or publication within 90 days)." : "It can't carry a primed or proven idea; use it as context."
       }`,
     );
