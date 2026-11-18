@@ -7,6 +7,19 @@
 - **It didn't use its freedom.** It took the same short path every time, did less research than the fixed workflow, and never dug deeper, revised or changed course.
 - **The finding.** The architecture delivered efficiency, not deliberation.
 
+**Update, later the same day.** After the comparison we ran three rounds of changes to get the agent to use its freedom (section 7):
+- **Each change produced roughly the behavior it described.**
+  - A benchmark brought benchmark-sized research.
+  - A "settle your hypotheses" rule brought settling, often as end-of-run paperwork.
+- **Real judgment appeared in the small choices:**
+  - corroborating a single-source signal
+  - reading a page for a reason
+  - candid verdicts on its own bets
+- **The overall order of work never changed:** research → 10 ideas → 3 → review → finish.
+- **Two engineering fixes made runs reliable:**
+  - a budget reserve so a scan can always afford its review
+  - a simpler evidence form
+
 All figures below are the app's own estimates (Anthropic's reported token counts × list prices). Everything ran locally, nothing was deployed, and the friends' beta was untouched.
 
 ## 1. What we built
@@ -117,25 +130,70 @@ This is two different signals, not a flaw in the rubric. The Day 5 rubric stands
 - Both engines use the same model and the same review panel, so differences come from process, not intelligence.
 - Costs are the app's estimates, not Anthropic's invoice.
 
-## 7. Spending (2026-11-18, local runs on the user's key)
+## 7. After the comparison: getting the agent to use its freedom
+
+**Direction set after the comparison:**
+- Cost isn't the deciding factor.
+- The agent should actually use the tools and methods it's free to use.
+- No larger blind review for now.
+
+Each round below changed only the agent's environment (instructions, tools, budget rules), never the rubric, then ran the same three briefs on the agent alone, with the no-repeat memory cleared before each run.
+
+| Round | What changed | Searches / page reads / revisions per scan | Time · cost per scan | What happened |
+|---|---|---|---|---|
+| 0 (comparison) | n/a | 2 / 0 / 0 | ~70 s · ~$0.25 | The same short path on every brief |
+| 1 | Stated what the work is judged on; framed budget and time as "a budget to invest, not a target to undercut"; added a benchmark ("4 to 8 searches, at least one primary source…"); raised the agent's thinking effort | 4 / 1 / 1 | ~125 s · ~$0.48 | Corroboration searches and purposeful reading. But every run matched the benchmark almost exactly |
+| 2 | Removed the benchmark; added working hypotheses (record bets, settle them with evidence code checks); flagged weak finalists as candidates to replace | Glossier 6 / 3 / 0; the others 3–4 / 0 / 0 | ~115 s · ~$0.46 | Paths finally differed by brief. **Glossier researched deeply, then couldn't afford its review: no idea, $0.63 spent.** Hypotheses recorded but never settled |
+| Fixes | A finishing reserve; a realistic review-cost estimate; `finish` requires every hypothesis settled | 4 / 0 / 0 | ~107 s · ~$0.41 | All three finished. Bets settled candidly, but in 2 of 3 runs only after the review. Evidence filing failed on the hardware brief |
+| Filing fix | Signals filed as flat fields instead of one nested block | 3 / 2 / 0 (one run) | 104 s · $0.43 | 4 of 4 signals filed first try; 2 page reads; all hypotheses settled before writing ideas |
+
+**Notable moments, in the agent's own stated reasons:**
+- *"G1 rests on one source; seeking a second independent one."* (Round 1, Liquid Death)
+- *"It's the only dated Facebook-specific trend; need to see the mechanic before deciding if it's usable."* (Round 1, hardware store)
+- *"Refuted H3: Panel scored the nostalgia idea 2/5 on cultural relevance, and my research found nothing live tying it to current behavior."* (Fixes round, Glossier)
+- *"Dropped H2: Search returned only tool-identifier apps, not Facebook engagement evidence, so the bet is untested."* (Fixes round, hardware store)
+
+**What the rounds taught:**
+1. **Agents follow the brief they're given, sometimes too literally.**
+   - Framing works: Round 1 doubled research depth.
+   - But each nudge produced behavior shaped like its own wording. With the benchmark removed, depth fell back on two of three briefs.
+   - With a "settle before finishing" rule, settling became paperwork.
+2. **A budget rule has to protect the finish, not just the ceiling.** Without a reserve, a curious agent spent its money on research and couldn't afford the one step every scan needs. The fix belongs in code, not in the instructions.
+3. **Tool design keeps deciding outcomes.** The nested evidence form failed in four separate runs. Flattening it fixed filing on the next real run.
+4. **Real discretion lives in the small choices.**
+   - Which lead to chase, when to corroborate, what to read and how honestly to judge its own bets all varied and were well reasoned.
+   - The large shape never varied: research, 10 ideas, 3 finalists, review, finish. The agent never used its second review round, never replaced a weak finalist, and never returned to research after seeing scores.
+   - That shape is set largely by what we require of every scan.
+
+**Engine as of the last commit (23c02ee):**
+- **Instructions:** Round 2's, without the benchmark.
+- **Hypotheses and nudges:** the hypothesis tools, the weak-finalist nudge and the settle-before-finishing rule.
+- **Budget:** the finishing reserve and realistic review estimate.
+- **Evidence:** flat signal filing.
+
+## 8. Spending (2026-11-18, local runs on the user's key)
 
 | | Runs | Estimated cost |
 |---|---|---|
 | Agent development runs | 6 | $1.38 |
 | Comparison: fixed workflow | 3 | $1.54 |
 | Comparison: agent | 3 | $0.74 |
-| **Total** | 12 | **$3.66** |
+| Round 1 | 3 | $1.43 |
+| Round 2 | 3 | $1.38 |
+| Fixes round | 3 | $1.23 |
+| Filing-fix check | 1 | $0.43 |
+| **Total** | 22 | **$8.13** |
 
-## 8. Open questions (no decisions taken)
+## 9. Open questions (no decisions taken)
 
-- **Agent mode or fixed workflow?**
-  - Does agent mode's speed and cost advantage justify offering it, for example as the beta engine?
-  - Or is the fixed workflow's deeper research worth the extra minute and quarter?
-- **Making the agent dig deeper.**
-  - Should the agent be given stronger reasons to research more?
-  - Or accept that it's essentially a faster, cheaper workflow?
-- **The two signals.** Is it worth a larger blind review (more briefs, more judges) to see how the Spark Score and human picks relate?
+- **The required shape.** Every run follows research → 10 ideas → 3 → review → finish, because every scan must deliver a longlist of 10, three developed finalists and a review. Real freedom over the large shape would mean loosening that requirement, for example:
+  - letting the agent develop and test one idea at a time
+  - letting it stop at fewer finalists when the evidence is strong
+
+  That's a product decision.
+- **Which engine for what.** The agent's research is now much closer to the fixed workflow's (3–4 searches plus page reads against 5 searches, with fewer signals filed), in about 105 seconds against 150. Whether to offer it, and to whom, is open; cost isn't the deciding factor.
+- **Consistency.** The filing fix has one real run behind it. Its reliability, and whether settling before writing ideas becomes the norm, needs more runs to judge.
 
 ## Commits on `day6-agent-mode` (local, not pushed)
 
-c9eddb4 governor · 929a4e2 workspace and free tools · 1d4f4e5 loop, instructions, trace · 025ecd3 real API connections · 737464e agent-scan route and usage gate · 837c131 page changes · f5bcfa4, bb63844, cd5bec3 fixes from real runs · f7d3796 nudges · 67ad3bd revision rule change
+c9eddb4 governor · 929a4e2 workspace and free tools · 1d4f4e5 loop, instructions, trace · 025ecd3 real API connections · 737464e agent-scan route and usage gate · 837c131 page changes · f5bcfa4, bb63844, cd5bec3 fixes from real runs · f7d3796 nudges · 67ad3bd revision rule change · 60b71f3 first write-up · 5476ecc round 1 · 8abea50 round 2 · efa4c7d finishing reserve, review estimate, settle-to-finish · 23c02ee flat signal filing
