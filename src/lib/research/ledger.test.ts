@@ -740,3 +740,10 @@ test("a date labeled 'other' (measurement, example, page element) is neither pub
   assert.equal(l.observations[0].published, null);
   assert.equal(l.observations[0].behavior.status, "unknown");
 });
+
+test("namesBrandOrCategory: brand, category term or neither", async () => {
+  const { namesBrandOrCategory } = await import("./ledger.ts");
+  assert.equal(namesBrandOrCategory("Glossier TikTok November", "Glossier", ["beauty"]), "Glossier");
+  assert.equal(namesBrandOrCategory("viral makeup routines", "Glossier", ["beauty", "makeup"]), "makeup");
+  assert.equal(namesBrandOrCategory("GTA 6 launch week", "Glossier", ["beauty", "makeup"]), null);
+});

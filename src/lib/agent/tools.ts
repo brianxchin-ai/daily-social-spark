@@ -94,8 +94,12 @@ export const TOOL_INPUTS = {
     purpose: z
       .enum(["brand", "category", "audience", "moment", "depth"])
       .describe(
-        "brand: about the brand itself. category: its category. audience: the audience's own culture, rituals and behaviors beyond the category. moment: what the wider culture is watching, playing, following or counting down to right now, beyond this brand, category and audience (releases, launches, sports, news, internet-wide moments). depth: checking or deepening a lead.",
+        "brand: about the brand itself. category: its category. audience: the audience's own culture, rituals and behaviors beyond the category. moment: what the wider culture is watching, playing, following or counting down to right now, beyond this brand, category and audience (releases, launches, sports, news, internet-wide moments). A moment search that names the brand or its category counts as category. depth: checking or deepening a lead.",
       ),
+    categoryTerms: z
+      .array(z.string())
+      .describe("Words naming the brand's own category (for Glossier: beauty, makeup, skincare). Give them once, on your first search; code uses them to check whether discovery searches leave the category.")
+      .optional(),
   }),
   read_source: z.object({
     why,

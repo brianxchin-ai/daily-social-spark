@@ -613,15 +613,25 @@ export function countCrossCategory(
   brand: string,
   categoryTerms: string[],
 ): number {
-  const brandKey = brand.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const terms = categoryTerms.flatMap(words).filter((t) => t.length > 2);
   const labeled = new Set(purposes.filter((p) => p.purpose === "cross-category").map((p) => words(p.query).join(" ")));
-  return queries.filter((q) => {
-    const w = words(q);
-    if (!labeled.has(w.join(" "))) return false;
-    if (brandKey && w.join("").includes(brandKey)) return false;
-    return !w.some((x) => terms.some((t) => x === t || x.startsWith(t) || t.startsWith(x)));
-  }).length;
+  return queries.filter((q) => labeled.has(words(q).join(" ")) && namesBrandOrCategory(q, brand, categoryTerms) === null).length;
+}
+
+/**
+ * What in a query ties it to the brand or its category: the brand, a category
+ * term, or null if neither. Word-level and prefix-tolerant ("makeup" matches
+ * "makeup", "lipsticks" matches "lipstick").
+ */
+export function namesBrandOrCategory(query: string, brand: string, categoryTerms: string[]): string | null {
+  const brandKey = brand.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const w = words(query);
+  if (brandKey && w.join("").includes(brandKey)) return brand;
+  const terms = categoryTerms.flatMap(words).filter((t) => t.length > 2);
+  for (const x of w) {
+    const hit = terms.find((t) => x === t || x.startsWith(t) || t.startsWith(x));
+    if (hit) return hit;
+  }
+  return null;
 }
 
 /** Searches that don't name the brand (case- and spacing-insensitive). */

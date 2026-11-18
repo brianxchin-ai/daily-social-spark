@@ -333,13 +333,17 @@ export async function runAgent(options: {
         const i = input as z.infer<typeof TOOL_INPUTS.web_search>;
         const action = `Searched: "${i.query}"`;
         const startedIdeas = ws.wall.length > 0;
+        if (i.categoryTerms?.length) ws.addCategoryTerms(i.categoryTerms);
         const r = await paid("search", "search", CALL_PLANS.search, TIMEOUTS.search, (l) => tools.search({ query: i.query, ...l }));
         if (!r.ok) return { outcome: fail(`The search didn't run: ${r.problem}`), action, usd: r.usd };
         const v = r.value as Awaited<ReturnType<PaidTools["search"]>>;
         // The register records the query that actually ran.
         const ran = v.executedQuery?.trim() || i.query;
         const filed = ws.addSearch({ query: ran, purpose: i.purpose, results: v.results, citations: v.citations, errorCode: v.errorCode });
+        const named = ws.searchPurposes.at(-1)?.inCategory;
         const flags = [
+          ...(named ? [`This moment search names "${named}", so it looked inside the brand's niche; code counts it as a category search, not the wider culture.`] : []),
+          ...(i.purpose === "moment" && !named && ws.categoryTerms.length === 0 ? ["Code couldn't check whether this moment search left the category: no category terms yet (add categoryTerms)."] : []),
           ...filed.adjustments,
           ...(v.errorCode ? [`The search reported an error: ${v.errorCode}.`] : []),
           ...(ran !== i.query ? [`The search ran as "${ran}".`] : []),

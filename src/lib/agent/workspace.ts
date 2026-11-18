@@ -18,6 +18,7 @@ import {
   independentOrigins,
   looksLikeInjection,
   MAX_SIGNALS,
+  namesBrandOrCategory,
   normalizeUrl,
   type CitationRecord,
   type EvidenceLedger,
@@ -157,7 +158,8 @@ export class Workspace {
   /* ---------- Evidence board ---------- */
   readonly queries: string[] = [];
   readonly searchErrors: string[] = [];
-  readonly searchPurposes: { query: string; purpose: SearchPurpose }[] = [];
+  /** inCategory: for a "moment" search, the brand or category word it named (Day 6), so it doesn't count as the wider culture. */
+  readonly searchPurposes: { query: string; purpose: SearchPurpose; inCategory?: string | null }[] = [];
   readonly sources: SourceRecord[] = [];
   private readonly allCitations: CitationRecord[] = [];
   private readonly registerAdjustments: string[] = [];
@@ -197,7 +199,11 @@ export class Workspace {
     errorCode?: string | null;
   }): { newSources: SourceRecord[]; newCitations: CitationRecord[]; adjustments: string[] } {
     this.queries.push(input.query);
-    this.searchPurposes.push({ query: input.query, purpose: input.purpose });
+    this.searchPurposes.push({
+      query: input.query,
+      purpose: input.purpose,
+      ...(input.purpose === "moment" ? { inCategory: namesBrandOrCategory(input.query, this.brief.brand, this.categoryTerms) } : {}),
+    });
     if (input.errorCode) this.searchErrors.push(input.errorCode);
     const newSources: SourceRecord[] = [];
     for (const r of input.results) {
@@ -268,11 +274,22 @@ export class Workspace {
     if (this.signalDrafts.length >= MAX_SIGNALS) return { ok: false, problem: `The evidence board is full (${MAX_SIGNALS} signals).` };
     if (this.queries.length === 0) return { ok: false, problem: "No searches have run yet, so there's nothing to cite." };
     this.signalDrafts.push(draft);
-    for (const t of categoryTerms.map((x) => x.trim()).filter(Boolean)) {
+    this.addCategoryTerms(categoryTerms);
+    this.cachedLedger = null;
+    return { ok: true, signalId: `G${this.signalDrafts.length}` };
+  }
+
+  /** Words naming the brand's own category, from the agent. Used to check that discovery searches leave the category. */
+  addCategoryTerms(terms: string[]): void {
+    for (const t of terms.map((x) => x.trim()).filter(Boolean)) {
       if (!this.categoryTerms.includes(t) && this.categoryTerms.length < 12) this.categoryTerms.push(t);
     }
     this.cachedLedger = null;
-    return { ok: true, signalId: `G${this.signalDrafts.length}` };
+  }
+
+  /** Moment searches that actually left the brand and its category. */
+  wideMomentSearches(): number {
+    return this.searchPurposes.filter((p) => p.purpose === "moment" && !p.inCategory).length;
   }
 
   /** The checked ledger: the same rules as the fixed pipeline's (`checkLedger`). Null before any search. */
@@ -332,7 +349,12 @@ export class Workspace {
           : "No fresh signal, and nothing dated by behavior or publication within 90 days: a primed or proven idea would be rejected as stale. Search for newer evidence or develop original formats.",
       );
     }
-    if (this.queries.length > 0 && !this.searchPurposes.some((p) => p.purpose === "moment")) {
+    const stayedIn = this.searchPurposes.filter((p) => p.purpose === "moment" && p.inCategory);
+    if (this.queries.length > 0 && this.wideMomentSearches() === 0 && stayedIn.length) {
+      gaps.push(
+        `Your moment search${stayedIn.length === 1 ? "" : "es"} named the brand or its category (${[...new Set(stayedIn.map((p) => `"${p.inCategory}"`))].join(", ")}), so ${stayedIn.length === 1 ? "it" : "they"} stayed inside the niche. The wider culture is still unexplored: what everyone is watching, playing, following or counting down to, whatever their category. Whether a collision fits this brief is your call.`,
+      );
+    } else if (this.queries.length > 0 && this.wideMomentSearches() === 0) {
       gaps.push(
         "Nothing searched beyond this brand, its category and its audience yet. The wider culture (what everyone is watching, playing, following or counting down to right now: releases, launches, sports, news, internet-wide moments) is unexplored. Ideas that collide with a moment like that can travel far beyond the niche; whether one fits this brief is your call.",
       );
@@ -361,9 +383,17 @@ export class Workspace {
   researchMap(): string | null {
     if (this.queries.length === 0) return null;
     const counts = { brand: 0, category: 0, audience: 0, moment: 0, depth: 0 };
-    for (const p of this.searchPurposes) counts[p.purpose === "cross-category" ? "audience" : p.purpose]++;
+    let stayedIn = 0;
+    for (const p of this.searchPurposes) {
+      // A "moment" search that names the brand or category looked inside the niche; code counts it as category.
+      if (p.purpose === "moment" && p.inCategory) {
+        counts.category++;
+        stayedIn++;
+      } else counts[p.purpose === "cross-category" ? "audience" : p.purpose]++;
+    }
     const parts = (Object.keys(counts) as (keyof typeof counts)[]).map((k) => `${MAP_LABELS[k]} ${counts[k]}`);
-    return `Research map (searches by where they looked): ${parts.join(" · ")}.${counts.moment === 0 ? " The wider culture is unexplored." : ""}`;
+    const note = stayedIn ? ` ${stayedIn} search(es) labeled moment named the brand or its category, so code counted them as category.` : "";
+    return `Research map (searches by where they looked): ${parts.join(" · ")}.${note}${counts.moment === 0 ? " The wider culture is unexplored." : ""}`;
   }
 
   evidenceLine(): string | null {

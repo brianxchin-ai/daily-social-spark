@@ -606,3 +606,31 @@ describe("research map: audience vs wider culture (Day 6)", () => {
     assert.ok(ws.ledger());
   });
 });
+
+describe("moment searches that stay inside the niche (Day 6)", () => {
+  const search = (query: string, purpose: "moment" | "audience") => ({ query, purpose, results: [], citations: [] });
+
+  it("counts a moment search naming a category term as category, and says so", () => {
+    const ws = fresh();
+    ws.addCategoryTerms(["beauty", "makeup"]);
+    ws.addSearch(search("Black Friday 2026 beauty sales TikTok gifting", "moment"));
+    assert.equal(ws.wideMomentSearches(), 0);
+    assert.match(ws.researchMap()!, /category 1 · audience culture 0 · wider-culture moments 0/);
+    assert.match(ws.researchMap()!, /1 search\(es\) labeled moment named the brand or its category/);
+    assert.ok(ws.evidenceReport().gaps.some((g) => /named the brand or its category \("beauty"\), so it stayed inside the niche/.test(g)));
+  });
+
+  it("counts a moment search naming the brand as category", () => {
+    const ws = fresh();
+    ws.addSearch(search(`${ws.brief.brand} holiday moment`, "moment"));
+    assert.equal(ws.wideMomentSearches(), 0);
+  });
+
+  it("credits a moment search that leaves the category", () => {
+    const ws = fresh();
+    ws.addCategoryTerms(["beauty", "makeup"]);
+    ws.addSearch(search("biggest video game releases November 2026", "moment"));
+    assert.equal(ws.wideMomentSearches(), 1);
+    assert.doesNotMatch(ws.researchMap()!, /unexplored|named the brand/);
+  });
+});
