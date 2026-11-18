@@ -48,7 +48,7 @@ export type AgentLimits = { [K in keyof typeof AGENT_LIMITS]: number };
 
 export type PaidCallKind = "agent-turn" | "search" | "read" | "evaluate" | "rescore";
 export type Stage = "normal" | "wrap-up" | "stopped";
-export type StopReason = "budget" | "time" | "turns" | "tool-calls" | "malformed" | "canceled" | "model-refused";
+export type StopReason = "budget" | "time" | "turns" | "tool-calls" | "malformed" | "canceled" | "model-refused" | "model-error";
 export type WrapUpReason = "budget" | "time" | "turns" | "context";
 
 /** What code knows about a call before making it. */
@@ -344,6 +344,7 @@ export const STOP_TEXT: Record<StopReason, string> = {
   malformed: "Stopped after repeated badly formed tool calls.",
   canceled: "Scan canceled.",
   "model-refused": "The model declined to continue.",
+  "model-error": "An AI call failed, and failed calls are never retried.",
 };
 
 const round4 = (n: number) => Math.round(n * 10_000) / 10_000;

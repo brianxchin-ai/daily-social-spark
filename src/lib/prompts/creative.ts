@@ -9,12 +9,12 @@ import type { Platform } from "../types.ts";
  * changes what the models are told.
  */
 
-const STYLE = `Use American English spelling (e.g. "behavior", "recognize", "favor"). Write em dashes closed, with no spaces around them.`;
+export const STYLE = `Use American English spelling (e.g. "behavior", "recognize", "favor"). Write em dashes closed, with no spaces around them.`;
 
 /** Day 5 scope: published short-form content that can keep earning organic views. */
 export const FORMAT_SCOPE = `Scope: short-form content published to the platform that can keep earning organic views over time: vertical video, photos, photo mode and carousels, and text posts. Never propose live streams, AR effects or Lenses, ephemeral Stories, or paid ads.`;
 
-function platformBlock(platform: Platform): string {
+export function platformBlock(platform: Platform): string {
   const p = PLATFORM_PROFILES[platform];
   return `${FORMAT_SCOPE}
 

@@ -28,7 +28,7 @@ export const staleSearch = {
 export function signal(name: string, citationId: string, dateText: string, overrides: Partial<SignalDraft> = {}): SignalDraft {
   return {
     name,
-    category: "creator-format",
+    category: "creator-behavior",
     categoryRelation: "adjacent",
     summary: `${name}, as the sources describe it.`,
     lineage: "None identified",
