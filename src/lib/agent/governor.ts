@@ -29,8 +29,8 @@ export const AGENT_LIMITS = {
   maxReads: 3,
   maxEvaluations: 2,
   maxRescores: 2,
-  /** Output cap for one agent turn (thinking included); lowered when money is short. */
-  maxTurnOutputTokens: 8_000,
+  /** Output cap for one agent turn (thinking included); lowered when money is short. Raised from 8,000 with high effort. */
+  maxTurnOutputTokens: 12_000,
   /** Below this, an agent turn isn't worth making: the run ends instead. */
   minTurnOutputTokens: 1_500,
   /** Past this context size, the agent is told to finish. */

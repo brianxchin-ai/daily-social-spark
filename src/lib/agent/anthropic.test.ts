@@ -67,6 +67,7 @@ describe("agent turns", () => {
     const out = await model.turn({ system: "sys", messages: [{ role: "user", content: [{ type: "text", text: "Begin." }] }], tools: toolSpecs(), maxOutputTokens: 4_000, timeoutMs: 5_000 });
     const sent = requests[0];
     assert.deepEqual(sent.cache_control, { type: "ephemeral" });
+    assert.equal((sent.output_config as { effort?: string }).effort, "high", "the director thinks at high effort");
     assert.equal("fallbacks" in sent, false);
     assert.equal(sent.max_tokens, 4_000);
     assert.equal((sent.tools as unknown[]).length, 11);

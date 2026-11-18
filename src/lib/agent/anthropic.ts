@@ -91,7 +91,8 @@ export function anthropicAgentModel(client: Client): AgentModel {
           system: request.system,
           messages: request.messages as unknown as Anthropic.Beta.Messages.BetaMessageParam[],
           tools: request.tools as unknown as Anthropic.Beta.Messages.BetaToolUnion[],
-          output_config: { effort: "medium" },
+          // Day 6, round 1: the director thinks harder per turn than single-task calls do.
+          output_config: { effort: "high" },
           // Automatic prompt caching: each turn re-reads the conversation so far at the cache price.
           cache_control: { type: "ephemeral" },
         },

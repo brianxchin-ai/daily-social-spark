@@ -427,3 +427,20 @@ describe("the signal tool as the API sees it", () => {
     assert.deepEqual([...(signal.properties.observations.items?.required ?? [])].sort(), ["citationIds", "dateBasis", "dateText", "statement"]);
   });
 });
+
+describe("round 1: resources framed as an investment", () => {
+  it("tells the agent what it's judged on and that unused budget isn't a saving", async () => {
+    const model = new Director({ queries: ["latte", "foam"] }).asModel();
+    await runAgent({ brief: BRIEF, model, tools: new FakeTools({}), now });
+    const system = model.requests[0].system;
+    assert.match(system, /judged on: the strength of the winning idea, and the strength of the evidence and thinking behind it/);
+    assert.match(system, /unused budget is not a saving/);
+    assert.match(system, /typically runs 4 to 8 searches, reads at least one primary source/);
+    assert.doesNotMatch(system, /in good time/);
+    assert.match(JSON.stringify(model.requests[0].messages), /still available to invest/);
+  });
+
+  it("gives each agent turn room to think at higher effort", () => {
+    assert.equal(AGENT_LIMITS.maxTurnOutputTokens, 12_000);
+  });
+});

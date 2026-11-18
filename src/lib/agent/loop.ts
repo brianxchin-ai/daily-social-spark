@@ -635,7 +635,7 @@ export function readout(g: Governor, ws: Workspace): string {
         .join(", ")
     : "none yet";
   const lines = [
-    `[Readout from code] Spent $${s.spentUsd.toFixed(3)} of $${s.ceilingUsd.toFixed(2)} · ${Math.floor(s.timeLeftMs / 1000)} s left · turn ${s.turns} of ${s.maxTurns} · searches ${s.searches}/${s.maxSearches} · page reads ${s.reads}/${s.maxReads} · review rounds ${s.evaluations}/${s.maxEvaluations} · revisions ${s.rescores}/${s.maxRescores}`,
+    `[Readout from code] Budget: $${s.spentUsd.toFixed(3)} used, $${s.remainingUsd.toFixed(3)} still available to invest · ${Math.floor(s.timeLeftMs / 1000)} s left · turn ${s.turns} of ${s.maxTurns} · searches ${s.searches}/${s.maxSearches} · page reads ${s.reads}/${s.maxReads} · review rounds ${s.evaluations}/${s.maxEvaluations} · revisions ${s.rescores}/${s.maxRescores}`,
     `Evidence: ${ws.sources.length} source(s), ${ws.signalDrafts.length} signal(s). Longlist: ${ws.wall.length}. Finalists: ${finalists}.`,
   ];
   const quality = ws.evidenceLine();
