@@ -313,3 +313,21 @@ describe("honesty: no invented sources, no measured-performance claims", () => {
     assert.match(JSON.stringify(model.requests[1].messages), /SECRET PLAN/);
   });
 });
+
+describe("text-formatted input in a real loop", () => {
+  it("files a signal sent as JSON text and notes that code unpacked it", async () => {
+    const sig = { name: "Desk resets", category: "creator-behavior", categoryRelation: "adjacent", summary: "x", lineage: "None identified", novelty: "uncertain", whatIsNew: "", lookback: "Not checked", lineageQuery: "", creativeOpportunity: "", audienceNote: "Not documented", inferences: [], observations: [{ statement: "Desk reset videos are being posted.", kind: "presence", citationIds: ["C1"], dateText: "November 10, 2026", dateBasis: "behavior", attributedTo: "" }] };
+    const model = new ScriptedModel((turn) =>
+      turn === 1
+        ? [toolUse("web_search", { query: "desk reset", purpose: "category", why: "Look." })]
+        : turn === 2
+          ? [toolUse("record_signal", { signal: JSON.stringify(sig), why: "File it." })]
+          : [toolUse("abstain", { reason: "Stop." })],
+    );
+    const run = await runAgent({ brief: BRIEF, model, tools: new FakeTools({ "desk reset": FRESH_PAGE }), now });
+    const filed = run.steps.find((s) => s.actor === "record_signal")!;
+    assert.equal(filed.ok, true);
+    assert.match(filed.flags[0], /unpacked/);
+    assert.equal(run.snapshot.stopReason, null);
+  });
+});

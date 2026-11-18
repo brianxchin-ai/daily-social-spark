@@ -651,6 +651,11 @@ const within = (o: LedgerObservation, days: number, now: Date) => {
 };
 const independent = (list: LedgerObservation[]) => new Set(list.filter((o) => !o.owned).map((o) => o.originKey));
 
+/** How many independent origins (not owned by the brand or platform) a set of observations has, whatever their dates. */
+export function independentOrigins(list: LedgerObservation[]): number {
+  return independent(list).size;
+}
+
 /** Cultural Relevance: is it happening now? Needs independent, dated presence. */
 export function relevanceEligibility(obs: LedgerObservation[], now: Date): CriterionEligibility {
   const dated = obs.filter((o) => within(o, RELEVANCE_WINDOW_DAYS, now));

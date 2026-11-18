@@ -13,7 +13,7 @@ const DRIVER_LABEL: Record<DistributionDriver, string> = {
 };
 
 /**
- * The 10 ideas the Generator wrote before picking 3, with its distribution
+ * The ideas the Generator (or, in agent mode, the agent) wrote before picking 3, with its distribution
  * bet for each. Picks come first, in pick order. These bets are the AI's
  * judgment about what drives organic reach, never a forecast.
  */
@@ -21,11 +21,14 @@ export function LonglistPanel({
   longlist,
   candidates,
   signals = [],
+  byAgent = false,
 }: {
   longlist: Longlist;
   candidates: Candidate[];
   /** The research signals, so ideas can name what they're built on. */
   signals?: LedgerSignal[];
+  /** Day 6: the agent wrote the longlist, so say so. */
+  byAgent?: boolean;
 }) {
   const signalName = (id: string) => signals.find((s) => s.id === id)?.name ?? id;
   const freshness = (ids: string[]) => {
@@ -45,9 +48,9 @@ export function LonglistPanel({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-[14px] leading-relaxed text-ink-soft">
-        The Generator wrote these ideas first, then picked the three it believed would earn the most organic
-        distribution while staying distinct. Each bet is its hypothesis about watch time, shares, saves, comments
-        and participation, not a measured forecast. The independent reviewer then scored only the three picks.
+        {byAgent
+          ? "The agent wrote these ideas, then shortlisted the three it believed would earn the most organic distribution while staying distinct, and developed them. Each bet is its hypothesis about watch time, shares, saves, comments and participation, not a measured forecast. The independent review panel then scored only the three finalists."
+          : "The Generator wrote these ideas first, then picked the three it believed would earn the most organic distribution while staying distinct. Each bet is its hypothesis about watch time, shares, saves, comments and participation, not a measured forecast. The independent reviewer then scored only the three picks."}
       </p>
       <ol className="flex flex-col divide-y divide-line border border-line">
         {[...picks, ...rest].map((idea) => (

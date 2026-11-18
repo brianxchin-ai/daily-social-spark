@@ -15,6 +15,7 @@ import { repeatOf, type RecentIdea } from "../prompts/recent-ideas.ts";
 import {
   checkLedger,
   domainOf,
+  independentOrigins,
   looksLikeInjection,
   MAX_SIGNALS,
   normalizeUrl,
@@ -260,7 +261,7 @@ export class Workspace {
       observations: s.observationIds.length,
       freshness: s.freshness.status,
       ageDays: s.freshness.ageDays,
-      independentOrigins: s.culturalRelevance.independentOrigins,
+      independentOrigins: independentOrigins(ledger!.observations.filter((o) => o.signalId === s.id)),
       relevanceBar: s.culturalRelevance.status,
     }));
     const gaps: string[] = [];

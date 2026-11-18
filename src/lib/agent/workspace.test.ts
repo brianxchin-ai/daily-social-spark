@@ -335,3 +335,47 @@ describe("tool input checks", () => {
     assert.equal(Math.round(ws.ranking().scores[0].rankingScore), 75);
   });
 });
+
+describe("fixes from the first real run (Keurig, 2026-11-18)", () => {
+  it("unpacks a signal the model sent as a block of JSON text", () => {
+    const sig = signal("Desk resets", "C1", "November 10, 2026");
+    const out = parseInput("record_signal", { signal: JSON.stringify(sig), why });
+    assert.ok(out.ok);
+    if (out.ok) {
+      assert.equal(out.unpacked, true);
+      assert.equal(out.value.signal.name, "Desk resets");
+    }
+  });
+
+  it("leaves well-formed text alone, even text that starts with a bracket", () => {
+    const out = parseInput("abstain", { reason: "[Draft] Nothing fits." });
+    assert.ok(out.ok);
+    if (out.ok) {
+      assert.equal(out.value.reason, "[Draft] Nothing fits.");
+      assert.equal(out.unpacked, undefined);
+    }
+  });
+
+  it("still refuses input that's wrong even after unpacking", () => {
+    assert.equal(parseInput("record_signal", { signal: "{not json", why }).ok, false);
+  });
+
+  it("counts independent sources whatever their dates, and says when none are independent", () => {
+    const ws = fresh();
+    ws.addSearch(freshSearch);
+    const one = recordSignal(ws, { signal: signal("Desk resets", "C1", "November 10, 2026"), why });
+    assert.match(one.result, /1 independent source\(s\)/);
+    assert.equal(ws.evidenceReport().signals[0].independentOrigins, 1);
+
+    const owned = fresh();
+    owned.addSearch({
+      query: "acme coffee news",
+      purpose: "brand",
+      results: [{ url: "https://acmecoffee.com/news", title: "Acme news", pageAge: null }],
+      citations: [{ url: "https://acmecoffee.com/news", citedText: "On November 10, 2026, Acme launched a holiday pod." }],
+    });
+    const out = recordSignal(owned, { signal: signal("Holiday pod", "C1", "November 10, 2026"), why });
+    assert.match(out.result, /0 independent source\(s\)/);
+    assert.match(out.flags.join(" "), /owned by the brand or the platform/);
+  });
+});

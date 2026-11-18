@@ -9,15 +9,19 @@ export function RefinementPanel({
   refinement,
   original,
   originalEvaluation,
+  byAgent = false,
 }: {
   refinement: RefinementReport;
   original: Candidate;
   originalEvaluation: CandidateEvaluation;
+  /** Day 6: the agent decided whether to revise, not a separate editor call. */
+  byAgent?: boolean;
 }) {
   if (refinement.status === "skipped") {
     return (
-      <Notice tone="warn" title="Refinement skipped">
-        {refinement.reason} No editor or rescore call was made, and the evaluated leader is shown unrevised.
+      <Notice tone="warn" title={byAgent ? "No revision" : "Refinement skipped"}>
+        {refinement.reason}{" "}
+        {byAgent ? "No rescore was run, and the scored winner is shown as developed." : "No editor or rescore call was made, and the evaluated leader is shown unrevised."}
       </Notice>
     );
   }
@@ -41,10 +45,20 @@ export function RefinementPanel({
   return (
     <div className="flex flex-col gap-5">
       <p className="text-[14px] leading-relaxed text-ink-soft">
-        <strong className="text-ink">One round of notes, at most one revision.</strong> A separate editor call names
-        the leading idea&apos;s biggest creative weakness. If a revision is justified, the reviewer rescores it with the
-        same criteria and checks whether the original evidence still applies. Our code keeps the revision only if it
-        passes every rule, including a Spark Score gain of at least 5.
+        {byAgent ? (
+          <>
+            <strong className="text-ink">A revision the agent chose to make.</strong> After seeing the review panel&apos;s scores,
+            the agent named this idea&apos;s biggest weakness and wrote a revision. The panel rescored it blind with the same
+            criteria. Our code keeps the revision only if it passes every rule, including a Spark Score gain of at least 5.
+          </>
+        ) : (
+          <>
+            <strong className="text-ink">One round of notes, at most one revision.</strong> A separate editor call names the
+            leading idea&apos;s biggest creative weakness. If a revision is justified, the reviewer rescores it with the same
+            criteria and checks whether the original evidence still applies. Our code keeps the revision only if it passes
+            every rule, including a Spark Score gain of at least 5.
+          </>
+        )}
       </p>
 
       <CritiqueBlock critique={critique} />

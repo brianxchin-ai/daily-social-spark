@@ -291,6 +291,7 @@ function HypothesisSections({ spark, final }: { spark: HypothesisSpark; final: C
         <SparkScore
           evaluation={finalEvaluation}
           revisedFrom={revisedFrom ? originalEvaluation.score.rankingScore : undefined}
+          byAgent={Boolean(spark.agent)}
         />
       </Section>
 
@@ -319,7 +320,7 @@ function HypothesisSections({ spark, final }: { spark: HypothesisSpark; final: C
       <Drawer>
         {spark.longlist && (
           <DrawerPart title={`The longlist · ${spark.longlist.ideas.length} ideas considered`}>
-            <LonglistPanel longlist={spark.longlist} candidates={spark.candidates} signals={ledger?.signals} />
+            <LonglistPanel longlist={spark.longlist} candidates={spark.candidates} signals={ledger?.signals} byAgent={Boolean(spark.agent)} />
           </DrawerPart>
         )}
 
@@ -366,7 +367,7 @@ function HypothesisSections({ spark, final }: { spark: HypothesisSpark; final: C
         </DrawerPart>
 
         <DrawerPart title="Refinement">
-          <RefinementPanel refinement={refinement} original={original} originalEvaluation={originalEvaluation} />
+          <RefinementPanel refinement={refinement} original={original} originalEvaluation={originalEvaluation} byAgent={Boolean(spark.agent)} />
         </DrawerPart>
 
         <DrawerPart title="Evidence detail">

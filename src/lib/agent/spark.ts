@@ -146,7 +146,7 @@ function refinementOf(ws: Workspace, winner: Developed | null, leaderId: string 
   if (!winner || !leaderId) return { status: "skipped", reason: "No idea cleared the bar, so nothing was refined." };
   const chain = ws.revisions.filter((r) => rootOf(ws, ws.developed.get(r.originalId)!).candidate.id === leaderId);
   const rec = chain.find((r) => r.revisedId === winner.candidate.id) ?? chain.at(-1);
-  if (!rec) return { status: "skipped", reason: "The agent judged that no revision would meaningfully improve the winning idea." };
+  if (!rec) return { status: "skipped", reason: "The agent didn't revise the winning idea before finishing (its stated reason is in the agent trace)." };
   const revised = ws.developed.get(rec.revisedId)!;
   return {
     status: "complete",

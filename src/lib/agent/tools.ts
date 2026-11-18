@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { formatScore, rankValue } from "../evaluation/scoring.ts";
-import { LedgerDraftSchema } from "../research/ledger.ts";
+import { independentOrigins, LedgerDraftSchema } from "../research/ledger.ts";
 import {
   CandidateDraftSchema,
   LonglistIdeaSchema,
@@ -136,9 +136,39 @@ const fail = (problem: string, flags: string[] = []): ToolOutcome => ({
 });
 
 /** Parse a tool's input. Returns the problems the agent should fix if it's malformed. */
-export function parseInput<T extends ToolName>(name: T, input: unknown): { ok: true; value: z.infer<(typeof TOOL_INPUTS)[T]> } | { ok: false; problem: string } {
+/**
+ * Models sometimes send a nested object or list as a block of JSON text.
+ * Unpack such text, at any depth. Used only after the input as sent has
+ * failed the format check, and the unpacked version must pass the same check.
+ */
+function unpackText(value: unknown, depth = 0): unknown {
+  if (depth > 6) return value;
+  if (typeof value === "string") {
+    const t = value.trim();
+    if ((t.startsWith("{") && t.endsWith("}")) || (t.startsWith("[") && t.endsWith("]"))) {
+      try {
+        return unpackText(JSON.parse(t), depth + 1);
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  }
+  if (Array.isArray(value)) return value.map((v) => unpackText(v, depth + 1));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, unpackText(v, depth + 1)]));
+  }
+  return value;
+}
+
+export function parseInput<T extends ToolName>(
+  name: T,
+  input: unknown,
+): { ok: true; value: z.infer<(typeof TOOL_INPUTS)[T]>; unpacked?: boolean } | { ok: false; problem: string } {
   const result = TOOL_INPUTS[name].safeParse(input);
   if (result.success) return { ok: true, value: result.data as z.infer<(typeof TOOL_INPUTS)[T]> };
+  const retry = TOOL_INPUTS[name].safeParse(unpackText(input));
+  if (retry.success) return { ok: true, value: retry.data as z.infer<(typeof TOOL_INPUTS)[T]>, unpacked: true };
   const issues = result.error.issues.slice(0, 5).map((i) => [i.path.join("."), i.message].filter(Boolean).join(": "));
   return { ok: false, problem: `Badly formed input for ${name}: ${issues.join("; ")}` };
 }
@@ -148,15 +178,19 @@ export function parseInput<T extends ToolName>(name: T, input: unknown): { ok: t
 export function recordSignal(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.record_signal>): ToolOutcome {
   const filed = ws.addSignal(input.signal, input.categoryTerms ?? []);
   if (!filed.ok) return fail(filed.problem);
-  const signal = ws.ledger()!.signals.find((s) => s.id === filed.signalId)!;
+  const ledger = ws.ledger()!;
+  const signal = ledger.signals.find((s) => s.id === filed.signalId)!;
+  const own = ledger.observations.filter((o) => o.signalId === signal.id);
+  const independent = independentOrigins(own);
   const flags: string[] = [];
   const dropped = input.signal.observations.length - signal.observationIds.length;
   if (dropped > 0) flags.push(`${dropped} of ${input.signal.observations.length} observation(s) didn't hold up against the quotes and became inferences.`);
   if (signal.observationIds.length === 0) flags.push("No quoted observations survived, so this signal can't directly support an idea.");
   if (signal.freshness.status !== "fresh") flags.push(`Not fresh: ${signal.freshness.reason || "no date within 30 days"}.`);
+  if (own.length > 0 && independent === 0) flags.push("Its only sources are owned by the brand or the platform, so none counts as independent.");
   const result = `Filed ${signal.id} "${signal.name}": ${signal.observationIds.length} quoted observation(s), ${signal.freshness.status}${
     signal.freshness.ageDays != null ? ` (${signal.freshness.ageDays} days)` : ""
-  }, ${signal.culturalRelevance.independentOrigins} independent source(s).`;
+  }, ${independent} independent source(s).`;
   return {
     ok: true,
     forAgent: {
@@ -164,7 +198,7 @@ export function recordSignal(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.re
       signalId: signal.id,
       observationsKept: signal.observationIds.length,
       freshness: signal.freshness,
-      independentOrigins: signal.culturalRelevance.independentOrigins,
+      independentOrigins: independent,
       flags,
     },
     result,

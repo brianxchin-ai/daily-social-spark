@@ -28,10 +28,13 @@ function Bar({ value }: { value: number }) {
 export function SparkScore({
   evaluation,
   revisedFrom,
+  byAgent = false,
 }: {
   evaluation: CandidateEvaluation;
-  /** The original winner's score, when the editor's revision replaced it. */
+  /** The original winner's score, when a revision replaced it. */
   revisedFrom?: number;
+  /** Day 6: the agent, not the editor, wrote the revision. */
+  byAgent?: boolean;
 }) {
   const { score, results } = evaluation;
   const relevance = results.find((r) => r.criterionId === "culturalRelevance");
@@ -89,7 +92,7 @@ export function SparkScore({
         </p>
         {revisedFrom !== undefined && (
           <p className="mt-2 text-[13px] text-ink-soft">
-            ↻ Revised once by the editor: {formatScore(revisedFrom)} → {formatScore(score.rankingScore)}.
+            ↻ Revised once by the {byAgent ? "agent" : "editor"}: {formatScore(revisedFrom)} → {formatScore(score.rankingScore)}.
           </p>
         )}
       </details>

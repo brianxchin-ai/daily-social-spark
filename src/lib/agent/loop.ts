@@ -462,7 +462,7 @@ export async function runAgent(options: {
       ...(isError ? { is_error: true } : {}),
     });
 
-    type Prepared = { use: ToolUseBlock; name: ToolName; input: unknown; why: string | null } | { use: ToolUseBlock; error: string };
+    type Prepared = { use: ToolUseBlock; name: ToolName; input: unknown; why: string | null; unpacked: boolean } | { use: ToolUseBlock; error: string };
     const prepared: Prepared[] = uses.map((use) => {
       const counted = g.countToolCall();
       if (!counted.ok) return { use, error: counted.reason };
@@ -478,7 +478,13 @@ export async function runAgent(options: {
       }
       g.recordToolInput(true);
       const value = parsed.value as Record<string, unknown>;
-      return { use, name, input: value, why: typeof value.why === "string" ? value.why : name === "abstain" ? String(value.reason ?? "") : null };
+      return {
+        use,
+        name,
+        input: value,
+        why: typeof value.why === "string" ? value.why : name === "abstain" ? String(value.reason ?? "") : null,
+        unpacked: parsed.unpacked === true,
+      };
     });
 
     let i = 0;
@@ -498,7 +504,8 @@ export async function runAgent(options: {
           if (ws.ending) return resultBlock(p.use.id, { ok: false, problem: "The scan has already ended." }, true);
           if (signal?.aborted) return resultBlock(p.use.id, { ok: false, problem: "Scan canceled." }, true);
           const { outcome, action, usd } = await runTool(p.name, p.input);
-          step({ actor: p.name, action, statedReason: p.why, result: outcome.result, ok: outcome.ok, flags: outcome.flags, changedCourse: outcome.changedCourse, costUsd: usd });
+          const flags = p.unpacked ? ["Code unpacked part of this input that was sent as text.", ...outcome.flags] : outcome.flags;
+          step({ actor: p.name, action, statedReason: p.why, result: outcome.result, ok: outcome.ok, flags, changedCourse: outcome.changedCourse, costUsd: usd });
           return resultBlock(p.use.id, outcome.forAgent, !outcome.ok);
         }),
       );
