@@ -151,6 +151,8 @@ Each round below changed only the agent's environment (instructions, tools, budg
 | Filing fix | Signals filed as flat fields instead of one nested block | 3 / 2 / 0 (one run) | 104 s · $0.43 | 4 of 4 signals filed first try; 2 page reads; all hypotheses settled before writing ideas |
 | Open shape | Removed the quota. A scan needs only one reviewed idea, settled hypotheses, and a stated comparison of what else it considered. Reviews take 1–3 ideas, and code ranks everything reviewed | 2–5 / 0–1 / 0–1 (none kept) | ~94 s · ~$0.39 | Ideas noted: 2, 2, 1. One review per scan. Never returned for a better idea after scores. Winners scored 85, 68, 70 |
 | Gut-check | Added a cheap first read (stop power, shareability, one-line note) on up to 10 noted ideas. Never counts toward the score | 2–3 / 0–1 / 0–1 (one kept) | ~86 s · ~$0.31 | **The gut-check was never used.** Ideas noted: 1, 2, 2. One review per scan. Winners scored 70, 71, 78 |
+| Routes | Goal reset to organic views. Three routes: proven (documented and performing; evidence within 90 days), primed (fresh and showing signs of breaking) and original. Every route ranked on the Spark Score alone, with no head start. Each developed idea names its route and a reach thesis. Approved scoring changes. Four briefs, adding Duolingo · TikTok | 3–4 / 0–2 / 0 | ~92 s · ~$0.40 | Routes discerned with evidence-based reasons: proven, original, primed, proven. Still one idea reviewed per scan. Winners scored 70, 68, 75, 70 |
+| Range | Range as a payoff, not a quota (the one-idea minimum stays). The status update shows how contested the lead is ("unchallenged," or the runner-up's gap) and what one more idea costs in a review (a few cents). A finish with a single reviewed idea is challenged once and accepted the second time. The instructions present range as how code proves an idea is the best | 4 / 0–1 / 0–1 (one kept) | ~103 s · ~$0.43 | **Every scan put two genuinely different ideas in front of the panel, side by side.** The challenge never had to fire. Winners 74, 75, 73 against runners-up 61, 63 and a rejected 65 |
 
 **Notable moments, in the agent's own stated reasons:**
 - *"G1 rests on one source; seeking a second independent one."* (Round 1, Liquid Death)
@@ -160,6 +162,7 @@ Each round below changed only the agent's environment (instructions, tools, budg
 - *"Its main caveat is that the trend evidence is thin: one source, dated only by a page update."* (Open shape, Glossier, explaining its own winner)
 - *"I considered cloud skin, ectoin and relatable hair hooks, but their evidence was older or hashtag-count based and less tied to Glossier."* (Gut-check round, Glossier: alternatives weighed but never written down)
 - *"Develop L1 as a contrasting original so the panel can compare two mechanics."* (Gut-check round, Liquid Death)
+- *"The hose idea won on shareability (5 vs 3) and stop power (4 vs 3). The mystery game was stronger on participation but weaker on motion and send-worthiness."* (Range round, hardware store: the comparison now rests on scores, not on ideas it only thought about)
 
 **What the rounds taught:**
 1. **Agents follow the brief they're given, sometimes too literally.**
@@ -184,8 +187,16 @@ Each round below changed only the agent's environment (instructions, tools, budg
 
 Instructions alone did much less. Getting creative exploration from an agent would take giving exploration a payoff it can see on the way to finishing, not more freedom or more rules.
 
-**Engine as of the last commit (e8fa04f):**
-- **Shape:** open, requiring one reviewed idea, settled hypotheses and a stated comparison. Reviews take 1–3 ideas, up to 4 per scan.
+**The routes and range rounds (after the conclusion above).**
+- **Routes.** The agent discerned its route well. It picked a proven pattern twice, a primed signal once and an original format once, each for an evidence-based reason. In your blind read it won 1 of 3 against the previous round (Liquid Death's primed GTA idea), and Duolingo rated 4/5. But it still bet on one idea per scan.
+- **Range.** Exactly the "payoff it can see" the conclusion called for. Once the status update showed an unchallenged lead as a guess and priced a contender at a few cents, all three scans developed two distinct ideas and had them reviewed together. Comparisons now cite the panel's scores for both ideas instead of directions the agent only considered. With three runs, we can't tell whether the status update or the instructions did more. The one-time challenge was never needed.
+- **Two fixes the range runs exposed:**
+  - The evidence check still told the agent that no fresh signal meant any trend idea would be rejected. That predates the proven route and steered the Liquid Death run toward an original format. Each signal is now labeled with the routes it can carry.
+  - A revision that switched a proven idea to an original format kept its "proven" label. A revision now takes the route its basis implies.
+
+**Engine as of the last commit (ad75145):**
+- **Shape:** open, requiring one reviewed idea, settled hypotheses, a stated comparison and a route decision. Reviews take 1–3 ideas, up to 4 per scan. A lone reviewed idea is challenged once before finishing.
+- **Routes:** proven, primed or original, ranked on the Spark Score alone. Each developed idea carries a reach thesis.
 - **Tools:**
   - search and page reading
   - flat evidence filing
@@ -209,14 +220,16 @@ Instructions alone did much less. Getting creative exploration from an agent wou
 | Filing-fix check | 1 | $0.43 |
 | Open shape | 3 | $1.17 |
 | Gut-check | 3 | $0.94 |
-| **Total** | 28 | **$10.24** |
+| Routes | 4 | $1.59 |
+| Range | 3 | $1.30 |
+| **Total** | 35 | **$13.13** |
 
 ## 9. Open questions (no decisions taken)
 
-- **Accept the agent's working style, or design exploration a payoff?** The agent now converges efficiently from evidence. Making it explore would need exploration to pay off on its way to finishing, a bigger design question than another nudge.
+- **Is two ideas enough range?** Making range pay off moved the agent from one reviewed idea to two in every scan. Whether to push further (three, or deliberately different routes) is open. So is whether the winners are better, which only a blind read can tell.
 - **Which engine for what.** Since the comparison, the agent's process has changed substantially. Its quality against the fixed workflow (about 150 seconds a scan, deeper research) hasn't been re-judged blind. Cost isn't the deciding factor.
 - **Consistency.** Every figure here comes from three briefs per round. Patterns held across rounds, but each round is a small sample.
 
 ## Commits on `day6-agent-mode` (local, not pushed)
 
-c9eddb4 governor · 929a4e2 workspace and free tools · 1d4f4e5 loop, instructions, trace · 025ecd3 real API connections · 737464e agent-scan route and usage gate · 837c131 page changes · f5bcfa4, bb63844, cd5bec3 fixes from real runs · f7d3796 nudges · 67ad3bd revision rule change · 60b71f3 first write-up · 5476ecc round 1 · 8abea50 round 2 · efa4c7d finishing reserve, review estimate, settle-to-finish · 23c02ee flat signal filing · dbb594d write-up update · fd43821 open shape · e8fa04f gut-check
+c9eddb4 governor · 929a4e2 workspace and free tools · 1d4f4e5 loop, instructions, trace · 025ecd3 real API connections · 737464e agent-scan route and usage gate · 837c131 page changes · f5bcfa4, bb63844, cd5bec3 fixes from real runs · f7d3796 nudges · 67ad3bd revision rule change · 60b71f3 first write-up · 5476ecc round 1 · 8abea50 round 2 · efa4c7d finishing reserve, review estimate, settle-to-finish · 23c02ee flat signal filing · dbb594d write-up update · fd43821 open shape · e8fa04f gut-check · 0bee02d routes · 118ee3d range · ad75145 route labels and revision route
