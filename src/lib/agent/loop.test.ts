@@ -665,3 +665,14 @@ describe("range: a lead nothing has challenged (Day 6)", () => {
     assert.match(system, /There is no required number of ideas/);
   });
 });
+
+describe("looking beyond the niche (Day 6)", () => {
+  it("offers a moment search and frames the collision, without requiring one", () => {
+    const system = agentSystem(BRIEF);
+    assert.match(system, /Some of the biggest organic wins come from a collision/);
+    assert.match(system, /is your judgment; you can only make it if you've looked/);
+    const search = toolSpecs().find((t) => t.name === "web_search")!;
+    assert.match(JSON.stringify(search.input_schema), /"moment"/);
+    assert.doesNotMatch(JSON.stringify(search.input_schema), /cross-category/);
+  });
+});

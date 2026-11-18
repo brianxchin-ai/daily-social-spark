@@ -92,8 +92,10 @@ export const TOOL_INPUTS = {
     why,
     query: z.string().describe("The search query. Specific beats broad."),
     purpose: z
-      .enum(["brand", "category", "cross-category", "depth"])
-      .describe("brand: about the brand itself. category: its category. cross-category: culture beyond the category. depth: checking or deepening a lead."),
+      .enum(["brand", "category", "audience", "moment", "depth"])
+      .describe(
+        "brand: about the brand itself. category: its category. audience: the audience's own culture, rituals and behaviors beyond the category. moment: what the wider culture is watching, playing, following or counting down to right now, beyond this brand, category and audience (releases, launches, sports, news, internet-wide moments). depth: checking or deepening a lead.",
+      ),
   }),
   read_source: z.object({
     why,

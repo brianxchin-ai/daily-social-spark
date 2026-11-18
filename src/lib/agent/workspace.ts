@@ -44,7 +44,11 @@ export interface Brief {
   recentIdeas: RecentIdea[];
 }
 
-export type SearchPurpose = "brand" | "category" | "cross-category" | "depth";
+/** Day 6: "audience" and "moment" split the old "cross-category"; "cross-category" is still accepted from older callers and counts as audience. */
+export type SearchPurpose = "brand" | "category" | "audience" | "moment" | "cross-category" | "depth";
+
+/** Which way a search looked, for the research map. */
+const MAP_LABELS = { brand: "brand", category: "category", audience: "audience culture", moment: "wider-culture moments", depth: "depth" } as const;
 export type SignalDraft = LedgerDraft["signals"][number];
 
 export interface WallIdea extends LonglistIdeaDraft {
@@ -282,7 +286,10 @@ export class Workspace {
         signals: this.signalDrafts,
         gaps: [],
         categoryTerms: this.categoryTerms,
-        searchPurposes: this.searchPurposes,
+        searchPurposes: this.searchPurposes.map((p) => ({
+          query: p.query,
+          purpose: p.purpose === "audience" || p.purpose === "moment" ? ("cross-category" as const) : p.purpose,
+        })),
       },
       register: {
         sources: this.sources,
@@ -325,6 +332,11 @@ export class Workspace {
           : "No fresh signal, and nothing dated by behavior or publication within 90 days: a primed or proven idea would be rejected as stale. Search for newer evidence or develop original formats.",
       );
     }
+    if (this.queries.length > 0 && !this.searchPurposes.some((p) => p.purpose === "moment")) {
+      gaps.push(
+        "Nothing searched beyond this brand, its category and its audience yet. The wider culture (what everyone is watching, playing, following or counting down to right now: releases, launches, sports, news, internet-wide moments) is unexplored. Ideas that collide with a moment like that can travel far beyond the niche; whether one fits this brief is your call.",
+      );
+    }
     for (const s of signals) {
       if (s.observations === 0) gaps.push(`${s.id} has no quoted observations, so it can't support an idea directly.`);
       else if (s.independentOrigins < 2) gaps.push(`${s.id} rests on a single source.`);
@@ -345,6 +357,15 @@ export class Workspace {
    * (Day 6). Facts only: freshness, what the date rests on, and how many
    * independent sources each signal has. Null before any research.
    */
+  /** Day 6: where the research has looked so far, by search purpose. Null before any research. */
+  researchMap(): string | null {
+    if (this.queries.length === 0) return null;
+    const counts = { brand: 0, category: 0, audience: 0, moment: 0, depth: 0 };
+    for (const p of this.searchPurposes) counts[p.purpose === "cross-category" ? "audience" : p.purpose]++;
+    const parts = (Object.keys(counts) as (keyof typeof counts)[]).map((k) => `${MAP_LABELS[k]} ${counts[k]}`);
+    return `Research map (searches by where they looked): ${parts.join(" · ")}.${counts.moment === 0 ? " The wider culture is unexplored." : ""}`;
+  }
+
   evidenceLine(): string | null {
     const SUPPORTS = { "primed-and-proven": "can carry primed or proven", proven: "can carry proven only", context: "context only" } as const;
     if (this.queries.length === 0) return null;

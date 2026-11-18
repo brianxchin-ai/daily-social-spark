@@ -222,7 +222,7 @@ export class Director {
         const qs = this.config.queries.slice(0, 2);
         this.searches += qs.length;
         this.stage = "filing";
-        return this.emit(qs.map((q) => toolUse("web_search", { query: q, purpose: "cross-category", why: `Look for live behavior around "${q}".` })));
+        return this.emit(qs.map((q) => toolUse("web_search", { query: q, purpose: "audience", why: `Look for live behavior around "${q}".` })));
       }
       case "filing": {
         const dated = quotes.filter((q) => DATE.test(q.quote));

@@ -584,3 +584,25 @@ describe("route eligibility and revisions that change basis (Day 6)", () => {
     assert.equal(ws.developed.get(`${id}-rev`)!.route, "original");
   });
 });
+
+describe("research map: audience vs wider culture (Day 6)", () => {
+  const search = (purpose: "brand" | "audience" | "moment" | "cross-category") => ({ query: `q-${purpose}`, purpose, results: [], citations: [] });
+
+  it("shows where the research looked, and flags an unexplored wider culture", () => {
+    const ws = fresh();
+    assert.equal(ws.researchMap(), null);
+    ws.addSearch(search("brand"));
+    ws.addSearch(search("audience"));
+    ws.addSearch(search("cross-category"));
+    assert.match(ws.researchMap()!, /brand 1 · category 0 · audience culture 2 · wider-culture moments 0 · depth 0\. The wider culture is unexplored\./);
+    assert.ok(ws.evidenceReport().gaps.some((g) => /Nothing searched beyond this brand, its category and its audience/.test(g)));
+  });
+
+  it("drops the flag once a moment search has run, and the shared ledger still accepts the purposes", () => {
+    const ws = fresh();
+    ws.addSearch(search("moment"));
+    assert.doesNotMatch(ws.researchMap()!, /unexplored/);
+    assert.ok(!ws.evidenceReport().gaps.some((g) => /Nothing searched beyond/.test(g)));
+    assert.ok(ws.ledger());
+  });
+});

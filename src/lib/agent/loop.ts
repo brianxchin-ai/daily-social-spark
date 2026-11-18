@@ -740,6 +740,8 @@ export function readout(g: Governor, ws: Workspace): string {
         : ""
     }. Developed: ${finalists}.`,
   ];
+  const map = ws.researchMap();
+  if (map) lines.push(map);
   const contest = contestText(ws, g);
   if (contest) lines.push(contest);
   const quality = ws.evidenceLine();
