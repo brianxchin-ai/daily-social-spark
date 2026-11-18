@@ -190,6 +190,11 @@ Instructions alone did much less. Getting creative exploration from an agent wou
 **The routes and range rounds (after the conclusion above).**
 - **Routes.** The agent discerned its route well. It picked a proven pattern twice, a primed signal once and an original format once, each for an evidence-based reason. In your blind read it won 1 of 3 against the previous round (Liquid Death's primed GTA idea), and Duolingo rated 4/5. But it still bet on one idea per scan.
 - **Range.** Exactly the "payoff it can see" the conclusion called for. Once the status update showed an unchallenged lead as a guess and priced a contender at a few cents, all three scans developed two distinct ideas and had them reviewed together. Comparisons now cite the panel's scores for both ideas instead of directions the agent only considered. With three runs, we can't tell whether the status update or the instructions did more. The one-time challenge was never needed.
+- **Blind read: range round vs routes round (the user's picks).** The range round won 2 of 3:
+  - Glossier: range (reveal-first rewind to the meltdown face). *"Transformation videos are psychologically satisfying and proven to work."*
+  - Hardware store: range (hose as a mic). *"A good hook of straight-to-camera delivery… can remind people of their own stories."*
+  - Liquid Death: routes round (the primed GTA VI wanted level), which also won its earlier blind read. *"One of the highest trending topics in entertainment and culture today."* The copy may need to be made generic so it doesn't name GTA. The range run lost a primed bet here, steered by the out-of-date evidence warning fixed afterward.
+  - For the first time, the Spark Score agreed with every pick: 74 vs 70, 75 vs 68 and 75 vs 73.
 - **Two fixes the range runs exposed:**
   - The evidence check still told the agent that no fresh signal meant any trend idea would be rejected. That predates the proven route and steered the Liquid Death run toward an original format. Each signal is now labeled with the routes it can carry.
   - A revision that switched a proven idea to an original format kept its "proven" label. A revision now takes the route its basis implies.
@@ -226,7 +231,7 @@ Instructions alone did much less. Getting creative exploration from an agent wou
 
 ## 9. Open questions (no decisions taken)
 
-- **Is two ideas enough range?** Making range pay off moved the agent from one reviewed idea to two in every scan. Whether to push further (three, or deliberately different routes) is open. So is whether the winners are better, which only a blind read can tell.
+- **Is two ideas enough range?** Making range pay off moved the agent from one reviewed idea to two in every scan. Whether to push further (three, or deliberately different routes) is open. In the blind read the range winners won 2 of 3, and the Spark Score matched every pick, but that's three pairs.
 - **Which engine for what.** Since the comparison, the agent's process has changed substantially. Its quality against the fixed workflow (about 150 seconds a scan, deeper research) hasn't been re-judged blind. Cost isn't the deciding factor.
 - **Consistency.** Every figure here comes from three briefs per round. Patterns held across rounds, but each round is a small sample.
 
