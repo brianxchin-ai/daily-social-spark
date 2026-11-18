@@ -153,6 +153,7 @@ Each round below changed only the agent's environment (instructions, tools, budg
 | Gut-check | Added a cheap first read (stop power, shareability, one-line note) on up to 10 noted ideas. Never counts toward the score | 2–3 / 0–1 / 0–1 (one kept) | ~86 s · ~$0.31 | **The gut-check was never used.** Ideas noted: 1, 2, 2. One review per scan. Winners scored 70, 71, 78 |
 | Routes | Goal reset to organic views. Three routes: proven (documented and performing; evidence within 90 days), primed (fresh and showing signs of breaking) and original. Every route ranked on the Spark Score alone, with no head start. Each developed idea names its route and a reach thesis. Approved scoring changes. Four briefs, adding Duolingo · TikTok | 3–4 / 0–2 / 0 | ~92 s · ~$0.40 | Routes discerned with evidence-based reasons: proven, original, primed, proven. Still one idea reviewed per scan. Winners scored 70, 68, 75, 70 |
 | Range | Range as a payoff, not a quota (the one-idea minimum stays). The status update shows how contested the lead is ("unchallenged," or the runner-up's gap) and what one more idea costs in a review (a few cents). A finish with a single reviewed idea is challenged once and accepted the second time. The instructions present range as how code proves an idea is the best | 4 / 0–1 / 0–1 (one kept) | ~103 s · ~$0.43 | **Every scan put two genuinely different ideas in front of the panel, side by side.** The challenge never had to fire. Winners 74, 75, 73 against runners-up 61, 63 and a rejected 65 |
+| Wider culture | A research map on every status update (searches by where they looked), a new "moment" search type for what the whole culture is watching, separate from the audience's own culture, and a note when the wider culture is unexplored. The instructions frame a brand colliding with a cultural moment as one route to big wins. No quota | 4 / 0–1 / 0 | ~102 s · ~$0.44 | Every scan tried a "moment" search, but only Liquid Death's left the niche ("biggest video game releases November 2026"). It found the GTA VI launch the next day, collided it with the achievement mechanic, and won 78 vs 50 on the primed route. Glossier's "moment" was Black Friday beauty sales; the hardware store's was seasonal home prep. Ranges held: 2, 3 and 2 ideas reviewed. The gut-check was used for the first time |
 
 **Notable moments, in the agent's own stated reasons:**
 - *"G1 rests on one source; seeking a second independent one."* (Round 1, Liquid Death)
@@ -199,9 +200,12 @@ Instructions alone did much less. Getting creative exploration from an agent wou
   - The evidence check still told the agent that no fresh signal meant any trend idea would be rejected. That predates the proven route and steered the Liquid Death run toward an original format. Each signal is now labeled with the routes it can carry.
   - A revision that switched a proven idea to an original format kept its "proven" label. A revision now takes the route its basis implies.
 
-**Engine as of the last commit (ad75145):**
+- **Wider culture.** Making the gap visible got the agent to look, but it reads "the wider culture" through its category: for beauty, a beauty shopping moment; for a hardware store, the home-prep season. It truly left the niche only when the audience brief pointed at a mass-culture world (gaming). There, it found a moment the day before it happened and built the round's most culturally specific idea. The hardware scan reviewed three ideas and produced the highest score of the experiment (84). The stated reasons also show a filing gap: the agent cited a WSJ publication date but filed evidence dated only by a page update, so the proven route was closed to it. Dates must appear in the quoted text, and that rule stays.
+
+**Engine as of the last commit (2ad34bf):**
 - **Shape:** open, requiring one reviewed idea, settled hypotheses, a stated comparison and a route decision. Reviews take 1–3 ideas, up to 4 per scan. A lone reviewed idea is challenged once before finishing.
 - **Routes:** proven, primed or original, ranked on the Spark Score alone. Each developed idea carries a reach thesis.
+- **Research map:** searches labeled brand, category, audience, moment or depth, shown back to the agent, with a note when the wider culture is unexplored.
 - **Tools:**
   - search and page reading
   - flat evidence filing
@@ -228,7 +232,8 @@ Instructions alone did much less. Getting creative exploration from an agent wou
 | Routes | 4 | $1.59 |
 | Range | 3 | $1.30 |
 | Liquid Death rerun after the label fix | 1 | $0.42 |
-| **Total** | 36 | **$13.55** |
+| Wider culture | 3 | $1.31 |
+| **Total** | 39 | **$14.86** |
 
 ## 9. Open questions (no decisions taken)
 
@@ -238,4 +243,4 @@ Instructions alone did much less. Getting creative exploration from an agent wou
 
 ## Commits on `day6-agent-mode` (local, not pushed)
 
-c9eddb4 governor · 929a4e2 workspace and free tools · 1d4f4e5 loop, instructions, trace · 025ecd3 real API connections · 737464e agent-scan route and usage gate · 837c131 page changes · f5bcfa4, bb63844, cd5bec3 fixes from real runs · f7d3796 nudges · 67ad3bd revision rule change · 60b71f3 first write-up · 5476ecc round 1 · 8abea50 round 2 · efa4c7d finishing reserve, review estimate, settle-to-finish · 23c02ee flat signal filing · dbb594d write-up update · fd43821 open shape · e8fa04f gut-check · 0bee02d routes · 118ee3d range · ad75145 route labels and revision route
+c9eddb4 governor · 929a4e2 workspace and free tools · 1d4f4e5 loop, instructions, trace · 025ecd3 real API connections · 737464e agent-scan route and usage gate · 837c131 page changes · f5bcfa4, bb63844, cd5bec3 fixes from real runs · f7d3796 nudges · 67ad3bd revision rule change · 60b71f3 first write-up · 5476ecc round 1 · 8abea50 round 2 · efa4c7d finishing reserve, review estimate, settle-to-finish · 23c02ee flat signal filing · dbb594d write-up update · fd43821 open shape · e8fa04f gut-check · 0bee02d routes · 118ee3d range · ad75145 route labels and revision route · 2ad34bf research map and moment search
