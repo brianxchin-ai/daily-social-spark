@@ -12,7 +12,7 @@ import {
   treatment,
   uniform,
 } from "./fixtures.ts";
-import { abstain, addIdeas, develop, finish, forceFinish, parseInput, recordSignal, reviewEvidence, shortlist } from "./tools.ts";
+import { abstain, addIdeas, develop, finish, forceFinish, hypothesize, parseInput, recordSignal, reviewEvidence, settleHypothesis, shortlist } from "./tools.ts";
 import { Workspace, type Brief } from "./workspace.ts";
 
 const BRIEF: Brief = { brand: "Acme Coffee", platform: "tiktok", recentIdeas: [] };
@@ -448,5 +448,41 @@ describe("a revision that clears a rejection (approved rule change)", () => {
     });
     assert.equal(rec.decision.outcome, "kept-revised");
     assert.equal(ws.ranking().leaderId, `${c1}-rev`);
+  });
+});
+
+describe("round 2: working hypotheses", () => {
+  it("records bets with IDs, and settles them only with real evidence", () => {
+    const ws = fresh();
+    ws.addSearch(freshSearch);
+    recordSignal(ws, { signal: signal("Desk resets", "C1", "November 10, 2026"), why });
+    const added = hypothesize(ws, { why, hypotheses: ["Exam-season rituals are shareable", "Coffee nostalgia is live"] });
+    assert.deepEqual(added.forAgent.added, [
+      { id: "H1", statement: "Exam-season rituals are shareable" },
+      { id: "H2", statement: "Coffee nostalgia is live" },
+    ]);
+
+    assert.equal(settleHypothesis(ws, { why, id: "H1", verdict: "supported", evidence: [], note: "Seems right." }).ok, false, "needs evidence");
+    assert.match(settleHypothesis(ws, { why, id: "H1", verdict: "supported", evidence: ["G9"], note: "x" }).result, /Unknown evidence ID/);
+    const ok = settleHypothesis(ws, { why, id: "H1", verdict: "supported", evidence: ["G1", "C1"], note: "Students post desk resets before exams." });
+    assert.ok(ok.ok);
+    assert.equal(ok.changedCourse, null);
+
+    const refuted = settleHypothesis(ws, { why, id: "H2", verdict: "refuted", evidence: ["S1"], note: "Nothing dated shows it." });
+    assert.equal(refuted.changedCourse, 'Refuted H2: "Coffee nostalgia is live"');
+  });
+
+  it("lets a bet be dropped without evidence, but not without a note", () => {
+    const ws = fresh();
+    hypothesize(ws, { why, hypotheses: ["A"] });
+    assert.equal(settleHypothesis(ws, { why, id: "H1", verdict: "dropped", evidence: [], note: "" }).ok, false);
+    assert.ok(settleHypothesis(ws, { why, id: "H1", verdict: "dropped", evidence: [], note: "Out of scope for this brand." }).ok);
+  });
+
+  it("caps the number of open bets", () => {
+    const ws = fresh();
+    for (let i = 0; i < 2; i++) hypothesize(ws, { why, hypotheses: ["a", "b", "c"] });
+    const over = hypothesize(ws, { why, hypotheses: ["d"] });
+    assert.equal(over.ok, false);
   });
 });

@@ -70,7 +70,7 @@ describe("agent turns", () => {
     assert.equal((sent.output_config as { effort?: string }).effort, "high", "the director thinks at high effort");
     assert.equal("fallbacks" in sent, false);
     assert.equal(sent.max_tokens, 4_000);
-    assert.equal((sent.tools as unknown[]).length, 11);
+    assert.equal((sent.tools as unknown[]).length, 13);
     assert.equal(out.stopReason, "tool_use");
     assert.equal(out.usage.cacheReadTokens, 9_000);
     assert.equal(out.usage.cacheWriteTokens, 1_000);

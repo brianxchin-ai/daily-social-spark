@@ -13,6 +13,8 @@ const HOW: Record<AgentReport["how"], string> = {
   stopped: "Stopped by code",
 };
 
+const HYPOTHESIS_LABEL = { open: "left open", supported: "supported", refuted: "refuted", dropped: "dropped" } as const;
+
 const seconds = (ms: number) => `${Math.round(ms / 1000)}s`;
 const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -82,6 +84,27 @@ export function AgentTrace({ report }: { report: AgentReport }) {
           <span className="readout block text-ember">Creative judgment, not data</span>
           The top ideas tied on score, so the agent chose: “{report.tieJudgment.note}”
         </p>
+      )}
+      {report.hypotheses && report.hypotheses.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <p className="readout text-ink-soft">The agent&apos;s working hypotheses</p>
+          <ul className="flex flex-col gap-1.5">
+            {report.hypotheses.map((h) => (
+              <li key={h.id} className="text-[14px] leading-snug">
+                <span className={`readout mr-2 ${h.status === "supported" ? "text-hypo" : h.status === "refuted" ? "text-demo" : "text-ink-soft"}`}>
+                  {h.id} · {HYPOTHESIS_LABEL[h.status]}
+                </span>
+                “{h.statement}”
+                {h.note && (
+                  <span className="block text-[13px] text-ink-soft">
+                    {h.note}
+                    {h.evidence.length > 0 ? ` (${h.evidence.join(", ")})` : ""}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       <p className="text-[12px] leading-snug text-ink-soft">
         Quoted lines are the agent&apos;s own stated reasons. Everything else is what our code recorded: what each action did, what it found,

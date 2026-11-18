@@ -134,3 +134,14 @@ describe("the revision decision on the page", () => {
     assert.equal(spark.agent?.revisionDecision, "No revision: the leader has no criterion at 3 or below.");
   });
 });
+
+describe("hypotheses on the page", () => {
+  it("carries the agent's bets and their status into the report", async () => {
+    const model = new ScriptedModel((turn) =>
+      turn === 1 ? [toolUse("hypothesize", { why: "Steer.", hypotheses: ["Desk resets are live"] })] : [toolUse("abstain", { reason: "Stop." })],
+    );
+    const run = await runAgent({ brief: BRIEF, model, tools: new FakeTools({}), now });
+    const spark = toSpark(run, { stamp: 1, now: NOW });
+    assert.deepEqual(spark.agent?.hypotheses, [{ id: "H1", statement: "Desk resets are live", status: "open", evidence: [], note: "" }]);
+  });
+});

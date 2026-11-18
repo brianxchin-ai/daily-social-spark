@@ -100,6 +100,18 @@ export interface Ending {
   revisionDecision: string | null;
 }
 
+/** A working bet about what will resonate (Day 6, round 2). Code tracks its status; the agent settles it with evidence. */
+export interface Hypothesis {
+  id: string; // H1, H2…
+  statement: string;
+  status: "open" | "supported" | "refuted" | "dropped";
+  /** Evidence IDs (G…, C…, S…) cited when it was settled. Checked by code. */
+  evidence: string[];
+  note: string;
+}
+
+export const MAX_HYPOTHESES = 6;
+
 export const MAX_LONGLIST = 20;
 export const MIN_LONGLIST = 10;
 export const MAX_SHORTLIST_ROUNDS = 3;
@@ -306,6 +318,49 @@ export class Workspace {
     });
     const thin = signals.filter((s) => s.freshness === "fresh" && (s.independentOrigins < 2 || s.dateBasis === "page-updated")).map((s) => s.id);
     return `Evidence quality: ${parts.join("; ")}.${thin.length ? ` Thin (one source, or dated only by a page update): ${thin.join(", ")}.` : ""}`;
+  }
+
+  /* ================= Hypotheses ================= */
+
+  readonly hypotheses: Hypothesis[] = [];
+
+  addHypotheses(statements: string[]): { added: Hypothesis[]; problem: string | null } {
+    const clean = statements.map((s) => s.trim()).filter(Boolean);
+    const room = MAX_HYPOTHESES - this.hypotheses.length;
+    if (room <= 0) return { added: [], problem: `There are already ${MAX_HYPOTHESES} hypotheses. Settle or drop one first.` };
+    const added = clean.slice(0, room).map((statement) => {
+      const h: Hypothesis = { id: `H${this.hypotheses.length + 1}`, statement, status: "open", evidence: [], note: "" };
+      this.hypotheses.push(h);
+      return h;
+    });
+    return { added, problem: clean.length > room ? `Only ${room} more hypothesis(es) fit; the rest were not added.` : null };
+  }
+
+  /** Settle a bet. Supported or refuted needs at least one real evidence ID; dropped needs only a note. */
+  settleHypothesis(
+    id: string,
+    verdict: "supported" | "refuted" | "dropped",
+    evidence: string[],
+    note: string,
+  ): { ok: true; hypothesis: Hypothesis; previous: Hypothesis["status"] } | { ok: false; problem: string } {
+    const h = this.hypotheses.find((x) => x.id === id.trim());
+    if (!h) return { ok: false, problem: `Unknown hypothesis ${id}.` };
+    const ledger = this.ledger();
+    const known = new Set([
+      ...(ledger?.signals.map((s) => s.id) ?? []),
+      ...this.usableCitations().map((c) => c.id),
+      ...this.sources.map((s) => s.id),
+    ]);
+    const ids = [...new Set(evidence.map((e) => e.trim()).filter(Boolean))];
+    const unknown = ids.filter((e) => !known.has(e));
+    if (unknown.length) return { ok: false, problem: `Unknown evidence ID(s): ${unknown.join(", ")}. Cite signals (G…), quotes (C…) or sources (S…) from this scan.` };
+    if (verdict !== "dropped" && ids.length === 0) return { ok: false, problem: `To mark ${h.id} ${verdict}, cite at least one piece of evidence (G…, C… or S…).` };
+    if (!note.trim()) return { ok: false, problem: "Say in a sentence what settled it." };
+    const previous = h.status;
+    h.status = verdict;
+    h.evidence = ids;
+    h.note = note.trim();
+    return { ok: true, hypothesis: h, previous };
   }
 
   /* ================= Ideas ================= */

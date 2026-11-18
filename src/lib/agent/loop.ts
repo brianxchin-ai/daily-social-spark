@@ -15,7 +15,9 @@ import {
   parseInput,
   recordSignal,
   reviewEvidence,
+  hypothesize,
   scoreSummary,
+  settleHypothesis,
   shortlist,
   TOOL_DESCRIPTIONS,
   TOOL_INPUTS,
@@ -143,6 +145,9 @@ export const CALL_PLANS = {
   /** Instructions and rubric sent with every review call. */
   reviewOverheadTokens: 5_000,
 } as const;
+
+/** Round 2: finalists scoring below this are flagged to the agent as candidates to replace. Guidance only; ranking is unchanged. */
+export const WEAK_FINALIST_SCORE = 65;
 
 const TIMEOUTS = { turn: 90_000, search: 60_000, read: 45_000, evaluate: 90_000, rescore: 60_000 };
 
@@ -356,6 +361,14 @@ export async function runAgent(options: {
       }
       case "review_evidence":
         return { outcome: reviewEvidence(ws), action: "Reviewed the evidence", usd: null };
+      case "hypothesize": {
+        const i = input as z.infer<typeof TOOL_INPUTS.hypothesize>;
+        return { outcome: hypothesize(ws, i), action: `Recorded ${i.hypotheses.length === 1 ? "a working hypothesis" : "working hypotheses"}`, usd: null };
+      }
+      case "settle_hypothesis": {
+        const i = input as z.infer<typeof TOOL_INPUTS.settle_hypothesis>;
+        return { outcome: settleHypothesis(ws, i), action: `Settled ${i.id}: ${i.verdict}`, usd: null };
+      }
       case "add_ideas": {
         const i = input as z.infer<typeof TOOL_INPUTS.add_ideas>;
         return { outcome: addIdeas(ws, i), action: `Added ${i.ideas.length} idea(s) to the longlist`, usd: null };
@@ -396,12 +409,23 @@ export async function runAgent(options: {
               rule: "A revision replaces the original only if it keeps the mechanic, fixes the weakness you name, adds no unsupported claims, passes every rejection rule, and scores at least 5 points higher. If the original was rejected, clearing the rejection without lowering the score is enough.",
             }
           : null;
+        // Round 2: finalists worth replacing (below 65 or rejected), and whether a second review round is left.
+        const weakFinalists = scores
+          .filter((x) => x.rejected || x.sparkScore < WEAK_FINALIST_SCORE)
+          .map((x) => ({ candidateId: x.candidateId, sparkScore: x.sparkScore, rejected: x.rejected }));
+        const replacementNote = weakFinalists.length
+          ? {
+              weakFinalists,
+              reviewRoundsLeft: snap.maxEvaluations - snap.evaluations,
+              option: `A finalist below ${WEAK_FINALIST_SCORE} or rejected is a candidate to replace: shortlist a stronger idea in its place, develop it, and send the three back for review. Your call.`,
+            }
+          : null;
         return {
           action,
           usd: r.usd,
           outcome: {
             ok: true,
-            forAgent: { ok: true, round, scores, tiedAtTop: tied, diversityNotes: diversity, revisionNote },
+            forAgent: { ok: true, round, scores, tiedAtTop: tied, diversityNotes: diversity, revisionNote, replacementNote },
             result: `Review round ${round}: ${scores
               .map((s) => `${s.candidateId} ${s.rejected ? `rejected (${s.rejectionReasons.join(" ")})` : `${s.sparkScore}`}`)
               .join("; ")}.${tied.length ? ` Exact tie at the top: ${tied.join(", ")}.` : ""}`,
@@ -640,6 +664,9 @@ export function readout(g: Governor, ws: Workspace): string {
   ];
   const quality = ws.evidenceLine();
   if (quality) lines.push(quality);
+  if (ws.hypotheses.length) {
+    lines.push(`Hypotheses: ${ws.hypotheses.map((h) => `${h.id} ${h.status}${h.evidence.length ? ` (${h.evidence.join(", ")})` : ""}: "${h.statement}"`).join("; ")}.`);
+  }
   if (s.stage === "wrap-up") lines.push(`STAGE: WRAP-UP. ${wrapText(g).replace(/^Wrap-up: /, "")}`);
   return lines.join("\n");
 }

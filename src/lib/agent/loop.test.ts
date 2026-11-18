@@ -30,7 +30,7 @@ const count = (run: AgentRun, actor: string) => run.steps.filter((s) => s.actor 
 describe("tool specs", () => {
   it("describes every tool to the API with a JSON schema", () => {
     const specs = toolSpecs();
-    assert.equal(specs.length, 11);
+    assert.equal(specs.length, 13);
     for (const s of specs) {
       assert.equal(s.input_schema.type, "object", s.name);
       assert.equal("$schema" in s.input_schema, false);
@@ -435,12 +435,45 @@ describe("round 1: resources framed as an investment", () => {
     const system = model.requests[0].system;
     assert.match(system, /judged on: the strength of the winning idea, and the strength of the evidence and thinking behind it/);
     assert.match(system, /unused budget is not a saving/);
-    assert.match(system, /typically runs 4 to 8 searches, reads at least one primary source/);
+    assert.doesNotMatch(system, /typically runs 4 to/, "round 2 removed the numeric benchmark");
     assert.doesNotMatch(system, /in good time/);
     assert.match(JSON.stringify(model.requests[0].messages), /still available to invest/);
   });
 
   it("gives each agent turn room to think at higher effort", () => {
     assert.equal(AGENT_LIMITS.maxTurnOutputTokens, 12_000);
+  });
+});
+
+describe("round 2 in the loop", () => {
+  it("shows open and settled hypotheses in code's readout, and refutations in the trace", async () => {
+    const model = new ScriptedModel((turn) => {
+      if (turn === 1) return [toolUse("hypothesize", { why: "Steer research.", hypotheses: ["Desk resets are live", "Latte art is live"] }), toolUse("web_search", { why: "Test H1.", query: "desk reset", purpose: "category" })];
+      if (turn === 2) return [toolUse("settle_hypothesis", { why: "Search showed it.", id: "H2", verdict: "refuted", evidence: ["S1"], note: "Nothing on latte art turned up." })];
+      return [toolUse("abstain", { reason: "Stop." })];
+    });
+    const run = await runAgent({ brief: BRIEF, model, tools: new FakeTools({ "desk reset": FRESH_PAGE }), now });
+    assert.match(JSON.stringify(model.requests[1].messages.at(-1)), /Hypotheses: H1 open: \\"Desk resets are live\\"/);
+    const settled = run.steps.find((s) => s.actor === "settle_hypothesis")!;
+    assert.equal(settled.changedCourse, 'Refuted H2: "Latte art is live"');
+    assert.equal(run.workspace.hypotheses[1].status, "refuted");
+  });
+
+  it("flags weak finalists as candidates to replace after a review", async () => {
+    const model = new Director({ queries: ["latte", "foam"] }).asModel();
+    await runAgent({ brief: BRIEF, model, tools: new FakeTools({}, { scoreFor: () => 3 }), now });
+    const review = model.requests.map((r) => JSON.stringify(r.messages.at(-1))).find((m) => m.includes("replacementNote"))!;
+    assert.match(review, /weakFinalists/);
+    assert.match(review, /candidate to replace/);
+    assert.match(review, /reviewRoundsLeft\\":1/);
+  });
+
+  it("asks the agent to work from hypotheses and to change direction when one is refuted", async () => {
+    const model = new Director({ queries: ["latte", "foam"] }).asModel();
+    await runAgent({ brief: BRIEF, model, tools: new FakeTools({}), now });
+    const system = model.requests[0].system;
+    assert.match(system, /Work from hypotheses/);
+    assert.match(system, /When a bet is refuted, change direction/);
+    assert.match(system, /Different briefs should lead you down different paths/);
   });
 });

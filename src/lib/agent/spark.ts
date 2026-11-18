@@ -48,6 +48,7 @@ export function agentReport(run: AgentRun): AgentReport {
     stopReason: run.stopReason,
     tieJudgment: run.ending.tieJudgment,
     revisionDecision: run.ending.revisionDecision,
+    hypotheses: run.workspace.hypotheses.map((h) => ({ ...h, evidence: [...h.evidence] })),
     spentUsd: s.spentUsd,
     ceilingUsd: s.ceilingUsd,
     elapsedMs: s.elapsedMs,

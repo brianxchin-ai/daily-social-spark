@@ -307,6 +307,8 @@ export interface AgentReport {
   tieJudgment: { chosenId: string; tiedWith: string[]; note: string } | null;
   /** The agent's stated reason for revising the leader or not. */
   revisionDecision: string | null;
+  /** Round 2: the agent's working bets and how each was settled (evidence IDs checked by code). */
+  hypotheses?: { id: string; statement: string; status: "open" | "supported" | "refuted" | "dropped"; evidence: string[]; note: string }[];
   spentUsd: number;
   ceilingUsd: number;
   elapsedMs: number;

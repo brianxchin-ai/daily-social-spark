@@ -106,6 +106,19 @@ export const TOOL_INPUTS = {
     categoryTerms: z.array(z.string()).describe("Words naming the brand's own category, e.g. 'coffee'. May be empty.").optional(),
   }),
   review_evidence: z.object({ why }),
+  hypothesize: z.object({
+    why,
+    hypotheses: z
+      .array(z.string())
+      .describe("1 to 3 testable bets about what will resonate for this brand, platform and audience right now. Code assigns IDs (H1, H2…)."),
+  }),
+  settle_hypothesis: z.object({
+    why,
+    id: z.string().describe("A hypothesis ID (H1…)."),
+    verdict: z.enum(["supported", "refuted", "dropped"]),
+    evidence: z.array(z.string()).describe("Evidence IDs from this scan (G…, C… or S…). Required for supported or refuted."),
+    note: z.string().describe("One sentence on what settled it."),
+  }),
   add_ideas: z.object({
     why,
     ideas: z.array(LonglistIdeaSchema.omit({ id: true })).describe("1 to 10 short ideas for the longlist. Code assigns IDs (L1, L2…)."),
@@ -162,6 +175,10 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     "Read one page that an earlier search returned, to get dated, quotable detail. Costs money; limited per scan; closed during wrap-up.",
   record_signal:
     "File a cultural signal on the evidence board, citing quote IDs (C…). Code checks every citation, date and figure; uncited or unsupported claims become inferences. Free.",
+  hypothesize:
+    "Record 1 to 3 working bets about what will resonate, to steer your research. Code tracks each as open until you settle it. Free.",
+  settle_hypothesis:
+    "Mark a working bet supported, refuted or dropped, citing evidence IDs from this scan. Code checks the IDs. A refuted bet is a signal to change direction. Free.",
   review_evidence:
     "Get code's factual report on the evidence: which signals are fresh (dated within 30 days), which rest on one source, and what's missing. Free.",
   add_ideas: "Add short ideas to the longlist (at least 10 are needed before narrowing). Free.",
@@ -292,6 +309,35 @@ export function recordSignal(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.re
     result,
     flags,
     changedCourse: null,
+    ending: null,
+  };
+}
+
+export function hypothesize(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.hypothesize>): ToolOutcome {
+  const { added, problem } = ws.addHypotheses(input.hypotheses.slice(0, 3));
+  if (added.length === 0) return fail(problem ?? "Give at least one hypothesis.");
+  const flags = problem ? [problem] : [];
+  return {
+    ok: true,
+    forAgent: { ok: true, added: added.map((h) => ({ id: h.id, statement: h.statement })), flags },
+    result: `Recorded ${added.map((h) => `${h.id} "${h.statement}"`).join("; ")}.`,
+    flags,
+    changedCourse: null,
+    ending: null,
+  };
+}
+
+export function settleHypothesis(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.settle_hypothesis>): ToolOutcome {
+  const done = ws.settleHypothesis(input.id, input.verdict, input.evidence, input.note);
+  if (!done.ok) return fail(done.problem);
+  const h = done.hypothesis;
+  const cites = h.evidence.length ? ` (${h.evidence.join(", ")})` : "";
+  return {
+    ok: true,
+    forAgent: { ok: true, id: h.id, status: h.status },
+    result: `${h.id} ${h.status}${cites}: ${h.note}`,
+    flags: [],
+    changedCourse: h.status === "refuted" || h.status === "dropped" ? `${h.status === "refuted" ? "Refuted" : "Dropped"} ${h.id}: "${h.statement}"` : null,
     ending: null,
   };
 }
