@@ -21,6 +21,70 @@ import type { Ending, Workspace } from "./workspace.ts";
  * run by the loop, which asks the governor first.
  */
 
+/**
+ * Day 6: a signal as the agent files it. Only what honesty depends on is
+ * required (what the sources show, the quote IDs, the dates). The research-
+ * library details are optional, with defaults that say plainly they weren't
+ * checked. Code's evidence rules (checkLedger) are the same either way.
+ */
+const SIGNAL = LedgerDraftSchema.shape.signals.element.shape;
+const OBSERVATION = SIGNAL.observations.element.shape;
+export const AgentSignalSchema = z.object({
+  name: SIGNAL.name,
+  category: SIGNAL.category,
+  categoryRelation: SIGNAL.categoryRelation,
+  summary: SIGNAL.summary,
+  observations: z
+    .array(
+      z.object({
+        statement: OBSERVATION.statement,
+        citationIds: OBSERVATION.citationIds,
+        dateText: OBSERVATION.dateText,
+        dateBasis: OBSERVATION.dateBasis,
+        kind: OBSERVATION.kind.optional(),
+        attributedTo: OBSERVATION.attributedTo.optional(),
+      }),
+    )
+    .min(1)
+    .max(8)
+    .describe("1 to 8 observations, each citing quote IDs (C…) from the searches."),
+  audienceNote: SIGNAL.audienceNote.optional(),
+  novelty: SIGNAL.novelty.optional(),
+  whatIsNew: SIGNAL.whatIsNew.optional(),
+  lineage: SIGNAL.lineage.optional(),
+  lookback: SIGNAL.lookback.optional(),
+  lineageQuery: SIGNAL.lineageQuery.optional(),
+  creativeOpportunity: SIGNAL.creativeOpportunity.optional(),
+  inferences: SIGNAL.inferences.optional(),
+});
+export type AgentSignal = z.infer<typeof AgentSignalSchema>;
+
+/** Fill the optional details with defaults that say they weren't checked. */
+export function toSignalDraft(s: AgentSignal): import("./workspace.ts").SignalDraft {
+  return {
+    name: s.name,
+    category: s.category,
+    categoryRelation: s.categoryRelation,
+    summary: s.summary,
+    lineage: s.lineage ?? "Not identified",
+    novelty: s.novelty ?? "uncertain",
+    whatIsNew: s.whatIsNew ?? "",
+    lookback: s.lookback ?? "Not checked",
+    lineageQuery: s.lineageQuery ?? "",
+    creativeOpportunity: s.creativeOpportunity ?? "",
+    audienceNote: s.audienceNote ?? "Not documented",
+    observations: s.observations.map((o) => ({
+      statement: o.statement,
+      kind: o.kind ?? "presence",
+      citationIds: o.citationIds,
+      dateText: o.dateText,
+      dateBasis: o.dateBasis,
+      attributedTo: o.attributedTo ?? "",
+    })),
+    inferences: s.inferences ?? [],
+  };
+}
+
 const why = z.string().describe("One short sentence: why you're taking this action now. Shown to the user as your stated reason.");
 
 export const TOOL_INPUTS = {
@@ -38,7 +102,7 @@ export const TOOL_INPUTS = {
   }),
   record_signal: z.object({
     why,
-    signal: LedgerDraftSchema.shape.signals.element,
+    signal: AgentSignalSchema,
     categoryTerms: z.array(z.string()).describe("Words naming the brand's own category, e.g. 'coffee'. May be empty.").optional(),
   }),
   review_evidence: z.object({ why }),
@@ -184,14 +248,23 @@ export function parseInput<T extends ToolName>(
       return { ok: true, value: withWhy.data as z.infer<(typeof TOOL_INPUTS)[T]>, missingWhy: true, ...(wasUnpacked ? { unpacked: true } : {}) };
     }
   }
-  const issues = result.error.issues.slice(0, 5).map((i) => [i.path.join("."), i.message].filter(Boolean).join(": "));
-  return { ok: false, problem: `Badly formed input for ${name}: ${issues.join("; ")}` };
+  // Report what's actually wrong: the unpacked version's problems when unpacking changed anything.
+  const changed = JSON.stringify(unpacked) !== JSON.stringify(input);
+  const source = changed ? retry.error.issues : result.error.issues;
+  const issues = source.slice(0, 6).map((i) => [i.path.join("."), i.message].filter(Boolean).join(": "));
+  const textNotJson = !changed && source.some((i) => /expected (object|array), received string/.test(i.message));
+  return {
+    ok: false,
+    problem: `Badly formed input for ${name}: ${issues.join("; ")}${
+      textNotJson ? ". A nested field was sent as text that isn't valid JSON: send it as a structured object, not a string." : ""
+    }`,
+  };
 }
 
 /* ---------- Free tools ---------- */
 
 export function recordSignal(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.record_signal>): ToolOutcome {
-  const filed = ws.addSignal(input.signal, input.categoryTerms ?? []);
+  const filed = ws.addSignal(toSignalDraft(input.signal), input.categoryTerms ?? []);
   if (!filed.ok) return fail(filed.problem);
   const ledger = ws.ledger()!;
   const signal = ledger.signals.find((s) => s.id === filed.signalId)!;

@@ -418,3 +418,12 @@ describe("fixes from the second real run (Keurig, 2026-11-18)", () => {
     assert.match(run.steps[0].result, /query/);
   });
 });
+
+describe("the signal tool as the API sees it", () => {
+  it("lists only the essentials as required", () => {
+    const spec = toolSpecs().find((t) => t.name === "record_signal")!;
+    const signal = (spec.input_schema.properties as Record<string, { required?: string[]; properties: Record<string, { items?: { required?: string[] } }> }>).signal;
+    assert.deepEqual([...(signal.required ?? [])].sort(), ["category", "categoryRelation", "name", "observations", "summary"]);
+    assert.deepEqual([...(signal.properties.observations.items?.required ?? [])].sort(), ["citationIds", "dateBasis", "dateText", "statement"]);
+  });
+});

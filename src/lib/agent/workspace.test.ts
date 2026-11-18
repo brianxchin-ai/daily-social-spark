@@ -380,3 +380,51 @@ describe("fixes from the first real run (Keurig, 2026-11-18)", () => {
     assert.match(out.flags.join(" "), /owned by the brand or the platform/);
   });
 });
+
+describe("evidence filing, made easier (after the third real run)", () => {
+  const minimal = {
+    name: "Desk resets",
+    category: "creator-behavior",
+    categoryRelation: "adjacent",
+    summary: "Students post desk resets before exams.",
+    observations: [{ statement: "Desk reset videos are being posted.", citationIds: ["C1"], dateText: "November 10, 2026", dateBasis: "behavior" }],
+  };
+
+  it("files a signal with only the fields honesty depends on, and labels the rest unchecked", () => {
+    const ws = fresh();
+    ws.addSearch(freshSearch);
+    const parsed = parseInput("record_signal", { why, signal: minimal });
+    assert.ok(parsed.ok);
+    if (!parsed.ok) return;
+    const out = recordSignal(ws, parsed.value);
+    assert.ok(out.ok);
+    assert.match(out.result, /fresh \(8 days\), 1 independent source/);
+    const signal = ws.ledger()!.signals[0];
+    assert.equal(signal.lookback, "Not checked");
+    assert.equal(signal.novelty, "uncertain");
+    assert.equal(signal.audienceNote, "Not documented");
+  });
+
+  it("still requires the quotes and the date", () => {
+    const noCites = { ...minimal, observations: [{ statement: "x", dateText: "", dateBasis: "none" }] };
+    const out = parseInput("record_signal", { why, signal: noCites });
+    assert.equal(out.ok, false);
+    if (!out.ok) assert.match(out.problem, /citationIds/);
+  });
+
+  it("reports what's actually wrong inside a signal sent as text", () => {
+    const bad = { ...minimal, observations: [{ ...minimal.observations[0], dateBasis: "sometime" }] };
+    const out = parseInput("record_signal", { why, signal: JSON.stringify(bad) });
+    assert.equal(out.ok, false);
+    if (!out.ok) {
+      assert.match(out.problem, /signal\.observations\.0\.dateBasis/);
+      assert.doesNotMatch(out.problem, /expected object, received string/);
+    }
+  });
+
+  it("explains when a field was sent as text that isn't valid JSON", () => {
+    const out = parseInput("record_signal", { why, signal: "{name: 'Desk resets'" });
+    assert.equal(out.ok, false);
+    if (!out.ok) assert.match(out.problem, /isn't valid JSON: send it as a structured object/);
+  });
+});

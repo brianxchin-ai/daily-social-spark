@@ -194,7 +194,8 @@ export interface AgentRun {
 
 export function toolSpecs(): ToolSpec[] {
   return TOOL_NAMES.map((name) => {
-    const schema = z.toJSONSchema(TOOL_INPUTS[name]) as Record<string, unknown>;
+    // "input": describe what the agent may send, so optional fields aren't listed as required.
+    const schema = z.toJSONSchema(TOOL_INPUTS[name], { io: "input" }) as Record<string, unknown>;
     delete schema.$schema;
     return { name, description: TOOL_DESCRIPTIONS[name], input_schema: schema };
   });
