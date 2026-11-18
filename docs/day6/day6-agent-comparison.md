@@ -1,6 +1,55 @@
 # Day 6: Fixed workflow vs. an autonomous agent
 
-**Summary.** On 2026-11-18 we built a second engine for Daily Social Spark on the local branch `day6-agent-mode`.
+## Close-out (end of day, 2026-11-18)
+
+**Where it landed.** Agent mode is a working second engine for Daily Social Spark, on the local branch `day6-agent-mode`. It uses the same brief form and results page as the fixed workflow, adds a live progress feed and a full trace, and keeps every scan under a $0.75 cap enforced in code. It runs only on your machine and is turned off on Vercel, so the friends' beta is untouched.
+
+**What the agent does now, in plain English.** Think of a creative director with a research desk, an idea wall and an independent review panel:
+1. It forms a few bets about what will resonate, then researches to prove or kill them. It looks in more than one place: the brand, its category, the audience's own culture, and what the whole culture is watching this week.
+2. It files only evidence that code can trace to a quoted source, and code dates it.
+3. It decides which route to views fits the brief: a **proven** pattern that's working now, a **primed** signal or moment about to break, or an **original** format.
+4. It develops a few genuinely different ideas and sends them to the blind review panel side by side.
+5. It decides whether a revision is worth it, explains its choice of route, and finishes. Code picks the winner from the panel's scores.
+
+**What changed today, and what each change did:**
+
+| Change | What it did |
+|---|---|
+| Framing the budget as an investment, plus a reserve that always funds the review | More research, and every scan can still finish |
+| Working hypotheses | Bets recorded and settled candidly |
+| A simpler evidence form | Filing went from failing to working on the first try |
+| No quota on ideas or reviews | Freedom over the process, but it converged on a single idea |
+| Three routes to organic views, ranked equally | Discerning, evidence-based route choices |
+| Range as a payoff, not a quota | Two or three ideas reviewed side by side in every scan since |
+| A research map and a "moment" search, plus a check that the moment search leaves the niche | In the final run, every scan looked at the wider culture for real |
+
+**The final run** (four briefs, $1.78):
+
+| Brief | Wider-culture search | Winner (route) | Score vs. runner-up |
+|---|---|---|---|
+| Glossier · TikTok | "TikTok trend this week November 2026" | "Soft-launch your Balm Dotcom like a decade-long love story" (primed) | 70 vs 65 |
+| Hardware store · Facebook | "Thanksgiving 2026 trending this week memes" | "Five cheap parts that save your Thanksgiving, shown at our counter" (primed) | 68 vs 51 |
+| Liquid Death · YouTube Shorts | "Biggest video game release November 2026" | "Unlock Every Finals Achievement Before GTA 6 Eats Your Week" (primed) | 75 vs 53 |
+| Duolingo · TikTok | "Trending TikTok memes this week November 2026" | "I got so mad I became fluent: Duolingo rage slideshow" (primed) | 73 vs 69 |
+
+All four finished in 84–119 seconds at $0.37–0.54 each. Each reviewed two ideas and three attempted a revision. The only snag was one refused develop call in the hardware run: the signals-to-verify minimum, fixed during this run.
+
+**The blind-read record (your picks):**
+- **Agent vs. fixed workflow:** the agent won 2 of 3.
+- **Routes round vs. the round before it:** 1 of 3 (the GTA VI idea), plus Duolingo rated 4/5.
+- **Range round vs. routes round:** 2 of 3. The Spark Score matched all three picks for the first time.
+
+**What's still open:**
+- **The final winners haven't been blind-read.** All four went primed, riding a meme or a moment. That's a real shift toward the wider culture. But memes like "soft launch" and "I got so mad" can burn out quickly, which the agent itself flagged. Scores (68–75) aren't higher than earlier rounds, so whether the wider look made the ideas better is your call, not the score's.
+- **A possible swing too far toward primed.** One run can't tell us whether the agent now overweights moments. Proven and original routes still won in earlier rounds.
+- **Small samples.** Three or four briefs per round.
+- **Filing gaps.** The agent sometimes knows a publication date but files evidence dated only by a page update, which closes the proven route to it.
+
+**Recommendation.** Agent mode is the stronger creative engine: it won the blind reads it entered, it costs less per scan (about $0.44 vs. $0.51) and it runs faster (about 100 vs. 150 seconds), and it now looks in the places a strategist would. I'd make it the candidate to replace the fixed workflow in the next beta, and keep the fixed workflow as the fallback. Before that, three steps: a blind read of these final winners against the fixed workflow on the same briefs; a decision on deploying (runs fit Vercel's 300-second limit, and agent mode would share the beta's $27 budget and usage limits); and a few more briefs, to check the primed lean.
+
+---
+
+**Summary from the morning (before the rounds).** On 2026-11-18 we built a second engine for Daily Social Spark on the local branch `day6-agent-mode`.
 
 - **The experiment.** Instead of a production schedule written in code (Scout → Generator → Evaluator → Editor), one AI "creative director" chooses its own next move with a toolkit: search, read a source, file evidence, write ideas, develop, send for review, revise, finish. Code keeps the money, the clock, the scoring and the honesty rules.
 - **Six briefs, three each.** In a blind side-by-side on three briefs, the agent produced the idea we preferred on two of the three. It ran about twice as fast at half the cost.
@@ -30,10 +79,10 @@ All figures below are the app's own estimates (Anthropic's reported token counts
 | Part | Role (production analogy) | Who decides |
 |---|---|---|
 | The agent (Claude Sonnet 5.5) | Creative director: picks every next action and states why | The AI |
-| Toolkit (11 tools) | Research desk, evidence board, idea wall, review panel | The AI chooses; code runs them |
+| Toolkit (13 tools by end of day) | Research desk, evidence board, idea wall, review panel | The AI chooses; code runs them |
 | Governor | Line producer: prices every paid call's worst case before it runs; refuses anything that would pass **$0.75 per scan**; wrap-up at $0.55 or 200 s; hard stop at 270 s, 24 turns, 40 tool calls | Code |
 | Review panel | The same blind evaluator as the fixed workflow (ideas anonymized and shuffled) | A separate AI call; the agent never scores itself |
-| Scoring and rules | Day 5 rubric, ranking, fresh-trend head start, rejections, revision rule | Code |
+| Scoring and rules | Day 5 rubric, ranking, rejections, revision rule. The fresh-trend head start was later dropped in agent mode, so every route ranks equally | Code |
 | Trace | A log of every action, the agent's stated reason (quoted, never its hidden reasoning) and what code found | Code |
 
 The agent sees the same result page as the fixed workflow, plus a live action feed while it works and an agent trace in the "How we got here" drawer.
@@ -154,6 +203,7 @@ Each round below changed only the agent's environment (instructions, tools, budg
 | Routes | Goal reset to organic views. Three routes: proven (documented and performing; evidence within 90 days), primed (fresh and showing signs of breaking) and original. Every route ranked on the Spark Score alone, with no head start. Each developed idea names its route and a reach thesis. Approved scoring changes. Four briefs, adding Duolingo · TikTok | 3–4 / 0–2 / 0 | ~92 s · ~$0.40 | Routes discerned with evidence-based reasons: proven, original, primed, proven. Still one idea reviewed per scan. Winners scored 70, 68, 75, 70 |
 | Range | Range as a payoff, not a quota (the one-idea minimum stays). The status update shows how contested the lead is ("unchallenged," or the runner-up's gap) and what one more idea costs in a review (a few cents). A finish with a single reviewed idea is challenged once and accepted the second time. The instructions present range as how code proves an idea is the best | 4 / 0–1 / 0–1 (one kept) | ~103 s · ~$0.43 | **Every scan put two genuinely different ideas in front of the panel, side by side.** The challenge never had to fire. Winners 74, 75, 73 against runners-up 61, 63 and a rejected 65 |
 | Wider culture | A research map on every status update (searches by where they looked), a new "moment" search type for what the whole culture is watching, separate from the audience's own culture, and a note when the wider culture is unexplored. The instructions frame a brand colliding with a cultural moment as one route to big wins. No quota | 4 / 0–1 / 0 | ~102 s · ~$0.44 | Every scan tried a "moment" search, but only Liquid Death's left the niche ("biggest video game releases November 2026"). It found the GTA VI launch the next day, collided it with the achievement mechanic, and won 78 vs 50 on the primed route. Glossier's "moment" was Black Friday beauty sales; the hardware store's was seasonal home prep. Ranges held: 2, 3 and 2 ideas reviewed. The gut-check was used for the first time |
+| Final | Code checks each moment search against the brand and its category words, and counts it as category if it names either. Agent tools show the 3-to-5 signals-to-verify rule up front. Four briefs | 3–4 / 0–2 / 0–1 (one kept) | ~105 s · ~$0.44 | **Every scan made a genuinely wide search** ("trend this week," "biggest video game release"). The check fired once, correctly. All four went primed: two memes, a holiday moment and the GTA VI launch. Two ideas reviewed in every scan; one refused develop call, now fixed |
 
 **Notable moments, in the agent's own stated reasons:**
 - *"G1 rests on one source; seeking a second independent one."* (Round 1, Liquid Death)
@@ -233,14 +283,17 @@ Instructions alone did much less. Getting creative exploration from an agent wou
 | Range | 3 | $1.30 |
 | Liquid Death rerun after the label fix | 1 | $0.42 |
 | Wider culture | 3 | $1.31 |
-| **Total** | 39 | **$14.86** |
+| Final run | 4 | $1.78 |
+| **Total** | 43 | **$16.64** |
 
 ## 9. Open questions (no decisions taken)
 
-- **Is two ideas enough range?** Making range pay off moved the agent from one reviewed idea to two in every scan. Whether to push further (three, or deliberately different routes) is open. In the blind read the range winners won 2 of 3, and the Spark Score matched every pick, but that's three pairs.
-- **Which engine for what.** Since the comparison, the agent's process has changed substantially. Its quality against the fixed workflow (about 150 seconds a scan, deeper research) hasn't been re-judged blind. Cost isn't the deciding factor.
-- **Consistency.** Every figure here comes from three briefs per round. Patterns held across rounds, but each round is a small sample.
+See the close-out at the top for the recommendation. The open items:
+- **A blind read of the final winners against the fixed workflow,** on the same briefs.
+- **The primed lean:** all four final winners went primed.
+- **Deploying:** sharing the beta's budget and usage limits, and whether to replace the fixed workflow or offer both.
+- **Consistency:** each round is three or four briefs.
 
 ## Commits on `day6-agent-mode` (local, not pushed)
 
-c9eddb4 governor · 929a4e2 workspace and free tools · 1d4f4e5 loop, instructions, trace · 025ecd3 real API connections · 737464e agent-scan route and usage gate · 837c131 page changes · f5bcfa4, bb63844, cd5bec3 fixes from real runs · f7d3796 nudges · 67ad3bd revision rule change · 60b71f3 first write-up · 5476ecc round 1 · 8abea50 round 2 · efa4c7d finishing reserve, review estimate, settle-to-finish · 23c02ee flat signal filing · dbb594d write-up update · fd43821 open shape · e8fa04f gut-check · 0bee02d routes · 118ee3d range · ad75145 route labels and revision route · 2ad34bf research map and moment search
+c9eddb4 governor · 929a4e2 workspace and free tools · 1d4f4e5 loop, instructions, trace · 025ecd3 real API connections · 737464e agent-scan route and usage gate · 837c131 page changes · f5bcfa4, bb63844, cd5bec3 fixes from real runs · f7d3796 nudges · 67ad3bd revision rule change · 60b71f3 first write-up · 5476ecc round 1 · 8abea50 round 2 · efa4c7d finishing reserve, review estimate, settle-to-finish · 23c02ee flat signal filing · dbb594d write-up update · fd43821 open shape · e8fa04f gut-check · 0bee02d routes · 118ee3d range · ad75145 route labels and revision route · 2ad34bf research map and moment search · 4aaa1e0 moment-search niche check · 0c102f6 signals-to-verify minimum shown up front
