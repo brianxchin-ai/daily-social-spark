@@ -104,7 +104,7 @@ export const CandidateDraftSchema = z.object({
 export const DISTRIBUTION_DRIVERS = ["watch-time", "completion", "rewatch", "shares", "saves", "comments", "participation"] as const;
 export type DistributionDriver = (typeof DISTRIBUTION_DRIVERS)[number];
 
-const LonglistIdeaSchema = z.object({
+export const LonglistIdeaSchema = z.object({
   id: z.string().describe("L1 to L10, in order."),
   trendName: z.string(),
   headline: z.string().describe("A short display headline, 12 words or fewer."),
@@ -286,6 +286,20 @@ function describeIssues(error: z.ZodError): string[] {
 /** Our own check on the generator's answer, after the API's. */
 export function validateCandidateSet(value: unknown): Validated<CandidateSet> {
   const result = StrictCandidateSetSchema.safeParse(value);
+  return result.success ? { ok: true, value: result.data } : { ok: false, problems: describeIssues(result.error) };
+}
+
+/** Day 6 (agent mode): one batch of longlist ideas the agent adds. Code assigns the IDs. */
+const StrictLonglistBatch = z
+  .array(StrictLonglistIdea.omit({ id: true }))
+  .min(1)
+  .max(10)
+  .refine(noUrls, { message: "Ideas must not contain URLs." });
+
+export type LonglistIdeaDraft = Omit<z.infer<typeof LonglistIdeaSchema>, "id">;
+
+export function validateLonglistBatch(value: unknown): Validated<LonglistIdeaDraft[]> {
+  const result = StrictLonglistBatch.safeParse(value);
   return result.success ? { ok: true, value: result.data } : { ok: false, problems: describeIssues(result.error) };
 }
 

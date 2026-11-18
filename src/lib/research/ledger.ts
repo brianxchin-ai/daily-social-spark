@@ -296,7 +296,7 @@ export function domainOf(url: string): string {
   }
 }
 
-function normalizeUrl(url: string): string {
+export function normalizeUrl(url: string): string {
   try {
     const u = new URL(url);
     u.hash = "";
