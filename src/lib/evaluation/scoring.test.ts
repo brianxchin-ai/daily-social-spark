@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { describe, it, test } from "node:test";
 import {
   applicableScore,
   CRITERIA,
@@ -8,6 +8,7 @@ import {
   scoreCandidate,
   sparkScoreOf,
   type AudioRole,
+  type CandidateScore,
   type CandidateInput,
   type CriterionResult,
   type IdeaKind,
@@ -250,4 +251,41 @@ test("an idea that repeats one this person was already shown is rejected", () =>
   assert.equal(s.rejected, true);
   assert.ok(s.rejectionReasons.some((r) => r.code === "repeat" && r.message.includes("2026-11-17")));
   assert.equal(scoreCandidate(candidate("y", all(5))).rejected, false);
+});
+
+describe("decideRevision: clearing a rejection (Day 6)", () => {
+  const score = (rankingScore: number, rejected: boolean): CandidateScore => ({
+    candidateId: rejected ? "orig" : "x",
+    generationIndex: 0,
+    rankingScore,
+    relevanceVerified: false,
+    kind: "fresh-trend",
+    rejected,
+    rejectionReasons: rejected ? [{ code: "audio-dependent", message: "Too few audio alternatives." }] : [],
+    rank: rejected ? null : 1,
+  });
+  const pass = { preservesMechanic: true, addressesWeakness: true, noUnsupportedClaims: true };
+
+  it("keeps a revision that clears a rejection without lowering the score", () => {
+    const d = decideRevision(score(65, true), score(65, false), pass);
+    assert.equal(d.outcome, "kept-revised");
+    assert.ok(d.checks.some((c) => c.rule === "Doesn't lower the Spark Score" && c.passed));
+  });
+
+  it("not if the score drops", () => {
+    assert.equal(decideRevision(score(65, true), score(63, false), pass).outcome, "kept-original");
+  });
+
+  it("not if the revision is still rejected", () => {
+    assert.equal(decideRevision(score(65, true), score(70, true), pass).outcome, "kept-original");
+  });
+
+  it("not if it changes the mechanic", () => {
+    assert.equal(decideRevision(score(65, true), score(66, false), { ...pass, preservesMechanic: false }).outcome, "kept-original");
+  });
+
+  it("still requires +5 when the original wasn't rejected", () => {
+    assert.equal(decideRevision(score(65, false), score(65, false), pass).outcome, "kept-original");
+    assert.equal(decideRevision(score(65, false), score(70, false), pass).outcome, "kept-revised");
+  });
 });

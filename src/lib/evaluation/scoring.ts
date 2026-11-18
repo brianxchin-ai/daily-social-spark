@@ -411,6 +411,11 @@ export interface RevisionDecision {
  * Keep the revision only if every rule passes: same core mechanic, fixes the
  * named weakness, no new unsupported claims, not rejected, and a gain of at
  * least MIN_REVISION_GAIN. Otherwise keep the original. Deterministic.
+ *
+ * Day 6 (approved by the user after a real agent run): when the ORIGINAL was
+ * rejected, clearing the rejection is itself the improvement, so the gain
+ * rule becomes "doesn't lower the Spark Score". The +5 rule still applies
+ * to revisions of ideas that passed.
  */
 export function decideRevision(
   original: CandidateScore,
@@ -427,13 +432,19 @@ export function decideRevision(
   }
 
   const gain = revised.rankingScore - original.rankingScore;
+  const clearsRejection = original.rejected;
   const checks = [
     { rule: "Preserves the original core mechanic", passed: revisionChecks.preservesMechanic },
     { rule: "Addresses the weakness named in the critique", passed: revisionChecks.addressesWeakness },
     { rule: "Adds no unsupported cultural, momentum or performance claims", passed: revisionChecks.noUnsupportedClaims },
-    { rule: "Passes the same rejection rules as the original", passed: !revised.rejected },
+    {
+      rule: clearsRejection ? "Clears the original's rejection: passes every rejection rule" : "Passes the same rejection rules as the original",
+      passed: !revised.rejected,
+    },
     // Small tolerance so exact-arithmetic gains like 5.0 never fail on rounding.
-    { rule: `Improves the Spark Score by at least ${MIN_REVISION_GAIN} points`, passed: gain >= MIN_REVISION_GAIN - EPSILON },
+    clearsRejection
+      ? { rule: "Doesn't lower the Spark Score", passed: gain >= -EPSILON }
+      : { rule: `Improves the Spark Score by at least ${MIN_REVISION_GAIN} points`, passed: gain >= MIN_REVISION_GAIN - EPSILON },
   ];
   return {
     outcome: checks.every((c) => c.passed) ? "kept-revised" : "kept-original",

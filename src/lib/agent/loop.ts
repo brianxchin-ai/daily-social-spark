@@ -393,7 +393,7 @@ export async function runAgent(options: {
               revisionsLeft: snap.maxRescores - snap.rescores,
               budgetLeftUsd: snap.remainingUsd,
               secondsLeft: Math.floor(snap.timeLeftMs / 1000),
-              rule: "A revision replaces the original only if the panel scores it at least 5 points higher, it keeps the mechanic, fixes the weakness you name and adds no unsupported claims.",
+              rule: "A revision replaces the original only if it keeps the mechanic, fixes the weakness you name, adds no unsupported claims, passes every rejection rule, and scores at least 5 points higher. If the original was rejected, clearing the rejection without lowering the score is enough.",
             }
           : null;
         return {

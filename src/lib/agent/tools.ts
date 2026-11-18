@@ -172,7 +172,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   evaluate:
     "Send all three developed finalists to the independent review panel, which scores them blind against the rubric. Costs money; at most 2 rounds.",
   revise:
-    "Improve one evaluated finalist; the revision is rescored blind. Code keeps it only if it gains at least 5 points, keeps the mechanic, fixes the weakness and adds no unsupported claims. Costs money; limited per scan.",
+    "Improve one evaluated finalist; the revision is rescored blind. Code keeps it only if it keeps the mechanic, fixes the weakness, adds no unsupported claims, passes every rejection rule and gains at least 5 points (for a rejected original, clearing the rejection without lowering the score is enough). Costs money; limited per scan.",
   finish:
     "End the scan. Requires a longlist of 10+, 3 developed finalists, all evaluated. Code picks the winner from the scores; your tie-break counts only on an exact tie at the top.",
   abstain: "End the scan without recommending an idea, when nothing worth making can be found. The reason is shown to the user.",

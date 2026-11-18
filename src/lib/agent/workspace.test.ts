@@ -428,3 +428,25 @@ describe("evidence filing, made easier (after the third real run)", () => {
     if (!out.ok) assert.match(out.problem, /isn't valid JSON: send it as a structured object/);
   });
 });
+
+describe("a revision that clears a rejection (approved rule change)", () => {
+  it("replaces a finalist rejected for too few audio alternatives, and can win", () => {
+    const ws = shortlisted();
+    const [c1, c2, c3] = developAll(ws);
+    // c1 scores highest but is audio-led with too few alternatives: rejected.
+    ws.developed.get(c1)!.candidate.audioRole = "audio-led";
+    ws.recordAssessments(1, [assessment(c1, uniform(4)), assessment(c2, uniform(3)), assessment(c3, uniform(3))]);
+    assert.notEqual(ws.ranking().leaderId, c1);
+    const rec = ws.recordRevision({
+      originalId: c1,
+      draft: treatment({ basis: "original", groundedIn: [], audioRole: "audio-led", audioVariations: ["Voiceover", "Silent captions", "Original hum"] }),
+      weakness: "Only two audio alternatives.",
+      whatChanged: "Added a third alternative.",
+      assessment: { ...assessment(c1, uniform(4)), meaningfulAudioVariations: 3 },
+      checks: { preservesMechanic: true, addressesWeakness: true, noUnsupportedClaims: true },
+      checksRationale: "Same mechanic, third alternative added.",
+    });
+    assert.equal(rec.decision.outcome, "kept-revised");
+    assert.equal(ws.ranking().leaderId, `${c1}-rev`);
+  });
+});

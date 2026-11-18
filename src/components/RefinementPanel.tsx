@@ -49,7 +49,8 @@ export function RefinementPanel({
           <>
             <strong className="text-ink">A revision the agent chose to make.</strong> After seeing the review panel&apos;s scores,
             the agent named this idea&apos;s biggest weakness and wrote a revision. The panel rescored it blind with the same
-            criteria. Our code keeps the revision only if it passes every rule, including a Spark Score gain of at least 5.
+            criteria. Our code keeps the revision only if it passes every rule, including a Spark Score gain of at least 5, or, for
+            an idea that had been rejected, clearing the rejection without lowering its score.
           </>
         ) : (
           <>
