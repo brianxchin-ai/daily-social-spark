@@ -7,15 +7,18 @@
 - **It didn't use its freedom.** It took the same short path every time, did less research than the fixed workflow, and never dug deeper, revised or changed course.
 - **The finding.** The architecture delivered efficiency, not deliberation.
 
-**Update, later the same day.** After the comparison we ran three rounds of changes to get the agent to use its freedom (section 7):
-- **Each change produced roughly the behavior it described.**
+**Update, later the same day.** After the comparison we ran six rounds of changes to get the agent to use its freedom (section 7):
+- **Required steps produced compliance.**
   - A benchmark brought benchmark-sized research.
   - A "settle your hypotheses" rule brought settling, often as end-of-run paperwork.
+- **Optional tools went unused.** That included a cheap "gut-check" for testing many ideas: never used once.
+- **Removing every quota didn't create exploration either.** The agent then wrote one or two ideas, reviewed them once and finished.
 - **Real judgment appeared in the small choices:**
   - corroborating a single-source signal
   - reading a page for a reason
-  - candid verdicts on its own bets
-- **The overall order of work never changed:** research → 10 ideas → 3 → review → finish.
+  - candid verdicts on its own bets and comparisons
+- **Its comparisons show it does weigh alternatives,** in its head rather than on the idea wall.
+- **Its natural style is evidence-led convergence:** form a view, research it, write the idea the evidence supports, test it once, finish.
 - **Two engineering fixes made runs reliable:**
   - a budget reserve so a scan can always afford its review
   - a simpler evidence form
@@ -146,12 +149,17 @@ Each round below changed only the agent's environment (instructions, tools, budg
 | 2 | Removed the benchmark; added working hypotheses (record bets, settle them with evidence code checks); flagged weak finalists as candidates to replace | Glossier 6 / 3 / 0; the others 3–4 / 0 / 0 | ~115 s · ~$0.46 | Paths finally differed by brief. **Glossier researched deeply, then couldn't afford its review: no idea, $0.63 spent.** Hypotheses recorded but never settled |
 | Fixes | A finishing reserve; a realistic review-cost estimate; `finish` requires every hypothesis settled | 4 / 0 / 0 | ~107 s · ~$0.41 | All three finished. Bets settled candidly, but in 2 of 3 runs only after the review. Evidence filing failed on the hardware brief |
 | Filing fix | Signals filed as flat fields instead of one nested block | 3 / 2 / 0 (one run) | 104 s · $0.43 | 4 of 4 signals filed first try; 2 page reads; all hypotheses settled before writing ideas |
+| Open shape | Removed the quota. A scan needs only one reviewed idea, settled hypotheses, and a stated comparison of what else it considered. Reviews take 1–3 ideas, and code ranks everything reviewed | 2–5 / 0–1 / 0–1 (none kept) | ~94 s · ~$0.39 | Ideas noted: 2, 2, 1. One review per scan. Never returned for a better idea after scores. Winners scored 85, 68, 70 |
+| Gut-check | Added a cheap first read (stop power, shareability, one-line note) on up to 10 noted ideas. Never counts toward the score | 2–3 / 0–1 / 0–1 (one kept) | ~86 s · ~$0.31 | **The gut-check was never used.** Ideas noted: 1, 2, 2. One review per scan. Winners scored 70, 71, 78 |
 
 **Notable moments, in the agent's own stated reasons:**
 - *"G1 rests on one source; seeking a second independent one."* (Round 1, Liquid Death)
 - *"It's the only dated Facebook-specific trend; need to see the mechanic before deciding if it's usable."* (Round 1, hardware store)
 - *"Refuted H3: Panel scored the nostalgia idea 2/5 on cultural relevance, and my research found nothing live tying it to current behavior."* (Fixes round, Glossier)
 - *"Dropped H2: Search returned only tool-identifier apps, not Facebook engagement evidence, so the bet is untested."* (Fixes round, hardware store)
+- *"Its main caveat is that the trend evidence is thin: one source, dated only by a page update."* (Open shape, Glossier, explaining its own winner)
+- *"I considered cloud skin, ectoin and relatable hair hooks, but their evidence was older or hashtag-count based and less tied to Glossier."* (Gut-check round, Glossier: alternatives weighed but never written down)
+- *"Develop L1 as a contrasting original so the panel can compare two mechanics."* (Gut-check round, Liquid Death)
 
 **What the rounds taught:**
 1. **Agents follow the brief they're given, sometimes too literally.**
@@ -160,16 +168,33 @@ Each round below changed only the agent's environment (instructions, tools, budg
    - With a "settle before finishing" rule, settling became paperwork.
 2. **A budget rule has to protect the finish, not just the ceiling.** Without a reserve, a curious agent spent its money on research and couldn't afford the one step every scan needs. The fix belongs in code, not in the instructions.
 3. **Tool design keeps deciding outcomes.** The nested evidence form failed in four separate runs. Flattening it fixed filing on the next real run.
-4. **Real discretion lives in the small choices.**
-   - Which lead to chase, when to corroborate, what to read and how honestly to judge its own bets all varied and were well reasoned.
-   - The large shape never varied: research, 10 ideas, 3 finalists, review, finish. The agent never used its second review round, never replaced a weak finalist, and never returned to research after seeing scores.
-   - That shape is set largely by what we require of every scan.
+4. **Real discretion lives in the small choices.** Which lead to chase, when to corroborate, what to read and how honestly to judge its own bets all varied and were well reasoned.
+5. **Required steps get compliance; optional tools get ignored.**
+   - With a quota, the agent filled it.
+   - Without one, it did the minimum that was credible: one or two ideas, one review.
+   - A cheap tool for testing many ideas went unused in every run, and so did the second review round. In the last six runs, page reading appeared in half and revision attempts in four.
+   - The agent uses what moves it toward a finished scan, not what a creative director would value for its own sake.
+6. **It weighs alternatives in its head, not on the page.** Its comparisons name directions it considered and rejected from the evidence without ever writing them down. The exploration is partly real, but invisible to the trace.
+7. **Its natural working style is evidence-led convergence,** and it's efficient. With the open shape: about 85–95 seconds and $0.31–0.39 per scan, winners scoring 68–85, and comparisons candid about thin evidence.
 
-**Engine as of the last commit (23c02ee):**
-- **Instructions:** Round 2's, without the benchmark.
-- **Hypotheses and nudges:** the hypothesis tools, the weak-finalist nudge and the settle-before-finishing rule.
-- **Budget:** the finishing reserve and realistic review estimate.
-- **Evidence:** flat signal filing.
+**Conclusion of the experiment.** Giving the agent freedom over its process didn't make it explore. Requiring exploration made it comply. The levers that did change behavior were the ones that changed the agent's environment:
+- what it's judged on
+- what it can see (the evidence-quality readout)
+- what the rules make worthwhile (the reserve, the revision exception)
+
+Instructions alone did much less. Getting creative exploration from an agent would take giving exploration a payoff it can see on the way to finishing, not more freedom or more rules.
+
+**Engine as of the last commit (e8fa04f):**
+- **Shape:** open, requiring one reviewed idea, settled hypotheses and a stated comparison. Reviews take 1–3 ideas, up to 4 per scan.
+- **Tools:**
+  - search and page reading
+  - flat evidence filing
+  - hypotheses
+  - the idea wall
+  - the gut-check
+  - develop, review and revise
+- **Budget:** the $0.75 ceiling with the finishing reserve and a realistic review estimate.
+- **Instructions:** the outcome and the options, with no counts or suggested order.
 
 ## 8. Spending (2026-11-18, local runs on the user's key)
 
@@ -182,18 +207,16 @@ Each round below changed only the agent's environment (instructions, tools, budg
 | Round 2 | 3 | $1.38 |
 | Fixes round | 3 | $1.23 |
 | Filing-fix check | 1 | $0.43 |
-| **Total** | 22 | **$8.13** |
+| Open shape | 3 | $1.17 |
+| Gut-check | 3 | $0.94 |
+| **Total** | 28 | **$10.24** |
 
 ## 9. Open questions (no decisions taken)
 
-- **The required shape.** Every run follows research → 10 ideas → 3 → review → finish, because every scan must deliver a longlist of 10, three developed finalists and a review. Real freedom over the large shape would mean loosening that requirement, for example:
-  - letting the agent develop and test one idea at a time
-  - letting it stop at fewer finalists when the evidence is strong
-
-  That's a product decision.
-- **Which engine for what.** The agent's research is now much closer to the fixed workflow's (3–4 searches plus page reads against 5 searches, with fewer signals filed), in about 105 seconds against 150. Whether to offer it, and to whom, is open; cost isn't the deciding factor.
-- **Consistency.** The filing fix has one real run behind it. Its reliability, and whether settling before writing ideas becomes the norm, needs more runs to judge.
+- **Accept the agent's working style, or design exploration a payoff?** The agent now converges efficiently from evidence. Making it explore would need exploration to pay off on its way to finishing, a bigger design question than another nudge.
+- **Which engine for what.** Since the comparison, the agent's process has changed substantially. Its quality against the fixed workflow (about 150 seconds a scan, deeper research) hasn't been re-judged blind. Cost isn't the deciding factor.
+- **Consistency.** Every figure here comes from three briefs per round. Patterns held across rounds, but each round is a small sample.
 
 ## Commits on `day6-agent-mode` (local, not pushed)
 
-c9eddb4 governor · 929a4e2 workspace and free tools · 1d4f4e5 loop, instructions, trace · 025ecd3 real API connections · 737464e agent-scan route and usage gate · 837c131 page changes · f5bcfa4, bb63844, cd5bec3 fixes from real runs · f7d3796 nudges · 67ad3bd revision rule change · 60b71f3 first write-up · 5476ecc round 1 · 8abea50 round 2 · efa4c7d finishing reserve, review estimate, settle-to-finish · 23c02ee flat signal filing
+c9eddb4 governor · 929a4e2 workspace and free tools · 1d4f4e5 loop, instructions, trace · 025ecd3 real API connections · 737464e agent-scan route and usage gate · 837c131 page changes · f5bcfa4, bb63844, cd5bec3 fixes from real runs · f7d3796 nudges · 67ad3bd revision rule change · 60b71f3 first write-up · 5476ecc round 1 · 8abea50 round 2 · efa4c7d finishing reserve, review estimate, settle-to-finish · 23c02ee flat signal filing · dbb594d write-up update · fd43821 open shape · e8fa04f gut-check
