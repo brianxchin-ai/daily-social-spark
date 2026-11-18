@@ -170,6 +170,10 @@ export class Director {
   readonly ideaBasis = new Map<string, { basis: "trend" | "original"; groundedIn: string[]; territory: string }>();
   private unusedOriginals: string[] = [];
   private picks: string[] = [];
+  /** Longlist ID → developed candidate ID, read from develop results. */
+  private readonly developedIds = new Map<string, string>();
+  private readonly skip = new Set<string>();
+  private replacedNote = "";
 
   private readonly config: DirectorConfig;
   constructor(config: DirectorConfig) {
@@ -195,6 +199,7 @@ export class Director {
       const name = this.emitted[i];
       if (name === "web_search" && r.ok) quotes.push(...((r.quotes as { id: string; quote: string }[]) ?? []));
       if (name === "review_evidence") this.fresh = (r.freshSignals as string[]) ?? [];
+      if (name === "develop" && r.ok) this.developedIds.set(String(r.ideaId), String(r.candidateId));
       if (name === "develop" && r.ok && (r.flags as string[]).some((f) => f.startsWith("REJECTION RISK"))) flagged = String(r.ideaId);
       if (name === "evaluate" && r.ok) {
         scores = r.scores as typeof scores;
@@ -246,27 +251,28 @@ export class Director {
       case "shortlisting": {
         if (this.config.finishEarly && !this.triedFinish) {
           this.triedFinish = true;
-          return this.emit([toolUse("finish", { why: "Try to stop early.", revisionDecision: "Not reviewed yet." })]);
+          return this.emit([toolUse("finish", { why: "Try to stop early.", revisionDecision: "Not reviewed yet.", comparison: "Nothing reviewed yet." })]);
         }
+        // Open shape: no shortlist tool. It simply chooses which ideas to develop.
         const trendIds = [...this.ideaBasis].filter(([, v]) => v.basis === "trend").map(([k]) => k);
         this.picks = trendIds.length >= 2 ? [trendIds[0], trendIds[1], this.unusedOriginals.shift()!] : this.unusedOriginals.splice(0, 3);
         this.queue = [...this.picks];
         this.stage = "developing";
-        return this.emit([toolUse("shortlist", { picks: this.picks.map((id) => ({ ideaId: id, reason: `Strong for ${id}.` })), setAside: "The rest overlap or are weaker.", why: "Narrow to three distinct bets." })]);
+        return this.next([]);
       }
       case "developing": {
         if (flagged) {
           const replacement = this.unusedOriginals.shift()!;
           this.picks = this.picks.map((p) => (p === flagged ? replacement : p));
+          this.skip.add(flagged);
           this.queue.unshift(replacement);
-          return this.emit([
-            toolUse("shortlist", { picks: this.picks.map((id) => ({ ideaId: id, reason: `Keep ${id}.` })), setAside: `${flagged} rests on stale evidence.`, why: `Code flagged ${flagged} as a stale trend; swap it for an original.` }),
-          ]);
+          this.replacedNote = `Code flagged ${flagged} as a stale trend; developing ${replacement} instead.`;
         }
         const next = this.queue.shift();
         if (!next) {
           this.stage = "scored";
-          return this.emit([toolUse("evaluate", { why: "All three are developed; get them reviewed." })]);
+          const ids = this.picks.filter((p) => !this.skip.has(p)).map((p) => this.developedIds.get(p)!).filter(Boolean).slice(0, 3);
+          return this.emit([toolUse("evaluate", { why: "The developed ideas are ready; get them reviewed.", candidateIds: ids })]);
         }
         const meta = this.ideaBasis.get(next)!;
         const n = Number(next.slice(1));
@@ -283,7 +289,7 @@ export class Director {
               territory: meta.territory,
               mechanic: `Mechanic ${["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta", "iota", "kappa"][n - 1]} with its own distinct shape.`,
             }),
-            why: `Write ${next} in full.`,
+            why: this.replacedNote && this.replacedNote.endsWith(`developing ${next} instead.`) ? this.replacedNote : `Write ${next} in full.`,
           }),
         ]);
       }
@@ -312,10 +318,10 @@ export class Director {
         }
         this.stage = "done";
         const tieBreak = tied.length > 1 ? { candidateId: tied[1], note: this.config.tieNote ?? "Its hook lands faster." } : undefined;
-        return this.emit([toolUse("finish", { why: "The scored finalists are strong enough.", revisionDecision: this.revised ? "Revised the leader once to fix its slow open." : "No revision: the leader has no criterion at 3 or below.", ...(tieBreak ? { tieBreak } : {}) })]);
+        return this.emit([toolUse("finish", { why: "The scored finalists are strong enough.", comparison: "It outscored the other reviewed ideas.", revisionDecision: this.revised ? "Revised the leader once to fix its slow open." : "No revision: the leader has no criterion at 3 or below.", ...(tieBreak ? { tieBreak } : {}) })]);
       }
       default:
-        return this.emit([toolUse("finish", { why: "Done.", revisionDecision: "No revision." })]);
+        return this.emit([toolUse("finish", { why: "Done.", revisionDecision: "No revision.", comparison: "Only option left." })]);
     }
   }
 }

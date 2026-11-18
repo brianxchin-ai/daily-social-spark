@@ -48,6 +48,7 @@ export function agentReport(run: AgentRun): AgentReport {
     stopReason: run.stopReason,
     tieJudgment: run.ending.tieJudgment,
     revisionDecision: run.ending.revisionDecision,
+    comparison: run.ending.comparison,
     hypotheses: run.workspace.hypotheses.map((h) => ({ ...h, evidence: [...h.evidence] })),
     spentUsd: s.spentUsd,
     ceilingUsd: s.ceilingUsd,
@@ -63,8 +64,11 @@ export function toSpark(run: AgentRun, options: { stamp: number; now: Date }): H
   const brief = ws.brief;
   const ledger = ws.ledger();
 
-  // The scored finalists, as first developed. A revision appears through `refinement`.
-  const originals = ws.picks.map((p) => ws.originalOf(p.ideaId)).filter((d): d is Developed => !!d?.assessment);
+  // Every idea the panel reviewed, as first developed. A revision appears through `refinement`.
+  const originals = ws
+    .finalists()
+    .map((d) => rootOf(ws, d))
+    .filter((d): d is Developed => !!d.assessment);
   const ranking = ws.rankVersions(originals);
 
   const winner = run.winnerId ? (ws.developed.get(run.winnerId) ?? null) : null;
@@ -98,11 +102,11 @@ export function toSpark(run: AgentRun, options: { stamp: number; now: Date }): H
 
   const longlist: Longlist | undefined = ws.wall.length
     ? {
-        setAside: ws.setAside,
+        // Open shape: no shortlist. An idea is "picked" if the agent developed it.
+        setAside: "",
         ideas: ws.wall.map((idea) => {
-          const pick = ws.picks.find((p) => p.ideaId === idea.id);
-          const developed = pick ? ws.originalOf(idea.id) : null;
-          return { ...idea, pick: pick && developed ? { reason: pick.reason, candidateId: developed.candidate.id } : null };
+          const developed = ws.originalOf(idea.id);
+          return { ...idea, pick: developed ? { reason: developed.why || "Developed in full.", candidateId: developed.candidate.id } : null };
         }),
       }
     : undefined;

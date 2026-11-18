@@ -39,9 +39,15 @@ export function agentPaidTools(): PaidTools {
   const research = anthropicResearchTools(getClient());
   return {
     ...research,
-    async evaluate({ brief, finalists, ledger, timeoutMs, signal }) {
+    async evaluate({ brief, finalists, ledger, maxOutputTokens, timeoutMs, signal }) {
       try {
-        const { assessments, usage } = await evaluateCandidates(scanOf(brief), finalists, ledger, { timeoutMs, signal, fallbacks: false });
+        const { assessments, usage } = await evaluateCandidates(scanOf(brief), finalists, ledger, {
+          timeoutMs,
+          signal,
+          fallbacks: false,
+          // Sized to how many ideas this review scores (1 to 3).
+          maxTokens: maxOutputTokens,
+        });
         return {
           assessments: assessments.map((a) => ({
             candidateId: a.candidateId,

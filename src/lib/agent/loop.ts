@@ -19,7 +19,6 @@ import {
   hypothesize,
   scoreSummary,
   settleHypothesis,
-  shortlist,
   TOOL_DESCRIPTIONS,
   TOOL_INPUTS,
   TOOL_NAMES,
@@ -141,7 +140,8 @@ export const CALL_PLANS = {
   search: { inputTokens: 1_500, maxOutputTokens: 2_000, maxSearches: 1, serverAddedTokens: 25_000 },
   /** One page read: page text capped by the tool, a short answer with quotes. */
   read: { inputTokens: 1_500, maxOutputTokens: 2_000, serverAddedTokens: 12_000 },
-  evaluateOutput: 10_000,
+  /** Review output allowance per idea scored (open shape: a review scores 1 to 3 ideas). */
+  evaluateOutputPerIdea: 3_500,
   rescoreOutput: 5_000,
   /** Instructions and rubric sent with every review call. */
   reviewOverheadTokens: 5_000,
@@ -376,24 +376,21 @@ export async function runAgent(options: {
       }
       case "add_ideas": {
         const i = input as z.infer<typeof TOOL_INPUTS.add_ideas>;
-        return { outcome: addIdeas(ws, i), action: `Added ${i.ideas.length} idea(s) to the longlist`, usd: null };
-      }
-      case "shortlist": {
-        const i = input as z.infer<typeof TOOL_INPUTS.shortlist>;
-        return { outcome: shortlist(ws, i), action: `Shortlisted ${i.picks.map((p) => p.ideaId).join(", ")}`, usd: null };
+        return { outcome: addIdeas(ws, i), action: `Noted ${i.ideas.length} idea(s) on the idea wall`, usd: null };
       }
       case "develop": {
         const i = input as z.infer<typeof TOOL_INPUTS.develop>;
         return { outcome: develop(ws, i), action: `Developed ${i.ideaId}`, usd: null };
       }
       case "evaluate": {
-        const action = "Sent the finalists to the review panel";
-        const ready = ws.readyForEvaluation();
+        const i = input as z.infer<typeof TOOL_INPUTS.evaluate>;
+        const action = `Sent ${i.candidateIds.length === 1 ? "an idea" : `${i.candidateIds.length} ideas`} to the review panel`;
+        const ready = ws.readyForEvaluation(i.candidateIds);
         if (!ready.ok) return { outcome: fail(ready.problem), action, usd: null };
         const finalists = ready.finalists.map((d) => ({ id: d.candidate.id, draft: toDraft(d.candidate), groundedIn: d.candidate.groundedIn }));
         const ledger = ws.ledger();
         const round = g.count("evaluate") + 1;
-        const r = await paid("evaluate", "evaluator", reviewPlan({ finalists, ledger }, CALL_PLANS.evaluateOutput), TIMEOUTS.evaluate, (l) =>
+        const r = await paid("evaluate", "evaluator", reviewPlan({ finalists, ledger }, CALL_PLANS.evaluateOutputPerIdea * finalists.length), TIMEOUTS.evaluate, (l) =>
           tools.evaluate({ brief, finalists, ledger, ...l }),
         );
         if (!r.ok) return { outcome: fail(`The review didn't run: ${r.problem}`), action, usd: r.usd };
@@ -414,15 +411,15 @@ export async function runAgent(options: {
               rule: "A revision replaces the original only if it keeps the mechanic, fixes the weakness you name, adds no unsupported claims, passes every rejection rule, and scores at least 5 points higher. If the original was rejected, clearing the rejection without lowering the score is enough.",
             }
           : null;
-        // Round 2: finalists worth replacing (below 65 or rejected), and whether a second review round is left.
+        // Reviewed ideas that are weak (below 65 or rejected), and how many reviews are left. Guidance only.
         const weakFinalists = scores
           .filter((x) => x.rejected || x.sparkScore < WEAK_FINALIST_SCORE)
           .map((x) => ({ candidateId: x.candidateId, sparkScore: x.sparkScore, rejected: x.rejected }));
         const replacementNote = weakFinalists.length
           ? {
               weakFinalists,
-              reviewRoundsLeft: snap.maxEvaluations - snap.evaluations,
-              option: `A finalist below ${WEAK_FINALIST_SCORE} or rejected is a candidate to replace: shortlist a stronger idea in its place, develop it, and send the three back for review. Your call.`,
+              reviewsLeft: snap.maxEvaluations - snap.evaluations,
+              option: `A reviewed idea below ${WEAK_FINALIST_SCORE} or rejected may not be your best: you can revise it, develop another idea and review that, or look further. Your call.`,
             }
           : null;
         return {
@@ -435,7 +432,7 @@ export async function runAgent(options: {
               .map((s) => `${s.candidateId} ${s.rejected ? `rejected (${s.rejectionReasons.join(" ")})` : `${s.sparkScore}`}`)
               .join("; ")}.${tied.length ? ` Exact tie at the top: ${tied.join(", ")}.` : ""}`,
             flags: diversity,
-            changedCourse: round > 1 ? "Sent the finalists back for a second review after changing them." : null,
+            changedCourse: null,
             ending: null,
           },
         };
@@ -522,7 +519,9 @@ export async function runAgent(options: {
         input: value,
         why:
           name === "finish" && typeof value.revisionDecision === "string" && value.revisionDecision.trim()
-            ? `${stated ?? "(no stated reason)"} On revising: ${value.revisionDecision.trim()}`
+            ? `${stated ?? "(no stated reason)"} On revising: ${value.revisionDecision.trim()}${
+                typeof value.comparison === "string" && value.comparison.trim() ? ` Compared with the alternatives: ${value.comparison.trim()}` : ""
+              }`
             : name === "abstain"
               ? String(value.reason ?? "")
               : stated,
@@ -657,17 +656,21 @@ function wrapText(g: Governor): string {
 /** The line producer's readout, sent after every action. Facts only. */
 export function readout(g: Governor, ws: Workspace): string {
   const s = g.snapshot();
-  const finalists = ws.picks.length
-    ? ws
-        .finalists()
-        .map((d, i) => `${ws.picks[i].ideaId}${d ? ` → ${d.candidate.id}${d.assessment ? " (scored)" : " (developed)"}` : " (not developed)"}`)
+  const developed = ws.finalists();
+  const scored = new Map(ws.ranking().scores.map((x) => [x.candidateId, x]));
+  const finalists = developed.length
+    ? developed
+        .map((d) => {
+          const sc = scored.get(d.candidate.id);
+          return `${d.ideaId} → ${d.candidate.id} ${sc ? `(reviewed: ${sc.rejected ? "rejected" : Math.round(sc.rankingScore)})` : "(not yet reviewed)"}`;
+        })
         .join(", ")
     : "none yet";
   const lines = [
     `[Readout from code] Budget: $${s.spentUsd.toFixed(3)} used, $${Math.max(0, s.remainingUsd - s.reservedUsd).toFixed(3)} still available to invest${
       s.reservedUsd ? ` (plus $${s.reservedUsd.toFixed(2)} held for your first review and finishing)` : ""
     } · ${Math.floor(s.timeLeftMs / 1000)} s left · turn ${s.turns} of ${s.maxTurns} · searches ${s.searches}/${s.maxSearches} · page reads ${s.reads}/${s.maxReads} · review rounds ${s.evaluations}/${s.maxEvaluations} · revisions ${s.rescores}/${s.maxRescores}`,
-    `Evidence: ${ws.sources.length} source(s), ${ws.signalDrafts.length} signal(s). Longlist: ${ws.wall.length}. Finalists: ${finalists}.`,
+    `Evidence: ${ws.sources.length} source(s), ${ws.signalDrafts.length} signal(s). Idea wall: ${ws.wall.length}. Developed: ${finalists}.`,
   ];
   const quality = ws.evidenceLine();
   if (quality) lines.push(quality);

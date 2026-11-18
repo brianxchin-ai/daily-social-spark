@@ -95,7 +95,7 @@ export async function evaluateCandidates(
   request: ScanRequest,
   candidates: { id: string; draft: CandidateDraft; groundedIn: string[] }[],
   ledger: EvidenceLedger | null,
-  options: { timeoutMs?: number; random?: () => number; signal?: AbortSignal; fallbacks?: boolean } = {},
+  options: { timeoutMs?: number; random?: () => number; signal?: AbortSignal; fallbacks?: boolean; maxTokens?: number } = {},
 ): Promise<{ assessments: CandidateAssessment[]; usage: ScanUsage }> {
   const order = shuffled(candidates, options.random);
   const byLabel = new Map<Label, (typeof candidates)[number]>(order.map((c, i) => [LABELS[i], c]));
@@ -107,16 +107,16 @@ ${ledger ? ledgerDigest(ledger) : "No evidence ledger for this scan: judge cultu
 
 ${order.map((c, i) => describeCandidate(LABELS[i], c.draft, c.groundedIn)).join("\n\n")}
 
-Evaluate candidates A, B and C.`;
+Evaluate ${order.length === 1 ? "candidate A" : `candidates ${LABELS.slice(0, order.length).join(order.length === 2 ? " and " : ", ").replace(/, (?=[^,]*$)/, " and ")}`}.`;
 
   const { value, usage } = await callStructured({
     step: "evaluator",
     system: evaluatorSystem(request.platform),
     user,
     schema: EvaluationSchema,
-    maxTokens: 10_000, // worst case ≈ $0.10 of output
+    maxTokens: options.maxTokens ?? 10_000, // worst case ≈ $0.10 of output for three
     timeoutMs: options.timeoutMs ?? 90_000,
-    validate: validateEvaluation,
+    validate: (value) => validateEvaluation(value, order.length),
     signal: options.signal,
     fallbacks: options.fallbacks,
   });

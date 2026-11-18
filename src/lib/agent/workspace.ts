@@ -51,15 +51,12 @@ export interface WallIdea extends LonglistIdeaDraft {
   id: string; // L1, L2…
 }
 
-export interface Pick {
-  ideaId: string;
-  reason: string;
-}
-
 /** One developed treatment. A revision is a new version linked to its original. */
 export interface Developed {
   candidate: Candidate;
   ideaId: string;
+  /** The agent's stated reason for developing it (shown with the idea wall). */
+  why?: string;
   /** Set on a revision: the version it revises. */
   revises: string | null;
   /** The evaluator's verdict, once it has one. */
@@ -98,6 +95,8 @@ export interface Ending {
   tieJudgment: { chosenId: string; tiedWith: string[]; note: string } | null;
   /** The agent's stated reason for revising the leader or not (Day 6). */
   revisionDecision: string | null;
+  /** Open shape: what else the agent considered and why the winner beats it, in its words. */
+  comparison: string | null;
 }
 
 /** A working bet about what will resonate (Day 6, round 2). Code tracks its status; the agent settles it with evidence. */
@@ -113,8 +112,8 @@ export interface Hypothesis {
 export const MAX_HYPOTHESES = 6;
 
 export const MAX_LONGLIST = 20;
-export const MIN_LONGLIST = 10;
-export const MAX_SHORTLIST_ROUNDS = 3;
+/** Day 6, open shape: how many ideas one review may score. */
+export const MAX_REVIEW_BATCH = 3;
 
 export class Workspace {
   readonly brief: Brief;
@@ -134,9 +133,6 @@ export class Workspace {
 
   /* ---------- Idea wall ---------- */
   readonly wall: WallIdea[] = [];
-  picks: Pick[] = [];
-  setAside = "";
-  shortlistRounds = 0;
   /** Every version ever developed, by candidate ID. */
   readonly developed = new Map<string, Developed>();
   readonly revisions: RevisionRecord[] = [];
@@ -383,39 +379,14 @@ export class Workspace {
     return { added, problem };
   }
 
-  /** Narrow to three. Code checks the count, the longlist size and that the three are genuinely different. */
-  shortlist(picks: Pick[], setAside: string): { ok: true; replaced: string[] } | { ok: false; problem: string } {
-    if (this.wall.length < MIN_LONGLIST) {
-      return { ok: false, problem: `The longlist needs at least ${MIN_LONGLIST} ideas before narrowing (it has ${this.wall.length}).` };
-    }
-    if (this.shortlistRounds >= MAX_SHORTLIST_ROUNDS) return { ok: false, problem: `Shortlist limit reached (${MAX_SHORTLIST_ROUNDS} rounds).` };
-    const ids = picks.map((p) => p.ideaId.trim());
-    if (ids.length !== 3 || new Set(ids).size !== 3) return { ok: false, problem: "Pick exactly 3 different ideas." };
-    const ideas = ids.map((id) => this.wall.find((w) => w.id === id));
-    if (ideas.some((i) => !i)) return { ok: false, problem: `Unknown longlist ID(s): ${ids.filter((id, i) => !ideas[i]).join(", ")}.` };
-    const diversity = checkDiversity(
-      ideas.map((i) => ({ id: i!.id, trendName: i!.trendName, territory: i!.territory, mechanic: i!.mechanic, concept: i!.headline, groundedIn: i!.groundedIn, contextIn: [] })),
-      this.ledger(),
-    );
-    if (diversity.nearDuplicates.length > 0) {
-      const d = diversity.nearDuplicates[0];
-      return { ok: false, problem: `${d.a} and ${d.b} are too alike (${d.reason}). Pick three genuinely different ideas.` };
-    }
-    const previous = this.picks.map((p) => p.ideaId);
-    this.picks = picks.map((p) => ({ ideaId: p.ideaId.trim(), reason: p.reason }));
-    this.setAside = setAside;
-    this.shortlistRounds += 1;
-    return { ok: true, replaced: previous.filter((id) => !ids.includes(id)) };
-  }
-
   /**
-   * Develop one shortlisted idea in full. Returns code's flags: grounding
+   * Develop any idea on the wall in full. Returns code's flags: grounding
    * problems, whether it counts as a fresh trend, an original or a stale
    * trend (rejected), and whether it repeats something this person has seen.
    */
-  develop(ideaId: string, draft: CandidateDraft): { ok: true; candidate: Candidate; flags: string[] } | { ok: false; problem: string } {
-    if (!this.picks.some((p) => p.ideaId === ideaId)) {
-      return { ok: false, problem: `${ideaId} isn't on the shortlist. Develop one of: ${this.picks.map((p) => p.ideaId).join(", ") || "(shortlist first)"}.` };
+  develop(ideaId: string, draft: CandidateDraft, why = ""): { ok: true; candidate: Candidate; flags: string[] } | { ok: false; problem: string } {
+    if (!this.wall.some((w) => w.id === ideaId)) {
+      return { ok: false, problem: `${ideaId} isn't on your idea wall. Note it with add_ideas first${this.wall.length ? ` (on the wall: ${this.wall.map((w) => w.id).join(", ")})` : ""}.` };
     }
     const current = this.currentVersion(ideaId);
     if (current?.assessment) {
@@ -431,7 +402,7 @@ export class Workspace {
       contextIn: grounding.contextIn,
       groundingWarnings: grounding.warnings,
     };
-    this.developed.set(id, { candidate, ideaId, revises: null, assessment: null });
+    this.developed.set(id, { candidate, ideaId, why: why || current?.why, revises: null, assessment: null });
     return { ok: true, candidate, flags: this.flagsFor(candidate) };
   }
 
@@ -451,7 +422,7 @@ export class Workspace {
     return flags;
   }
 
-  /** The latest version of a shortlisted idea: its kept revision if one won, else the original. */
+  /** The latest version of a developed idea: its kept revision if one won, else the original. */
   currentVersion(ideaId: string): Developed | null {
     const versions = [...this.developed.values()].filter((d) => d.ideaId === ideaId);
     const original = versions.find((d) => d.revises === null) ?? null;
@@ -465,18 +436,29 @@ export class Workspace {
     }
   }
 
-  /** The three finalists, in shortlist order (null where not developed yet). */
-  finalists(): (Developed | null)[] {
-    return this.picks.map((p) => this.currentVersion(p.ideaId));
+  /** Every developed idea, at its current version, in the order first developed. */
+  finalists(): Developed[] {
+    const ideaIds: string[] = [];
+    for (const d of this.developed.values()) if (d.revises === null && !ideaIds.includes(d.ideaId)) ideaIds.push(d.ideaId);
+    return ideaIds.map((id) => this.currentVersion(id)).filter((d): d is Developed => !!d);
   }
 
-  /** Can the finalists go to the review panel now? */
-  readyForEvaluation(): { ok: true; finalists: Developed[] } | { ok: false; problem: string } {
-    if (this.picks.length !== 3) return { ok: false, problem: "Shortlist three ideas first." };
-    const finalists = this.finalists();
-    const missing = this.picks.filter((_, i) => !finalists[i]).map((p) => p.ideaId);
-    if (missing.length) return { ok: false, problem: `Develop every finalist before evaluation (missing: ${missing.join(", ")}).` };
-    return { ok: true, finalists: finalists as Developed[] };
+  /** Check the ideas the agent wants reviewed: 1 to 3 developed ideas, at their current version, not yet reviewed. */
+  readyForEvaluation(candidateIds: string[]): { ok: true; finalists: Developed[] } | { ok: false; problem: string } {
+    const ids = [...new Set(candidateIds.map((id) => id.trim()).filter(Boolean))];
+    if (ids.length < 1 || ids.length > MAX_REVIEW_BATCH) return { ok: false, problem: `Send 1 to ${MAX_REVIEW_BATCH} developed ideas per review.` };
+    const current = this.finalists();
+    const chosen: Developed[] = [];
+    for (const id of ids) {
+      const d = current.find((x) => x.candidate.id === id);
+      if (!d) {
+        const known = current.map((x) => x.candidate.id).join(", ") || "none yet";
+        return { ok: false, problem: `${id} isn't a developed idea at its current version (developed: ${known}).` };
+      }
+      if (d.assessment) return { ok: false, problem: `${id} has already been reviewed. Revise it or review something new.` };
+      chosen.push(d);
+    }
+    return { ok: true, finalists: chosen };
   }
 
   /** Record the review panel's verdicts (from the paid evaluate tool). */
@@ -491,7 +473,6 @@ export class Workspace {
   prepareRevision(candidateId: string): { ok: true; original: Developed } | { ok: false; problem: string } {
     const original = this.developed.get(candidateId);
     if (!original) return { ok: false, problem: `Unknown candidate ${candidateId}.` };
-    if (!this.picks.some((p) => p.ideaId === original.ideaId)) return { ok: false, problem: `${candidateId} is no longer a finalist.` };
     if (this.currentVersion(original.ideaId)?.candidate.id !== candidateId) {
       return { ok: false, problem: `${candidateId} isn't the current version of its idea; revise ${this.currentVersion(original.ideaId)?.candidate.id}.` };
     }
@@ -604,8 +585,7 @@ export class Workspace {
   }
 
   diversity(): DiversityReport {
-    const finalists = this.finalists().filter((d): d is Developed => !!d).map((d) => d.candidate);
-    return checkDiversity(finalists, this.ledger());
+    return checkDiversity(this.finalists().filter((d) => d.assessment).map((d) => d.candidate), this.ledger());
   }
 
   /* ================= Ending ================= */
@@ -613,13 +593,8 @@ export class Workspace {
   /** What `finish` requires. Empty when the agent may finish. */
   finishProblems(): string[] {
     const problems: string[] = [];
-    if (this.wall.length < MIN_LONGLIST) problems.push(`The longlist has ${this.wall.length} ideas; at least ${MIN_LONGLIST} are required.`);
-    if (this.picks.length !== 3) problems.push("Three ideas must be shortlisted.");
-    const finalists = this.finalists();
-    const undeveloped = this.picks.filter((_, i) => !finalists[i]).map((p) => p.ideaId);
-    if (undeveloped.length) problems.push(`Not yet developed: ${undeveloped.join(", ")}.`);
-    const unevaluated = finalists.filter((d) => d && !d.assessment).map((d) => d!.candidate.id);
-    if (unevaluated.length) problems.push(`Not yet evaluated: ${unevaluated.join(", ")}.`);
+    // Open shape (Day 6): the only quota is one developed idea the review panel has scored.
+    if (!this.finalists().some((d) => d.assessment)) problems.push("Get at least one developed idea reviewed by the panel before finishing.");
     const open = this.hypotheses.filter((h) => h.status === "open").map((h) => h.id);
     if (open.length) problems.push(`Settle or drop your open hypotheses first (settle_hypothesis): ${open.join(", ")}.`);
     return problems;

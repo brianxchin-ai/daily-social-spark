@@ -12,7 +12,7 @@ import {
   treatment,
   uniform,
 } from "./fixtures.ts";
-import { abstain, addIdeas, develop, finish, forceFinish, hypothesize, parseInput, recordSignal, reviewEvidence, settleHypothesis, shortlist } from "./tools.ts";
+import { abstain, addIdeas, develop, finish, forceFinish, hypothesize, parseInput, recordSignal, reviewEvidence, settleHypothesis } from "./tools.ts";
 import { Workspace, type Brief } from "./workspace.ts";
 
 const BRIEF: Brief = { brand: "Acme Coffee", platform: "tiktok", recentIdeas: [] };
@@ -20,12 +20,12 @@ const fresh = () => new Workspace(BRIEF, { now: () => NOW });
 
 const why = "Test.";
 const RD = "No revision: every criterion scored 4 or higher.";
+const CMP = "It beat the other reviewed ideas on stop power.";
 
-/** A workspace with a longlist of 10 original ideas and L1–L3 shortlisted. */
+/** A workspace with 10 original ideas on its idea wall (open shape: no shortlist). */
 function shortlisted(brief: Brief = BRIEF) {
   const ws = new Workspace(brief, { now: () => NOW });
   assert.ok(addIdeas(ws, { ideas: longlistIdeas(10), why }).ok);
-  assert.ok(shortlist(ws, { picks: [{ ideaId: "L1", reason: "a" }, { ideaId: "L2", reason: "b" }, { ideaId: "L3", reason: "c" }], setAside: "Others were weaker.", why }).ok);
   return ws;
 }
 
@@ -125,35 +125,38 @@ describe("the idea wall", () => {
     assert.equal(addIdeas(fresh(), { ideas, why }).ok, false);
   });
 
-  it("won't narrow before the longlist has 10 ideas", () => {
+  it("develops any idea on the wall, however few there are", () => {
     const ws = fresh();
-    addIdeas(ws, { ideas: longlistIdeas(9), why });
-    const out = shortlist(ws, { picks: [{ ideaId: "L1", reason: "a" }, { ideaId: "L2", reason: "b" }, { ideaId: "L3", reason: "c" }], setAside: "x", why });
-    assert.equal(out.ok, false);
-    assert.match(out.result, /at least 10/);
-  });
-
-  it("refuses a shortlist of two near-identical ideas", () => {
-    const ws = fresh();
-    const ideas = longlistIdeas(10);
-    ideas[1].territory = ideas[0].territory;
-    addIdeas(ws, { ideas, why });
-    const out = shortlist(ws, { picks: [{ ideaId: "L1", reason: "a" }, { ideaId: "L2", reason: "b" }, { ideaId: "L3", reason: "c" }], setAside: "x", why });
-    assert.equal(out.ok, false);
-    assert.match(out.result, /too alike/);
-  });
-
-  it("records a change of course when a pick is swapped", () => {
-    const ws = shortlisted();
-    const out = shortlist(ws, { picks: [{ ideaId: "L1", reason: "a" }, { ideaId: "L2", reason: "b" }, { ideaId: "L4", reason: "d" }], setAside: "x", why });
+    addIdeas(ws, { ideas: longlistIdeas(1), why });
+    const out = develop(ws, { ideaId: "L1", treatment: treatment({ basis: "original", groundedIn: [] }), why: "One strong bet." });
     assert.ok(out.ok);
-    assert.equal(out.changedCourse, "Dropped L3 from the shortlist.");
+    assert.equal(ws.developed.get(out.forAgent.candidateId as string)!.why, "One strong bet.");
+  });
+
+  it("reviews 1 to 3 developed ideas, never one already reviewed", () => {
+    const ws = shortlisted();
+    const [c1, c2, c3] = developAll(ws);
+    assert.equal(ws.readyForEvaluation([]).ok, false);
+    assert.equal(ws.readyForEvaluation([c1, c2, c3, "cand-9"]).ok, false);
+    assert.match(String((ws.readyForEvaluation(["cand-99"]) as { problem: string }).problem), /isn't a developed idea/);
+    assert.ok(ws.readyForEvaluation([c1]).ok);
+    ws.recordAssessments(1, [assessment(c1, uniform(4))]);
+    assert.match(String((ws.readyForEvaluation([c1, c2]) as { problem: string }).problem), /already been reviewed/);
+    assert.ok(ws.readyForEvaluation([c2, c3]).ok);
+  });
+
+  it("records going back to the idea wall after a review as a change of course", () => {
+    const ws = shortlisted();
+    const [c1] = developAll(ws);
+    ws.recordAssessments(1, [assessment(c1, uniform(3))]);
+    const out = addIdeas(ws, { ideas: longlistIdeas(1), why });
+    assert.equal(out.changedCourse, "Went back to the idea wall after a review.");
   });
 });
 
 describe("develop: code tells the agent how an idea will be judged", () => {
-  it("only develops shortlisted ideas", () => {
-    const out = develop(shortlisted(), { ideaId: "L9", treatment: treatment({ basis: "original", groundedIn: [] }), why });
+  it("only develops ideas on the wall", () => {
+    const out = develop(shortlisted(), { ideaId: "L99", treatment: treatment({ basis: "original", groundedIn: [] }), why });
     assert.equal(out.ok, false);
   });
 
@@ -162,7 +165,6 @@ describe("develop: code tells the agent how an idea will be judged", () => {
     ws.addSearch(staleSearch);
     recordSignal(ws, { signal: signal("Latte-art fails", "C1", "March 2025"), why });
     addIdeas(ws, { ideas: longlistIdeas(10), why });
-    shortlist(ws, { picks: [{ ideaId: "L1", reason: "a" }, { ideaId: "L2", reason: "b" }, { ideaId: "L3", reason: "c" }], setAside: "x", why });
     const out = develop(ws, { ideaId: "L1", treatment: treatment({ groundedIn: ["G1"] }), why });
     assert.ok(out.ok);
     assert.match(out.flags.join(" "), /REJECTION RISK: built on a trend with no fresh evidence/);
@@ -173,7 +175,6 @@ describe("develop: code tells the agent how an idea will be judged", () => {
     ws.addSearch(freshSearch);
     recordSignal(ws, { signal: signal("Desk resets", "C1", "November 10, 2026"), why });
     addIdeas(ws, { ideas: longlistIdeas(10), why });
-    shortlist(ws, { picks: [{ ideaId: "L1", reason: "a" }, { ideaId: "L2", reason: "b" }, { ideaId: "L3", reason: "c" }], setAside: "x", why });
     assert.match(develop(ws, { ideaId: "L1", treatment: treatment(), why }).flags.join(" "), /fresh trend/);
     assert.match(
       develop(ws, { ideaId: "L2", treatment: treatment({ basis: "original", groundedIn: [], headline: "Another idea", mechanic: "Something else entirely here." }), why }).flags.join(" "),
@@ -205,21 +206,35 @@ describe("develop: code tells the agent how an idea will be judged", () => {
 });
 
 describe("finish: code checks the requirements and picks the winner", () => {
-  it("refuses to finish before all three finalists are evaluated", () => {
+  it("refuses to finish before any idea is reviewed, and accepts once one is", () => {
     const ws = shortlisted();
-    const [c1, c2] = developAll(ws);
-    ws.recordAssessments(1, [assessment(c1, uniform(4)), assessment(c2, uniform(3))]);
-    const out = finish(ws, { why, revisionDecision: RD });
-    assert.equal(out.ok, false);
-    assert.match(out.result, /Not yet evaluated/);
+    const [c1] = developAll(ws);
+    const early = finish(ws, { why, revisionDecision: RD, comparison: CMP });
+    assert.equal(early.ok, false);
+    assert.match(early.result, /at least one developed idea reviewed/);
     assert.equal(ws.ending, null);
+    ws.recordAssessments(1, [assessment(c1, uniform(4))]);
+    const done = finish(ws, { why, revisionDecision: RD, comparison: CMP });
+    assert.ok(done.ok);
+    assert.equal(done.forAgent.winnerId, c1);
+    const ending = ws.ending as { comparison: string | null } | null; // re-read after finish
+    assert.equal(ending?.comparison, CMP);
+  });
+
+  it("ranks every reviewed idea across separate reviews", () => {
+    const ws = shortlisted();
+    const [c1, c2, c3] = developAll(ws);
+    ws.recordAssessments(1, [assessment(c1, uniform(3))]);
+    ws.recordAssessments(2, [assessment(c2, uniform(4)), assessment(c3, uniform(3))]);
+    assert.equal(ws.ranking().scores.length, 3);
+    assert.equal(ws.ranking().leaderId, c2);
   });
 
   it("picks the highest-scoring finalist, whatever the agent prefers", () => {
     const ws = shortlisted();
     const [c1, c2, c3] = developAll(ws);
     ws.recordAssessments(1, [assessment(c1, uniform(3)), assessment(c2, uniform(4)), assessment(c3, uniform(3))]);
-    const out = finish(ws, { tieBreak: { candidateId: c1, note: "I like it more." }, why, revisionDecision: RD });
+    const out = finish(ws, { tieBreak: { candidateId: c1, note: "I like it more." }, why, revisionDecision: RD, comparison: CMP });
     assert.ok(out.ok);
     assert.equal(out.forAgent.winnerId, c2);
     assert.match(out.flags.join(" "), /no exact tie/);
@@ -231,7 +246,7 @@ describe("finish: code checks the requirements and picks the winner", () => {
     const [c1, c2, c3] = developAll(ws);
     ws.recordAssessments(1, [assessment(c1, uniform(4)), assessment(c2, uniform(4)), assessment(c3, uniform(3))]);
     assert.deepEqual(ws.tiedWithLeader().sort(), [c1, c2].sort());
-    const out = finish(ws, { tieBreak: { candidateId: c2, note: "Its hook lands faster." }, why, revisionDecision: RD });
+    const out = finish(ws, { tieBreak: { candidateId: c2, note: "Its hook lands faster." }, why, revisionDecision: RD, comparison: CMP });
     assert.equal(out.forAgent.winnerId, c2);
     assert.deepEqual(ws.ending?.tieJudgment, { chosenId: c2, tiedWith: [c1], note: "Its hook lands faster." });
   });
@@ -240,7 +255,7 @@ describe("finish: code checks the requirements and picks the winner", () => {
     const ws = shortlisted();
     const [c1, c2, c3] = developAll(ws);
     ws.recordAssessments(1, [assessment(c1, uniform(2)), assessment(c2, uniform(4), false), assessment(c3, uniform(2))]);
-    const out = finish(ws, { why, revisionDecision: RD });
+    const out = finish(ws, { why, revisionDecision: RD, comparison: CMP });
     assert.ok(out.ok);
     assert.equal(out.forAgent.winnerId, null);
   });
@@ -319,9 +334,9 @@ describe("stopping without the agent", () => {
 
 describe("tool input checks", () => {
   it("explains badly formed input so the agent can fix it", () => {
-    const out = parseInput("shortlist", { picks: "L1, L2", why });
+    const out = parseInput("evaluate", { candidateIds: "cand-1", why });
     assert.equal(out.ok, false);
-    if (!out.ok) assert.match(out.problem, /Badly formed input for shortlist/);
+    if (!out.ok) assert.match(out.problem, /Badly formed input for evaluate/);
   });
 
   it("accepts well-formed input", () => {
@@ -490,10 +505,10 @@ describe("finishing requires settled hypotheses (round 2 fix)", () => {
     const [c1, c2, c3] = developAll(ws);
     ws.recordAssessments(1, [assessment(c1, uniform(4)), assessment(c2, uniform(3)), assessment(c3, uniform(3))]);
     hypothesize(ws, { why, hypotheses: ["Exam rituals are shareable"] });
-    const early = finish(ws, { why, revisionDecision: RD });
+    const early = finish(ws, { why, revisionDecision: RD, comparison: CMP });
     assert.equal(early.ok, false);
     assert.match(early.result, /Settle or drop your open hypotheses first/);
     settleHypothesis(ws, { why, id: "H1", verdict: "dropped", evidence: [], note: "No time to test it." });
-    assert.ok(finish(ws, { why, revisionDecision: RD }).ok);
+    assert.ok(finish(ws, { why, revisionDecision: RD, comparison: CMP }).ok);
   });
 });

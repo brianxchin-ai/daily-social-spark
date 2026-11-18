@@ -178,7 +178,7 @@ const AssessmentFields = {
 export const EvaluationSchema = z.object({
   evaluations: z
     .array(z.object({ label: z.enum(["A", "B", "C"]), ...AssessmentFields }))
-    .describe("One entry per candidate, A, B and C."),
+    .describe("One entry per candidate, using each label you were given exactly once."),
 });
 
 export type EvaluationDraft = z.infer<typeof EvaluationSchema>;
@@ -265,17 +265,21 @@ const StrictAssessment = {
   meaningfulAudioVariations: z.number().int().min(0).max(20),
 };
 
-const StrictEvaluationSchema = z
-  .object({
-    evaluations: z.array(EvaluationSchema.shape.evaluations.element.extend(StrictAssessment)).length(3),
-  })
-  .superRefine((value, ctx) => {
-    const labels = value.evaluations.map((e) => e.label).sort().join("");
-    if (labels !== "ABC") {
-      ctx.addIssue({ code: "custom", message: "Evaluations must cover A, B and C exactly once." });
-    }
-    if (!noUrls(value)) ctx.addIssue({ code: "custom", message: "Rationales must not contain URLs." });
-  });
+/** The review's rulebook for `count` candidates (1 to 3), labeled A, B, C in order. The fixed workflow always sends 3. */
+function strictEvaluationSchema(count: number) {
+  const expected = "ABC".slice(0, count);
+  return z
+    .object({
+      evaluations: z.array(EvaluationSchema.shape.evaluations.element.extend(StrictAssessment)).length(count),
+    })
+    .superRefine((value, ctx) => {
+      const labels = value.evaluations.map((e) => e.label).sort().join("");
+      if (labels !== expected) {
+        ctx.addIssue({ code: "custom", message: `Evaluations must cover ${expected.split("").join(", ")} exactly once.` });
+      }
+      if (!noUrls(value)) ctx.addIssue({ code: "custom", message: "Rationales must not contain URLs." });
+    });
+}
 
 type Validated<T> = { ok: true; value: T } | { ok: false; problems: string[] };
 
@@ -304,8 +308,8 @@ export function validateLonglistBatch(value: unknown): Validated<LonglistIdeaDra
 }
 
 /** Our own check on the evaluator's answer, after the API's. */
-export function validateEvaluation(value: unknown): Validated<EvaluationDraft> {
-  const result = StrictEvaluationSchema.safeParse(value);
+export function validateEvaluation(value: unknown, count = 3): Validated<EvaluationDraft> {
+  const result = strictEvaluationSchema(count).safeParse(value);
   return result.success ? { ok: true, value: result.data } : { ok: false, problems: describeIssues(result.error) };
 }
 

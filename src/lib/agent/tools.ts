@@ -122,21 +122,17 @@ export const TOOL_INPUTS = {
   }),
   add_ideas: z.object({
     why,
-    ideas: z.array(LonglistIdeaSchema.omit({ id: true })).describe("1 to 10 short ideas for the longlist. Code assigns IDs (L1, L2…)."),
-  }),
-  shortlist: z.object({
-    why,
-    picks: z
-      .array(z.object({ ideaId: z.string().describe("A longlist ID."), reason: z.string().describe("One sentence on why it made the cut.") }))
-      .describe("Exactly 3 genuinely different longlist ideas."),
-    setAside: z.string().describe("One or two sentences on why the others didn't make the cut."),
+    ideas: z.array(LonglistIdeaSchema.omit({ id: true })).describe("1 to 10 short ideas to note on your idea wall. Code assigns IDs (L1, L2…)."),
   }),
   develop: z.object({
     why,
-    ideaId: z.string().describe("A shortlisted longlist ID."),
+    ideaId: z.string().describe("An idea ID from your wall (L…)."),
     treatment: CandidateDraftSchema,
   }),
-  evaluate: z.object({ why }),
+  evaluate: z.object({
+    why,
+    candidateIds: z.array(z.string()).describe("1 to 3 developed ideas (cand-…) to send for review, at their current version and not yet reviewed."),
+  }),
   revise: z.object({
     why,
     candidateId: z.string().describe("The evaluated candidate to improve."),
@@ -159,6 +155,9 @@ export const TOOL_INPUTS = {
     revisionDecision: z
       .string()
       .describe("One or two sentences: why you did or didn't revise the leading idea, naming the criterion or evidence that decided it."),
+    comparison: z
+      .string()
+      .describe("Two or three sentences: what else you considered (other ideas, directions or evidence) and why the recommended idea beats them."),
   }),
   abstain: z.object({
     reason: z.string().describe("Why no idea should be recommended. Shown to the user."),
@@ -182,17 +181,15 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     "Mark a working bet supported, refuted or dropped, citing evidence IDs from this scan. Code checks the IDs. A refuted bet is a signal to change direction. Free.",
   review_evidence:
     "Get code's factual report on the evidence: which signals are fresh (dated within 30 days), which rest on one source, and what's missing. Free.",
-  add_ideas: "Add short ideas to the longlist (at least 10 are needed before narrowing). Free.",
-  shortlist:
-    "Narrow the longlist to exactly 3 genuinely different ideas. You may re-shortlist later to swap a pick (limited rounds). Free.",
+  add_ideas: "Note short ideas on your idea wall, as many or as few as are useful. Free.",
   develop:
-    "Write the full treatment for one shortlisted idea. Code reports how it will be judged: fresh trend, original format, or stale trend (rejected), and whether it repeats something this person has seen. Free.",
+    "Write the full treatment for any idea on your wall. Code reports how it will be judged: fresh trend, original format, or stale trend (rejected), and whether it repeats something this person has seen. Free.",
   evaluate:
-    "Send all three developed finalists to the independent review panel, which scores them blind against the rubric. Costs money; at most 2 rounds.",
+    "Send 1 to 3 developed ideas to the independent review panel, which scores them blind against the rubric. Code ranks every idea reviewed in the scan. Costs money; limited reviews per scan.",
   revise:
-    "Improve one evaluated finalist; the revision is rescored blind. Code keeps it only if it keeps the mechanic, fixes the weakness, adds no unsupported claims, passes every rejection rule and gains at least 5 points (for a rejected original, clearing the rejection without lowering the score is enough). Costs money; limited per scan.",
+    "Improve one reviewed idea; the revision is rescored blind. Code keeps it only if it keeps the mechanic, fixes the weakness, adds no unsupported claims, passes every rejection rule and gains at least 5 points (for a rejected original, clearing the rejection without lowering the score is enough). Costs money; limited per scan.",
   finish:
-    "End the scan. Requires a longlist of 10+, 3 developed finalists, all evaluated. Code picks the winner from the scores; your tie-break counts only on an exact tie at the top.",
+    "End the scan. Requires at least one developed idea reviewed by the panel, and every hypothesis settled. Code picks the winner from everything reviewed; your tie-break counts only on an exact tie at the top. Say what else you considered and why the winner beats it.",
   abstain: "End the scan without recommending an idea, when nothing worth making can be found. The reason is shown to the user.",
 };
 
@@ -381,30 +378,16 @@ export function reviewEvidence(ws: Workspace): ToolOutcome {
 export function addIdeas(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.add_ideas>): ToolOutcome {
   const checked = validateLonglistBatch(input.ideas);
   if (!checked.ok) return fail(`Ideas didn't pass the format checks: ${checked.problems.slice(0, 4).join("; ")}`);
-  const hadShortlist = ws.picks.length > 0;
+  const afterReview = ws.finalists().some((d) => d.assessment);
   const { added, problem } = ws.addIdeas(checked.value);
   if (added.length === 0) return fail(problem ?? "No ideas were added.");
   const flags = problem ? [problem] : [];
   return {
     ok: true,
-    forAgent: { ok: true, added: added.map((i) => ({ id: i.id, headline: i.headline, basis: i.basis, groundedIn: i.groundedIn })), longlistSize: ws.wall.length, flags },
-    result: `Added ${added.length} idea(s) (${added.map((i) => i.id).join(", ")}); the longlist has ${ws.wall.length}.`,
+    forAgent: { ok: true, added: added.map((i) => ({ id: i.id, headline: i.headline, basis: i.basis, groundedIn: i.groundedIn })), ideaWallSize: ws.wall.length, flags },
+    result: `Added ${added.length} idea(s) (${added.map((i) => i.id).join(", ")}); the idea wall has ${ws.wall.length}.`,
     flags,
-    changedCourse: hadShortlist ? "Went back to the idea wall after shortlisting." : null,
-    ending: null,
-  };
-}
-
-export function shortlist(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.shortlist>): ToolOutcome {
-  const done = ws.shortlist(input.picks, input.setAside);
-  if (!done.ok) return fail(done.problem);
-  const ids = ws.picks.map((p) => p.ideaId).join(", ");
-  return {
-    ok: true,
-    forAgent: { ok: true, finalists: ws.picks, nextStep: "Develop each finalist in full." },
-    result: `Shortlisted ${ids}.`,
-    flags: [],
-    changedCourse: done.replaced.length ? `Dropped ${done.replaced.join(", ")} from the shortlist.` : null,
+    changedCourse: afterReview ? "Went back to the idea wall after a review." : null,
     ending: null,
   };
 }
@@ -413,7 +396,7 @@ export function develop(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.develop
   const checked = validateRevisedCandidate(input.treatment);
   if (!checked.ok) return fail(`The treatment didn't pass the format checks: ${checked.problems.slice(0, 4).join("; ")}`);
   const rewriting = !!ws.currentVersion(input.ideaId);
-  const done = ws.develop(input.ideaId, checked.value);
+  const done = ws.develop(input.ideaId, checked.value, input.why);
   if (!done.ok) return fail(done.problem);
   const c = done.candidate;
   const atRisk = done.flags.some((f) => f.startsWith("REJECTION RISK"));
@@ -439,9 +422,10 @@ export function finish(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.finish>)
   }
   const ending: Ending = {
     how: "finished",
-    reason: winnerId ? "The agent finished and code picked the winner from the review panel's scores." : "The agent finished, but no finalist cleared the bar.",
+    reason: winnerId ? "The agent finished and code picked the winner from the review panel's scores." : "The agent finished, but no reviewed idea cleared the bar.",
     tieJudgment,
     revisionDecision: input.revisionDecision.trim() || null,
+    comparison: input.comparison.trim() || null,
   };
   ws.end(ending);
   const winner = winnerId ? ws.developed.get(winnerId)! : null;
@@ -461,14 +445,14 @@ export function finish(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.finish>)
 export function abstain(ws: Workspace, input: z.infer<typeof TOOL_INPUTS.abstain>): ToolOutcome {
   const reason = input.reason.trim();
   if (!reason) return fail("Give a reason for abstaining.");
-  const ending: Ending = { how: "abstained", reason, tieJudgment: null, revisionDecision: null };
+  const ending: Ending = { how: "abstained", reason, tieJudgment: null, revisionDecision: null, comparison: null };
   ws.end(ending);
   return { ok: true, forAgent: { ok: true }, result: `Abstained: ${reason}`, flags: [], changedCourse: null, ending };
 }
 
 /**
  * When the run is stopped by a limit, code finishes it with no further AI
- * call: the best finalist already scored wins, if any cleared the bar.
+ * call: the best idea already reviewed wins, if any cleared the bar.
  */
 export function forceFinish(ws: Workspace, why: string): { winnerId: string | null; ending: Ending } {
   const { leaderId } = ws.ranking();
@@ -479,6 +463,7 @@ export function forceFinish(ws: Workspace, why: string): { winnerId: string | nu
       : `${why} No scored idea cleared the bar, so there's no recommendation.`,
     tieJudgment: null,
     revisionDecision: null,
+    comparison: null,
   };
   ws.end(ending);
   return { winnerId: leaderId, ending };

@@ -35,7 +35,8 @@ export const AGENT_LIMITS = {
   maxToolCalls: 40,
   maxSearches: 8,
   maxReads: 3,
-  maxEvaluations: 2,
+  /** Open shape: reviews of 1 to 3 ideas each. */
+  maxEvaluations: 4,
   maxRescores: 2,
   /** Output cap for one agent turn (thinking included); lowered when money is short. Raised from 8,000 with high effort. */
   maxTurnOutputTokens: 12_000,

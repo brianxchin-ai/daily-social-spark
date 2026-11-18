@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { sourcesForIdea } from "../research/idea-sources.ts";
 import { Director, FakeTools, ScriptedModel, timeoutFailure, toolUse, type WorldPage } from "./fakes.ts";
-import { FRESH_QUOTE, FRESH_URL, NOW, STALE_QUOTE, STALE_URL, longlistIdeas } from "./fixtures.ts";
+import { FRESH_QUOTE, FRESH_URL, NOW, STALE_QUOTE, STALE_URL, longlistIdeas, treatment } from "./fixtures.ts";
+import { validateEvaluation } from "../spark-schema.ts";
 import { AGENT_LIMITS, Governor } from "./governor.ts";
 import { CallFailure, runAgent, toolSpecs, type AgentRun } from "./loop.ts";
 import type { Brief } from "./workspace.ts";
@@ -30,7 +31,7 @@ const count = (run: AgentRun, actor: string) => run.steps.filter((s) => s.actor 
 describe("tool specs", () => {
   it("describes every tool to the API with a JSON schema", () => {
     const specs = toolSpecs();
-    assert.equal(specs.length, 13);
+    assert.equal(specs.length, 12);
     for (const s of specs) {
       assert.equal(s.input_schema.type, "object", s.name);
       assert.equal("$schema" in s.input_schema, false);
@@ -72,14 +73,14 @@ describe("different circumstances, different paths", () => {
     assert.notDeepEqual(actors(strong), actors(weak));
   });
 
-  it("replaces a pick that code flags as a stale trend", async () => {
+  it("develops a replacement when code flags an idea as a stale trend, and doesn't send the flagged one for review", async () => {
     const tools = new FakeTools({ "desk reset": FRESH_PAGE, latte: STALE_PAGE });
     // G1 is fresh (desk resets), G2 is stale (latte art). L2 is grounded in G2 on purpose.
     const run = await runAgent({ brief: BRIEF, model: new Director({ queries: ["desk reset rituals", "latte art fails"], riskySignal: "G2" }).asModel(), tools, now });
-    const pivot = run.steps.find((s) => s.changedCourse?.startsWith("Dropped L2"));
-    assert.ok(pivot, "the trace records the change of course");
-    assert.match(pivot!.statedReason!, /stale trend/);
-    assert.ok(!run.workspace.picks.some((p) => p.ideaId === "L2"));
+    const replacement = run.steps.find((s) => s.actor === "develop" && /stale trend/.test(s.statedReason ?? ""));
+    assert.ok(replacement, "the stated reason records the switch");
+    const reviewed = run.workspace.finalists().filter((d) => d.assessment).map((d) => d.ideaId);
+    assert.ok(!reviewed.includes("L2"));
     assert.equal(run.ending.how, "finished");
   });
 });
@@ -489,8 +490,8 @@ describe("round 2 in the loop", () => {
     await runAgent({ brief: BRIEF, model, tools: new FakeTools({}, { scoreFor: () => 3 }), now });
     const review = model.requests.map((r) => JSON.stringify(r.messages.at(-1))).find((m) => m.includes("replacementNote"))!;
     assert.match(review, /weakFinalists/);
-    assert.match(review, /candidate to replace/);
-    assert.match(review, /reviewRoundsLeft\\":1/);
+    assert.match(review, /may not be your best/);
+    assert.match(review, /reviewsLeft\\":3/);
   });
 
   it("asks the agent to work from hypotheses and to change direction when one is refuted", async () => {
@@ -502,3 +503,61 @@ describe("round 2 in the loop", () => {
     assert.match(system, /Different briefs should lead you down different paths/);
   });
 });
+
+describe("open shape: no quota", () => {
+  it("can develop one idea, review it alone, and finish, with the review sized for one", async () => {
+    let reviewOutputCap = 0;
+    const tools = new FakeTools({});
+    const evaluate = tools.evaluate.bind(tools);
+    tools.evaluate = async (input) => {
+      reviewOutputCap = (input as unknown as { maxOutputTokens: number }).maxOutputTokens;
+      return evaluate(input);
+    };
+    const model = new ScriptedModel((turn, results) => {
+      if (turn === 1) return [toolUse("add_ideas", { why: "One strong bet.", ideas: longlistIdeas(1) })];
+      if (turn === 2) return [toolUse("develop", { why: "It's the bet.", ideaId: "L1", treatment: treatment({ basis: "original", groundedIn: [], evidenceBasis: "No live evidence for this scan." }) })];
+      if (turn === 3) return [toolUse("evaluate", { why: "Test it.", candidateIds: [String(results[0].candidateId)] })];
+      return [toolUse("finish", { why: "It clears the bar.", revisionDecision: "No revision: nothing below 4.", comparison: "I considered no alternatives worth developing." })];
+    });
+    const run = await runAgent({ brief: BRIEF, model, tools, now });
+    assert.equal(run.ending.how, "finished");
+    assert.ok(run.winnerId);
+    assert.equal(reviewOutputCap, 3_500);
+    assert.equal(run.ending.comparison, "I considered no alternatives worth developing.");
+  });
+
+  it("reviews ideas in separate rounds and ranks them together", async () => {
+    const tools = new FakeTools({}, { scoreFor: (d) => (d.headline === "Second" ? 4 : 3) });
+    const model = new ScriptedModel((turn, results) => {
+      if (turn === 1) return [toolUse("add_ideas", { why: "Two bets.", ideas: longlistIdeas(2) })];
+      if (turn === 2) return [toolUse("develop", { why: "First.", ideaId: "L1", treatment: treatment({ basis: "original", groundedIn: [], headline: "First" }) })];
+      if (turn === 3) return [toolUse("evaluate", { why: "Test it.", candidateIds: [String(results[0].candidateId)] })];
+      if (turn === 4) return [toolUse("develop", { why: "Try another.", ideaId: "L2", treatment: treatment({ basis: "original", groundedIn: [], headline: "Second", mechanic: "A different mechanic entirely." }) })];
+      if (turn === 5) return [toolUse("evaluate", { why: "Compare.", candidateIds: [String(results[0].candidateId)] })];
+      return [toolUse("finish", { why: "Done.", revisionDecision: "No revision.", comparison: "Second beat First on every criterion." })];
+    });
+    const run = await runAgent({ brief: BRIEF, model, tools, now });
+    assert.equal(run.workspace.ranking().scores.length, 2);
+    assert.equal(run.workspace.developed.get(run.winnerId!)!.candidate.headline, "Second");
+  });
+
+  it("the review rulebook accepts 1 to 3 ideas, labeled in order", () => {
+    const one = { evaluations: [{ label: "A", ...REVIEW }] };
+    assert.ok(validateEvaluation(one, 1).ok);
+    assert.equal(validateEvaluation(one, 3).ok, false, "the fixed workflow still requires three");
+    assert.equal(validateEvaluation({ evaluations: [{ label: "B", ...REVIEW }] }, 1).ok, false);
+  });
+});
+
+const REVIEW = {
+  stopPower: { score: 4, rationale: "x" },
+  watchThrough: { score: 4, rationale: "x" },
+  shareability: { score: 4, rationale: "x" },
+  participation: { score: 4, rationale: "x" },
+  brandFit: { score: 4, rationale: "x" },
+  platformFit: { score: 4, rationale: "x" },
+  culturalRelevance: { score: 4, rationale: "x", observationIds: [], judgedFrom: "both" },
+  makeable: true,
+  makeableNote: "A phone.",
+  meaningfulAudioVariations: 0,
+};

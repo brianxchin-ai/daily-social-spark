@@ -215,15 +215,19 @@ function finalEvaluationOf(spark: HypothesisSpark): CandidateEvaluation {
  * Why this idea was picked, from what our code knows: its rank, its two
  * strongest measured criteria, and whether it won on a tie.
  */
-const NUMBER_WORDS: Record<number, string> = { 2: "two", 3: "three", 4: "four", 5: "five", 10: "ten" };
+const NUMBER_WORDS: Record<number, string> = { 1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten" };
 
 /** Day 6: the same facts, told as the agent's process rather than the fixed workflow's. */
 function agentSelectionSentence(spark: HypothesisSpark, evaluation: CandidateEvaluation, strongest: string[]): string {
   const agent = spark.agent!;
   const pool = spark.longlist?.ideas.length ?? 0;
+  const developed = spark.longlist?.ideas.filter((i) => i.pick).length ?? spark.candidates.length;
+  const reviewed = spark.candidates.length;
+  const word = (n: number) => NUMBER_WORDS[n] ?? String(n);
+  const noted = pool ? `noted ${pool === 1 ? "one idea" : `${word(pool)} ideas`}, ` : "";
   const parts = [
-    `The agent shortlisted it from a longlist of ${NUMBER_WORDS[pool] ?? pool} and developed it as one of ${NUMBER_WORDS[spark.candidates.length] ?? spark.candidates.length} finalists. The independent review panel ${
-      agent.tieJudgment ? "tied it for the top score" : "scored it highest"
+    `The agent ${noted}developed ${developed === 1 ? "one" : word(developed)} in full and had ${reviewed === 1 ? "this one" : `${word(reviewed)}`} reviewed. The independent review panel ${
+      reviewed === 1 ? "scored it" : agent.tieJudgment ? "tied it for the top score" : "scored it highest"
     }${strongest.length ? `, with its strongest marks for ${strongest.join(" and ")}` : ""}.`,
   ];
   if (agent.tieJudgment) parts.push("The agent broke the tie on creative judgment (see the trace).");
@@ -319,7 +323,7 @@ function HypothesisSections({ spark, final }: { spark: HypothesisSpark; final: C
 
       <Drawer>
         {spark.longlist && (
-          <DrawerPart title={`The longlist · ${spark.longlist.ideas.length} ideas considered`}>
+          <DrawerPart title={spark.agent ? `The idea wall · ${spark.longlist.ideas.length} ${spark.longlist.ideas.length === 1 ? "idea" : "ideas"} noted` : `The longlist · ${spark.longlist.ideas.length} ideas considered`}>
             <LonglistPanel longlist={spark.longlist} candidates={spark.candidates} signals={ledger?.signals} byAgent={Boolean(spark.agent)} />
           </DrawerPart>
         )}
@@ -358,11 +362,11 @@ function HypothesisSections({ spark, final }: { spark: HypothesisSpark; final: C
           <AudioApproach candidate={final} />
         </DrawerPart>
 
-        <DrawerPart title="Evaluation · all three ideas">
+        <DrawerPart title={`Evaluation · ${ideasLabel(spark)}`}>
           <Scoreboard report={spark.evaluation} candidates={spark.candidates} revisedFrom={revisedFrom ?? undefined} />
         </DrawerPart>
 
-        <DrawerPart title="The three ideas · compare">
+        <DrawerPart title={spark.candidates.length === 1 ? "The reviewed idea" : `The ${NUMBER_WORDS[spark.candidates.length] ?? spark.candidates.length} reviewed ideas · compare`}>
           <ThreeIdeas spark={spark} ledger={ledger} platformLabel={platformLabel} />
         </DrawerPart>
 
@@ -381,7 +385,14 @@ function HypothesisSections({ spark, final }: { spark: HypothesisSpark; final: C
   );
 }
 
-/** All three ideas, ranked, each with its full strategy, so alternatives can be inspected. */
+/** "all three ideas" for the fixed workflow; the agent may review any number. */
+function ideasLabel(spark: HypothesisSpark): string {
+  const n = spark.candidates.length;
+  if (!spark.agent) return "all three ideas";
+  return n === 1 ? "the one reviewed idea" : `all ${NUMBER_WORDS[n] ?? n} reviewed ideas`;
+}
+
+/** All reviewed ideas, ranked, each with its full strategy, so alternatives can be inspected. */
 function ThreeIdeas({
   spark,
   ledger,

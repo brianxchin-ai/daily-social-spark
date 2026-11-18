@@ -49,7 +49,7 @@ export function LonglistPanel({
     <div className="flex flex-col gap-3">
       <p className="text-[14px] leading-relaxed text-ink-soft">
         {byAgent
-          ? "The agent wrote these ideas, then shortlisted the three it believed would earn the most organic distribution while staying distinct, and developed them. Each bet is its hypothesis about watch time, shares, saves, comments and participation, not a measured forecast. The independent review panel then scored only the three finalists."
+          ? "Every idea the agent noted while it worked. It chose which to develop in full (marked), and which of those to send for review. Each bet is its hypothesis about watch time, shares, saves, comments and participation, not a measured forecast."
           : "The Generator wrote these ideas first, then picked the three it believed would earn the most organic distribution while staying distinct. Each bet is its hypothesis about watch time, shares, saves, comments and participation, not a measured forecast. The independent reviewer then scored only the three picks."}
       </p>
       <ol className="flex flex-col divide-y divide-line border border-line">
@@ -58,9 +58,9 @@ export function LonglistPanel({
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="readout text-ink-soft">{idea.id}</span>
               {idea.pick ? (
-                <span className="readout rounded-sm bg-ink px-1.5 py-px text-[10px] font-bold text-surface">✓ Picked</span>
+                <span className="readout rounded-sm bg-ink px-1.5 py-px text-[10px] font-bold text-surface">{byAgent ? "✓ Developed" : "✓ Picked"}</span>
               ) : (
-                <span className="readout text-[10px] text-ink-soft">Set aside</span>
+                <span className="readout text-[10px] text-ink-soft">{byAgent ? "Noted" : "Set aside"}</span>
               )}
               <span className="readout text-ink-soft">
                 · {idea.basis === "original" ? "Original format" : "Trend"} · {idea.territory}
@@ -81,7 +81,11 @@ export function LonglistPanel({
                 </span>
               )}
             </div>
-            {idea.pick && <p className="text-[13px] leading-relaxed text-ink-soft">Why it made the cut: {idea.pick.reason}</p>}
+            {idea.pick && (
+              <p className="text-[13px] leading-relaxed text-ink-soft">
+                {byAgent ? "Why the agent developed it" : "Why it made the cut"}: {idea.pick.reason}
+              </p>
+            )}
           </li>
         ))}
       </ol>
