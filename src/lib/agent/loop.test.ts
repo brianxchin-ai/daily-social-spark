@@ -676,3 +676,10 @@ describe("looking beyond the niche (Day 6)", () => {
     assert.doesNotMatch(JSON.stringify(search.input_schema), /cross-category/);
   });
 });
+
+it("the develop and revise tools show the 3-to-5 signals-to-verify rule up front", () => {
+  for (const name of ["develop", "revise"]) {
+    const spec = toolSpecs().find((t) => t.name === name)!;
+    assert.match(JSON.stringify(spec.input_schema), /"signalsToVerify":\{[^}]*"minItems":3/);
+  }
+});

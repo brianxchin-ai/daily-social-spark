@@ -29,6 +29,15 @@ import { AGENT_HEAD_START, routesSupported, type Ending, type Workspace } from "
  */
 const SIGNAL = LedgerDraftSchema.shape.signals.element.shape;
 const OBSERVATION = SIGNAL.observations.element.shape;
+/**
+ * The treatment as the agent sees it: the shared draft schema, with the list
+ * sizes the format checks enforce made visible up front (Day 6: the agent kept
+ * sending fewer than 3 signals to verify and losing a turn to the refusal).
+ */
+const AgentTreatmentSchema = CandidateDraftSchema.extend({
+  signalsToVerify: CandidateDraftSchema.shape.signalsToVerify.min(3).max(5),
+});
+
 export const AgentSignalSchema = z.object({
   name: SIGNAL.name,
   category: SIGNAL.category,
@@ -152,7 +161,7 @@ export const TOOL_INPUTS = {
         wouldProveWrong: z.string().describe("What would show the bet is wrong."),
       })
       .describe("Your bet on why this idea earns organic views."),
-    treatment: CandidateDraftSchema,
+    treatment: AgentTreatmentSchema,
   }),
   evaluate: z.object({
     why,
@@ -166,7 +175,7 @@ export const TOOL_INPUTS = {
       .enum(["culturalRelevance", "stopPower", "shareability", "watchThrough", "participation", "brandPlatformFit"])
       .describe("The rubric criterion that weakness most affects."),
     whatChanged: z.string().describe("What you changed, in one or two sentences."),
-    revised: CandidateDraftSchema,
+    revised: AgentTreatmentSchema,
   }),
   finish: z.object({
     why,
