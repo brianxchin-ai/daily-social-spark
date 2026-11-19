@@ -1,5 +1,30 @@
 # Day 6: Fixed workflow vs. an autonomous agent
 
+## Follow-up (2026-11-19): latest agent vs. fixed workflow, blind
+
+Both engines ran the same four briefs on the same morning, so both saw the same news. GTA VI launched that day, so for this one test the Liquid Death audience added "Skip GTA VI: too obvious." No winner was built on GTA. The agent's Liquid Death idea mentions it only to explain choosing a different game.
+
+| Brief | Fixed workflow's winner | Agent's winner | Your pick | Spark Score (fixed vs. agent) |
+|---|---|---|---|---|
+| Glossier · TikTok | "Over-read one tiny beauty slight, shifting the emphasis" | "Soft-launch your Balm Dotcom, then expose who keeps borrowing it" | **Fixed** | 70 vs 70 |
+| Hardware store · Facebook | "Comment your household problem, get a 30-second fix" | "Five cheap things that save your Thanksgiving, from the plumbing aisle" | **Agent** | 76 vs 79 |
+| Liquid Death · YouTube Shorts | "Achievement unlocked: finished a 10-page paper" | "Your Hardest Class Is the Water Temple. Here's the Iron Boots Guide." | **Agent** | 70 vs 79 |
+| Duolingo · TikTok | "Claim you're fluent. The owl knows better." | "Post Duo's 'I got so mad I' streak-rage slideshow" | **Fixed** | 81 vs 81 |
+
+**Result: 2–2.** The Spark Score agreed with both picks it could separate and tied the other two.
+
+**Your reasons, in your words:**
+- **Glossier, fixed:** "more novel and attention-worthy than doing a soft launch." The appeal is seeing "how one simple phrase can take on so many different meanings based on inflection."
+- **Hardware, agent:** "timely given the Thanksgiving holiday." "Brown Friday is also a hook unto itself," with "a good opportunity for horror stories from the audience."
+- **Liquid Death, agent:** "specific to the Ocarina of Time remake still getting a lot of press and social coverage."
+- **Duolingo, fixed:** "situational humor that creates a curiosity gap," and the self-deprecation of claiming fluency after a few days of lessons.
+
+**What it shows.** The agent won where it tied a brand to a specific, current moment: Thanksgiving week and the Ocarina remake. It lost both times it rode a meme format (soft launch, "I got so mad"). That's the primed lean flagged in the close-out, now showing up in your picks. The fixed workflow's winners rested on a human truth played out through performance: inflection, and claiming fluency too early. On quality, the two engines came out even in this test. On efficiency, the agent was clearly ahead: about $0.38 and 84 seconds a scan, against $0.53 and 139 seconds for the fixed workflow.
+
+**Revised recommendation.** Agent mode is no longer the clear creative winner. Against today's fixed workflow, it matches the quality at about 30% less cost and 40% less time, with a full trace of its reasoning. I'd still treat it as the candidate engine. But before it replaces anything, it should learn when a meme is the weaker play, so it can tell a moment worth riding from a format everyone else is already copying. The deploy decision can wait until that's fixed.
+
+---
+
 ## Close-out (end of day, 2026-11-18)
 
 **Where it landed.** Agent mode is a working second engine for Daily Social Spark, on the local branch `day6-agent-mode`. It uses the same brief form and results page as the fixed workflow, adds a live progress feed and a full trace, and keeps every scan under a $0.75 cap enforced in code. It runs only on your machine and is turned off on Vercel, so the friends' beta is untouched.
@@ -38,6 +63,7 @@ All four finished in 84–119 seconds at $0.37–0.54 each. Each reviewed two id
 - **Agent vs. fixed workflow:** the agent won 2 of 3.
 - **Routes round vs. the round before it:** 1 of 3 (the GTA VI idea), plus Duolingo rated 4/5.
 - **Range round vs. routes round:** 2 of 3. The Spark Score matched all three picks for the first time.
+- **Latest agent vs. fixed workflow (2026-11-19):** 2–2. See the follow-up above.
 
 **What's still open:**
 - **The final winners haven't been blind-read.** All four went primed, riding a meme or a moment. That's a real shift toward the wider culture. But memes like "soft launch" and "I got so mad" can burn out quickly, which the agent itself flagged. Scores (68–75) aren't higher than earlier rounds, so whether the wider look made the ideas better is your call, not the score's.
@@ -284,13 +310,14 @@ Instructions alone did much less. Getting creative exploration from an agent wou
 | Liquid Death rerun after the label fix | 1 | $0.42 |
 | Wider culture | 3 | $1.31 |
 | Final run | 4 | $1.78 |
-| **Total** | 43 | **$16.64** |
+| Blind test, 2026-11-19: fixed workflow | 4 | $2.14 |
+| Blind test, 2026-11-19: agent | 4 | $1.51 |
+| **Total** | 51 | **$20.29** |
 
 ## 9. Open questions (no decisions taken)
 
 See the close-out at the top for the recommendation. The open items:
-- **A blind read of the final winners against the fixed workflow,** on the same briefs.
-- **The primed lean:** all four final winners went primed.
+- **The primed lean:** all four final winners went primed, and both of the agent's losses in the 2026-11-19 blind test were meme rides.
 - **Deploying:** sharing the beta's budget and usage limits, and whether to replace the fixed workflow or offer both.
 - **Consistency:** each round is three or four briefs.
 
